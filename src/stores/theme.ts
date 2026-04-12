@@ -504,6 +504,8 @@ export const useThemeStore = defineStore('theme', () => {
   // Apply theme to document
   function applyTheme(theme: Theme) {
     const root = document.documentElement
+    
+    // 基础颜色
     root.style.setProperty('--theme-primary', theme.colors.primary)
     root.style.setProperty('--theme-secondary', theme.colors.secondary)
     root.style.setProperty('--theme-accent', theme.colors.accent)
@@ -518,15 +520,108 @@ export const useThemeStore = defineStore('theme', () => {
     root.style.setProperty('--theme-error', theme.colors.error)
     root.style.setProperty('--theme-info', theme.colors.info)
 
-    // Update body background
+    // 侧边栏特定
+    root.style.setProperty('--theme-sidebar', theme.isDark ? 'rgba(18, 18, 26, 0.8)' : 'rgba(255, 255, 255, 0.95)')
+    root.style.setProperty('--theme-blur', theme.isDark ? '12px' : '8px')
+    root.style.setProperty('--theme-hover', theme.isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)')
+    root.style.setProperty('--theme-active', theme.isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)')
+
+    // RGB值（用于rgba计算）
+    const primaryRgb = hexToRgb(theme.colors.primary)
+    if (primaryRgb) {
+      root.style.setProperty('--theme-primary-rgb', `${primaryRgb.r}, ${primaryRgb.g}, ${primaryRgb.b}`)
+    }
+
+    // 成功状态发光
+    root.style.setProperty('--theme-success-glow', `${theme.colors.success}80`)
+
+    // 滚动条
+    root.style.setProperty('--theme-scrollbar', theme.isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.2)')
+    root.style.setProperty('--theme-scrollbar-hover', theme.isDark ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.3)')
+
+    // 选择高亮
+    root.style.setProperty('--theme-selection', theme.isDark ? 'rgba(102, 126, 234, 0.3)' : 'rgba(0, 0, 0, 0.1)')
+
+    // 卡片和输入框
+    root.style.setProperty('--theme-card', theme.isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)')
+    root.style.setProperty('--theme-card-hover', theme.isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)')
+    root.style.setProperty('--theme-input', theme.isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)')
+
+    // 消息气泡
+    root.style.setProperty('--theme-msg-user', theme.isDark ? 'rgba(102, 126, 234, 0.2)' : 'rgba(0, 0, 0, 0.1)')
+    root.style.setProperty('--theme-msg-assistant', theme.isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.03)')
+    root.style.setProperty('--theme-msg-system', theme.isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.2)')
+
+    // 代码块
+    root.style.setProperty('--theme-code', theme.isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)')
+
+    // 阴影
+    root.style.setProperty('--theme-shadow-glass', theme.isDark ? '0 8px 32px rgba(0, 0, 0, 0.3)' : '0 8px 32px rgba(0, 0, 0, 0.1)')
+    root.style.setProperty('--theme-shadow-glass-light', theme.isDark ? '0 4px 16px rgba(0, 0, 0, 0.2)' : '0 4px 16px rgba(0, 0, 0, 0.05)')
+    root.style.setProperty('--theme-shadow-glow', `0 0 20px ${theme.colors.primary}40`)
+
+    // 渐变
+    root.style.setProperty('--theme-gradient-primary', `linear-gradient(135deg, ${theme.colors.primary} 0%, ${theme.colors.secondary} 100%)`)
+    root.style.setProperty('--theme-gradient-secondary', `linear-gradient(135deg, ${theme.colors.accent} 0%, ${theme.colors.primary} 100%)`)
+    root.style.setProperty('--theme-gradient-success', `linear-gradient(135deg, ${theme.colors.success} 0%, ${theme.colors.info} 100%)`)
+    root.style.setProperty('--theme-gradient-warning', `linear-gradient(135deg, ${theme.colors.warning} 0%, ${theme.colors.primary} 100%)`)
+    root.style.setProperty('--theme-gradient-error', `linear-gradient(135deg, ${theme.colors.error} 0%, ${theme.colors.warning} 100%)`)
+
+    // Glass效果
+    root.style.setProperty('--theme-glass-bg', theme.isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.95)')
+    root.style.setProperty('--theme-glass-bg-light', theme.isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(255, 255, 255, 0.98)')
+    root.style.setProperty('--theme-glass-bg-dark', theme.isDark ? 'rgba(0, 0, 0, 0.2)' : 'rgba(0, 0, 0, 0.05)')
+    root.style.setProperty('--theme-glass-border', theme.isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.1)')
+    root.style.setProperty('--theme-glass-border-light', theme.isDark ? 'rgba(255, 255, 255, 0.25)' : 'rgba(0, 0, 0, 0.15)')
+
+    // 强调色
+    root.style.setProperty('--theme-accent-hover', adjustColor(theme.colors.primary, 20))
+    root.style.setProperty('--theme-primary-hover', adjustColor(theme.colors.primary, -10))
+    root.style.setProperty('--theme-primary-muted', `${theme.colors.primary}80`)
+
+    // 更新 body 背景
     document.body.style.backgroundColor = theme.colors.background
     document.body.style.color = theme.colors.text
 
-    // Update meta theme-color
+    // 更新 meta theme-color
     const metaThemeColor = document.querySelector('meta[name="theme-color"]')
     if (metaThemeColor) {
       metaThemeColor.setAttribute('content', theme.colors.background)
     }
+
+    // 添加主题切换动画类
+    document.body.classList.add('theme-transition')
+    setTimeout(() => {
+      document.body.classList.remove('theme-transition')
+    }, 300)
+  }
+
+  // 辅助函数：将hex转换为RGB
+  function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
+    return result ? {
+      r: parseInt(result[1], 16),
+      g: parseInt(result[2], 16),
+      b: parseInt(result[3], 16)
+    } : null
+  }
+
+  // 辅助函数：调整颜色亮度
+  function adjustColor(hex: string, amount: number): string {
+    const rgb = hexToRgb(hex)
+    if (!rgb) return hex
+    
+    const adjust = (channel: number) => {
+      const adjusted = channel + amount
+      return Math.max(0, Math.min(255, adjusted))
+    }
+    
+    const toHex = (n: number) => {
+      const hex = n.toString(16)
+      return hex.length === 1 ? '0' + hex : hex
+    }
+    
+    return `#${toHex(adjust(rgb.r))}${toHex(adjust(rgb.g))}${toHex(adjust(rgb.b))}`
   }
 
   // Set theme

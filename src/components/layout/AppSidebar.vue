@@ -154,18 +154,21 @@ function handleNav(key: string) {
 </template>
 
 <style scoped lang="scss">
+@use '@/styles/liquid-glass' as *;
 @use '@/styles/variables' as *;
 
 .sidebar {
   width: $sidebar-width;
   height: 100vh;
-  background-color: $bg-sidebar;
-  border-right: 1px solid $border-color;
+  background-color: var(--theme-sidebar, $bg-sidebar);
+  backdrop-filter: blur(var(--theme-blur, $blur-md));
+  -webkit-backdrop-filter: blur(var(--theme-blur, $blur-md));
+  border-right: 1px solid var(--theme-border, $border-color);
   display: flex;
   flex-direction: column;
   padding: 20px 12px;
   flex-shrink: 0;
-  transition: width $transition-normal;
+  transition: all $transition-normal;
 }
 
 .logo-img {
@@ -180,7 +183,7 @@ function handleNav(key: string) {
   align-items: center;
   gap: 10px;
   padding: 4px 12px 20px;
-  color: $text-primary;
+  color: var(--theme-text, $text-primary);
   cursor: pointer;
 
   .logo-text {
@@ -204,7 +207,7 @@ function handleNav(key: string) {
   padding: 10px 12px;
   border: none;
   background: none;
-  color: $text-secondary;
+  color: var(--theme-text-secondary, $text-secondary);
   font-size: 14px;
   border-radius: $radius-sm;
   cursor: pointer;
@@ -213,19 +216,20 @@ function handleNav(key: string) {
   text-align: left;
 
   &:hover {
-    background-color: rgba($accent-primary, 0.06);
-    color: $text-primary;
+    background-color: var(--theme-hover, rgba(var(--theme-primary-rgb, 102, 126, 234), 0.06));
+    color: var(--theme-text, $text-primary);
   }
 
   &.active {
-    background-color: rgba($accent-primary, 0.12);
-    color: $accent-primary;
+    background-color: var(--theme-active, rgba(var(--theme-primary-rgb, 102, 126, 234), 0.12));
+    color: var(--theme-primary, $accent-primary);
   }
 }
+
 .sidebar-footer {
   margin-top: auto;
   padding-top: 16px;
-  border-top: 1px solid $border-color;
+  border-top: 1px solid var(--theme-border, $border-color);
 }
 
 .switchers {
@@ -255,23 +259,22 @@ function handleNav(key: string) {
   }
 
   &.connected .status-dot {
-    background-color: $success;
-    box-shadow: 0 0 6px rgba($success, 0.5);
+    background-color: var(--theme-success, $success);
+    box-shadow: 0 0 6px var(--theme-success-glow, rgba(79, 172, 254, 0.5));
   }
 
   &.disconnected .status-dot {
-    background-color: $error;
+    background-color: var(--theme-error, $error);
   }
 
   .status-text {
-    color: $text-secondary;
+    color: var(--theme-text-secondary, $text-secondary);
   }
 }
 
 .version-info {
   padding: 2px 12px 8px;
   font-size: 11px;
-  color: $text-muted;
+  color: var(--theme-text-muted, $text-muted);
 }
-
 </style>
