@@ -4,15 +4,15 @@
   "description": "Hermes Agent Web UI - Chat and Job Management Dashboard",
   "repository": {
     "type": "git",
-    "url": "https://github.com/EKKOLearnAI/hermes-web-ui.git"
+    "url": "https://github.com/xiaopengsvip/hermes-web-ui.git"
   },
-  "homepage": "https://github.com/EKKOLearnAI/hermes-web-ui",
+  "homepage": "https://github.com/xiaopengsvip/hermes-web-ui",
   "license": "MIT",
   "bin": {
     "hermes-web-ui": "./bin/hermes-web-ui.mjs"
   },
   "scripts": {
-    "start": "vite --host --port 8648",
+    "start": "vite --host --port 8650",
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "dev:client": "vite --host",
     "dev:server": "nodemon --watch server/src --ext ts --exec node -r ts-node/register server/src/index.ts",

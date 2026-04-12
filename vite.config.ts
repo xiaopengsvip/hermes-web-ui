@@ -5,7 +5,7 @@ import { resolve } from 'path'
 
 function createProxyConfig(): ProxyOptions {
   return {
-    target: 'http://127.0.0.1:8648',
+    target: 'http://127.0.0.1:8650',
     changeOrigin: true,
     configure: (proxy) => {
       proxy.on('proxyReq', (proxyReq) => {

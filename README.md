@@ -21,7 +21,7 @@ npm install -g hermes-web-ui
 hermes-web-ui start
 ```
 
-Open http://localhost:8648
+Open http://localhost:8650
 
 ### CLI Commands
 
@@ -41,7 +41,7 @@ On startup, the BFF server automatically checks `~/.hermes/config.yaml` and ensu
 ## Development
 
 ```bash
-git clone https://github.com/EKKOLearnAI/hermes-web-ui.git
+git clone https://github.com/xiaopengsvip/hermes-web-ui.git
 cd hermes-web-ui
 npm install
 npm run dev
@@ -49,7 +49,7 @@ npm run dev
 
 This starts:
 - Frontend: http://localhost:5173
-- BFF Server: http://localhost:8648 (proxies to Hermes on 8642)
+- BFF Server: http://localhost:8650 (proxies to Hermes on 8642)
 
 ### Build
 
@@ -137,7 +137,7 @@ hermes-web-ui/
 ## Architecture
 
 ```
-Browser → BFF (Koa, :8648) → Hermes API (:8642)
+Browser → BFF (Koa, :8650) → Hermes API (:8642)
                 ↓
            Hermes CLI (sessions, logs, version)
 ```

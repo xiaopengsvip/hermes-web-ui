@@ -9,7 +9,7 @@ const serverEntry = resolve(__dirname, '..', 'dist', 'server', 'index.js')
 const PID_DIR = resolve(__dirname, '..', '.hermes-web-ui')
 const PID_FILE = join(PID_DIR, 'server.pid')
 const LOG_FILE = join(PID_DIR, 'server.log')
-const DEFAULT_PORT = 8648
+const DEFAULT_PORT = 8650
 
 function getPort() {
   if (process.argv[3] && !isNaN(process.argv[3])) return parseInt(process.argv[3])
