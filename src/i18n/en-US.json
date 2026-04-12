@@ -35,6 +35,9 @@
     "audit": "Audit",
     "reports": "Reports",
     "settings": "Settings",
+    "github": "GitHub",
+    "vercel": "Vercel",
+    "services": "Services",
     "version": "Version",
     "disconnected": "Disconnected",
     "connected": "Connected"

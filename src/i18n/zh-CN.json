@@ -35,6 +35,9 @@
     "audit": "审计",
     "reports": "汇报",
     "settings": "设置",
+    "github": "GitHub",
+    "vercel": "Vercel",
+    "services": "服务",
     "version": "版本",
     "disconnected": "未连接",
     "connected": "已连接"

@@ -12,6 +12,9 @@ import { sessionRoutes } from './routes/sessions'
 import { webhookRoutes } from './routes/webhook'
 import { logRoutes } from './routes/logs'
 import { fsRoutes } from './routes/filesystem'
+import { githubRoutes } from './routes/github'
+import { vercelRoutes } from './routes/vercel'
+import { systemRoutes } from './routes/system'
 import * as hermesCli from './services/hermes-cli'
 const { restartGateway } = hermesCli
 
@@ -30,6 +33,9 @@ export async function bootstrap() {
   app.use(uploadRoutes.routes())
   app.use(sessionRoutes.routes())
   app.use(fsRoutes.routes())
+  app.use(githubRoutes.routes())
+  app.use(vercelRoutes.routes())
+  app.use(systemRoutes.routes())
 
   // Health endpoint with version
   app.use(async (ctx, next) => {

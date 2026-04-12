@@ -37,6 +37,14 @@ const hasAttachments = computed(() => (props.message.attachments?.length ?? 0) >
     <template v-else>
       <div class="msg-body">
         <img v-if="message.role === 'assistant'" src="/assets/logo.png" alt="Hermes" class="msg-avatar" />
+        <div v-if="message.role === 'user'" class="msg-user-header">
+          <div class="user-avatar-placeholder">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+            </svg>
+          </div>
+          <span class="user-name-label">You</span>
+        </div>
         <div class="msg-content" :class="message.role">
           <div class="message-bubble" :class="{ system: isSystem }">
             <div v-if="hasAttachments" class="msg-attachments">
@@ -206,6 +214,33 @@ const hasAttachments = computed(() => (props.message.attachments?.length ?? 0) >
   color: $text-muted;
   margin-top: 4px;
   padding: 0 4px;
+}
+
+.msg-user-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  margin-bottom: 4px;
+}
+
+.user-avatar-placeholder {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba($accent-primary, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: $accent-primary;
+  flex-shrink: 0;
+}
+
+.user-name-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: $text-secondary;
+  letter-spacing: 0.3px;
 }
 
 .tool-line {

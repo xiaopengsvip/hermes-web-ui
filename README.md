@@ -128,10 +128,34 @@ hermes-web-ui/
 - Filter by log level, log file, and search keyword
 - Structured log parsing with HTTP access log highlighting
 
+### GitHub Management
+- Repository list with search, language detection, topics
+- Create and delete repositories
+- View branches and recent commits per repo
+- Shows user avatar and authenticated status
+
+### Vercel Deployment Management
+- Project list with framework detection
+- Deployment history with status (READY/BUILDING/ERROR)
+- Domain management per project
+- Redeploy and delete project actions
+
+### Services Monitor
+- Real-time service status (Hermes Agent, Gateway, API Server, Web UI)
+- Active sessions count and list
+- Child process monitoring
+- Gateway control: Start / Restart / Stop
+- Wake Hermes from Web UI (when gateway is down)
+
+### Chat Enhancements
+- User avatar placeholder with "You" label for user messages
+- Assistant avatar with Hermes logo
+
 ### Other
 - Real-time connection status monitoring
 - Hermes version display in sidebar
 - Auto config check on startup
+- Standalone daemon mode (runs independently of hermes CLI)
 - Minimalist dark theme
 
 ## Architecture

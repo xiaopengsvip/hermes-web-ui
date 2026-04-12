@@ -44,6 +44,21 @@ const router = createRouter({
       component: () => import('@/views/LogsView.vue'),
     },
     {
+      path: '/github',
+      name: 'github',
+      component: () => import('@/views/GitHubView.vue'),
+    },
+    {
+      path: '/vercel',
+      name: 'vercel',
+      component: () => import('@/views/VercelView.vue'),
+    },
+    {
+      path: '/services',
+      name: 'services',
+      component: () => import('@/views/ServicesView.vue'),
+    },
+    {
       path: '/settings',
       name: 'settings',
       component: () => import('@/views/SettingsView.vue'),

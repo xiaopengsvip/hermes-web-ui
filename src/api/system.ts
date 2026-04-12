@@ -91,3 +91,60 @@ export async function removeCustomProvider(name: string): Promise<void> {
     method: 'DELETE',
   })
 }
+
+// --- System Status ---
+
+export interface ServiceStatus {
+  name: string
+  status: 'running' | 'stopped' | 'error' | 'unknown'
+  pid?: number
+  uptime?: string
+  details?: string
+  type: 'hermes' | 'gateway' | 'web-ui' | 'agent' | 'other'
+}
+
+export interface SystemStatus {
+  services: ServiceStatus[]
+  hermes_version: string
+  gateway_status: string
+  active_sessions: number
+  active_children: number
+  uptime: number
+  timestamp: number
+}
+
+export interface ActiveSession {
+  id: string
+  source: string
+  model: string
+  message_count: number
+  started_at: number
+  tool_call_count: number
+}
+
+export async function fetchSystemStatus(): Promise<SystemStatus> {
+  return request<SystemStatus>('/api/system/status')
+}
+
+export async function wakeHermes(action = 'gateway'): Promise<{ success: boolean; message?: string; error?: string }> {
+  return request('/api/system/wake', {
+    method: 'POST',
+    body: JSON.stringify({ action }),
+  })
+}
+
+export async function restartGateway(): Promise<{ success: boolean; output?: string; error?: string }> {
+  return request('/api/system/gateway/restart', { method: 'POST' })
+}
+
+export async function stopGateway(): Promise<{ success: boolean; output?: string; error?: string }> {
+  return request('/api/system/gateway/stop', { method: 'POST' })
+}
+
+export async function fetchActiveSessions(): Promise<{ sessions: ActiveSession[] }> {
+  return request('/api/system/sessions/active')
+}
+
+export async function fetchSystemProcesses(): Promise<{ processes: Array<{ pid: number; command: string; elapsed: string }> }> {
+  return request('/api/system/processes')
+}
