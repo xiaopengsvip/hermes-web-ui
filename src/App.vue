@@ -1,14 +1,18 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted } from 'vue'
+import { onMounted, onUnmounted, computed } from 'vue'
 import { NConfigProvider, NMessageProvider, NDialogProvider, NNotificationProvider } from 'naive-ui'
-import { themeOverrides } from '@/styles/theme'
 import AppSidebar from '@/components/layout/AppSidebar.vue'
 import { useKeyboard } from '@/composables/useKeyboard'
 import { useAppStore } from '@/stores/app'
+import { useThemeStore } from '@/stores/theme'
 
 const appStore = useAppStore()
+const themeStore = useThemeStore()
+
+const themeOverrides = computed(() => themeStore.currentTheme.naiveOverrides)
 
 onMounted(() => {
+  themeStore.initTheme()
   appStore.loadModels()
   appStore.startHealthPolling()
 })
@@ -50,6 +54,7 @@ useKeyboard()
 .app-main {
   flex: 1;
   overflow: hidden;
-  background-color: $bg-primary;
+  background-color: var(--theme-background, $bg-primary);
+  color: var(--theme-text, $text-primary);
 }
 </style>

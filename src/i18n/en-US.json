@@ -336,6 +336,16 @@
     "selectModel": "Select Model",
     "noModels": "No models available"
   },
+  "theme": {
+    "title": "Theme Settings",
+    "subtitle": "Choose your preferred theme style",
+    "liquid-glass": "Liquid Glass",
+    "pure-ink": "Pure Ink",
+    "ocean-blue": "Ocean Blue",
+    "forest-green": "Forest Green",
+    "sunset-orange": "Sunset Orange",
+    "midnight-purple": "Midnight Purple"
+  },
   "markdown": {
     "copy": "Copy",
     "copied": "Copied"

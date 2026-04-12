@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import ModelSelector from './ModelSelector.vue'
 import LanguageSwitcher from './LanguageSwitcher.vue'
+import ThemeSwitcher from './ThemeSwitcher.vue'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -143,7 +144,10 @@ function handleNav(key: string) {
           <span class="status-text">{{ appStore.connected ? t('sidebar.connected') : t('sidebar.disconnected') }}</span>
         </div>
       </div>
-      <LanguageSwitcher />
+      <div class="switchers">
+        <LanguageSwitcher />
+        <ThemeSwitcher />
+      </div>
       <div class="version-info">{{ t('sidebar.logo') }} {{ appStore.serverVersion || 'v0.1.0' }}</div>
     </div>
   </aside>
@@ -218,10 +222,16 @@ function handleNav(key: string) {
     color: $accent-primary;
   }
 }
-
 .sidebar-footer {
+  margin-top: auto;
   padding-top: 16px;
   border-top: 1px solid $border-color;
+}
+
+.switchers {
+  display: flex;
+  gap: 8px;
+  margin: 12px 0;
 }
 
 .status-row {

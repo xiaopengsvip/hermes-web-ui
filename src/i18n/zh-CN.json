@@ -336,6 +336,16 @@
     "selectModel": "选择模型",
     "noModels": "暂无可用模型"
   },
+  "theme": {
+    "title": "主题设置",
+    "subtitle": "选择你喜欢的主题风格",
+    "liquid-glass": "液态玻璃",
+    "pure-ink": "纯墨",
+    "ocean-blue": "海洋蓝",
+    "forest-green": "森林绿",
+    "sunset-orange": "日落橙",
+    "midnight-purple": "午夜紫"
+  },
   "markdown": {
     "copy": "复制",
     "copied": "已复制"
