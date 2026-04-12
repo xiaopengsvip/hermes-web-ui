@@ -32,6 +32,8 @@
     "skills": "技能",
     "memory": "记忆",
     "logs": "日志",
+    "audit": "审计",
+    "reports": "汇报",
     "settings": "设置",
     "version": "版本",
     "disconnected": "未连接",
@@ -47,6 +49,8 @@
     "inputPlaceholder": "输入消息...",
     "send": "发送",
     "attachFiles": "附件",
+    "startRecording": "开始录音",
+    "stopRecording": "停止录音",
     "files": "文件",
     "streamResponses": "流式响应",
     "sessionDeleted": "会话已删除",
@@ -101,6 +105,73 @@
       "morning": "每天09:00"
     }
   },
+  "audit": {
+    "title": "审计日志",
+    "dateRange": "选择日期范围",
+    "filterByAction": "按操作筛选",
+    "filterByStatus": "按状态筛选",
+    "allActions": "全部操作",
+    "allStatuses": "全部状态",
+    "time": "时间",
+    "action": "操作",
+    "user": "用户",
+    "resource": "资源",
+    "details": "详情",
+    "status": {
+      "title": "状态",
+      "success": "成功",
+      "warning": "警告",
+      "error": "错误",
+      "info": "信息"
+    },
+    "times": "次",
+    "noLogs": "暂无审计日志",
+    "statistics": {
+      "title": "审计统计",
+      "totalActions": "总操作数",
+      "successRate": "成功率",
+      "activeUsers": "活跃用户",
+      "topActions": "热门操作"
+    },
+    "topActions": {
+      "title": "热门操作"
+    },
+    "recentLogs": "最近日志"
+  },
+  "reports": {
+    "title": "每日汇报",
+    "date": "日期",
+    "daily": "每日汇报",
+    "weekly": "每周汇报",
+    "monthly": "每月汇报",
+    "summary": "总结",
+    "details": "详细信息",
+    "generate": "生成汇报",
+    "export": "导出",
+    "share": "分享",
+    "noReports": "暂无汇报",
+    "statistics": {
+      "title": "汇报统计",
+      "totalReports": "总汇报数",
+      "generatedToday": "今日生成",
+      "averageScore": "平均评分"
+    },
+    "sections": {
+      "overview": "概览",
+      "activities": "活动",
+      "achievements": "成就",
+      "issues": "问题",
+      "nextSteps": "下一步",
+      "metrics": "指标"
+    },
+    "metrics": {
+      "chats": "聊天会话",
+      "filesUploaded": "上传文件",
+      "tasksCompleted": "完成任务",
+      "skillsUsed": "使用技能",
+      "errors": "错误数"
+    }
+  },
   "materials": {
     "title": "素材库",
     "upload": "上传素材",
@@ -132,10 +203,17 @@
       "title": "内容统计",
       "totalFiles": "总文件数",
       "totalSize": "总大小",
+      "fromChat": "来自聊天",
+      "fromUpload": "来自上传",
       "byType": "按类型统计",
       "recentUploads": "最近上传",
       "storageUsed": "已用空间",
       "storageLimit": "空间限制"
+    },
+    "source": {
+      "title": "来源",
+      "chat": "聊天",
+      "upload": "上传"
     },
     "smartReuse": {
       "title": "智能复用",
@@ -157,7 +235,9 @@
       "fileSize": "文件大小",
       "fileType": "文件类型",
       "uploadDate": "上传日期",
-      "lastModified": "最后修改"
+      "lastModified": "最后修改",
+      "noPreview": "暂无预览",
+      "downloadToView": "请下载后查看"
     },
     "actions": {
       "view": "查看",

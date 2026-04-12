@@ -32,6 +32,8 @@
     "skills": "Skills",
     "memory": "Memory",
     "logs": "Logs",
+    "audit": "Audit",
+    "reports": "Reports",
     "settings": "Settings",
     "version": "Version",
     "disconnected": "Disconnected",
@@ -47,6 +49,8 @@
     "inputPlaceholder": "Type a message...",
     "send": "Send",
     "attachFiles": "Attach files",
+    "startRecording": "Start recording",
+    "stopRecording": "Stop recording",
     "files": "Files",
     "streamResponses": "Stream Responses",
     "sessionDeleted": "Session deleted",
@@ -101,6 +105,73 @@
       "morning": "Every day at 09:00"
     }
   },
+  "audit": {
+    "title": "Audit Logs",
+    "dateRange": "Select date range",
+    "filterByAction": "Filter by action",
+    "filterByStatus": "Filter by status",
+    "allActions": "All actions",
+    "allStatuses": "All statuses",
+    "time": "Time",
+    "action": "Action",
+    "user": "User",
+    "resource": "Resource",
+    "details": "Details",
+    "status": {
+      "title": "Status",
+      "success": "Success",
+      "warning": "Warning",
+      "error": "Error",
+      "info": "Info"
+    },
+    "times": "times",
+    "noLogs": "No audit logs",
+    "statistics": {
+      "title": "Audit Statistics",
+      "totalActions": "Total actions",
+      "successRate": "Success rate",
+      "activeUsers": "Active users",
+      "topActions": "Top actions"
+    },
+    "topActions": {
+      "title": "Top actions"
+    },
+    "recentLogs": "Recent logs"
+  },
+  "reports": {
+    "title": "Daily Reports",
+    "date": "Date",
+    "daily": "Daily report",
+    "weekly": "Weekly report",
+    "monthly": "Monthly report",
+    "summary": "Summary",
+    "details": "Details",
+    "generate": "Generate report",
+    "export": "Export",
+    "share": "Share",
+    "noReports": "No reports",
+    "statistics": {
+      "title": "Report Statistics",
+      "totalReports": "Total reports",
+      "generatedToday": "Generated today",
+      "averageScore": "Average score"
+    },
+    "sections": {
+      "overview": "Overview",
+      "activities": "Activities",
+      "achievements": "Achievements",
+      "issues": "Issues",
+      "nextSteps": "Next steps",
+      "metrics": "Metrics"
+    },
+    "metrics": {
+      "chats": "Chat sessions",
+      "filesUploaded": "Files uploaded",
+      "tasksCompleted": "Tasks completed",
+      "skillsUsed": "Skills used",
+      "errors": "Errors"
+    }
+  },
   "materials": {
     "title": "Materials",
     "upload": "Upload",
@@ -132,10 +203,17 @@
       "title": "Statistics",
       "totalFiles": "Total files",
       "totalSize": "Total size",
+      "fromChat": "From chat",
+      "fromUpload": "From upload",
       "byType": "By type",
       "recentUploads": "Recent uploads",
       "storageUsed": "Storage used",
       "storageLimit": "Storage limit"
+    },
+    "source": {
+      "title": "Source",
+      "chat": "Chat",
+      "upload": "Upload"
     },
     "smartReuse": {
       "title": "Smart Reuse",
@@ -157,7 +235,9 @@
       "fileSize": "File size",
       "fileType": "File type",
       "uploadDate": "Upload date",
-      "lastModified": "Last modified"
+      "lastModified": "Last modified",
+      "noPreview": "No preview available",
+      "downloadToView": "Please download to view"
     },
     "actions": {
       "view": "View",

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { NButton, NTooltip } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 import { useChatStore } from '@/stores/chat'
@@ -14,27 +14,86 @@ const attachments = ref<Attachment[]>([])
 const isDragging = ref(false)
 const dragCounter = ref(0)
 
+// Voice recording state
+const isRecording = ref(false)
+const isVoiceSupported = ref(false)
+const voiceError = ref<string | null>(null)
+let mediaRecorder: MediaRecorder | null = null
+let audioChunks: Blob[] = []
+
 const canSend = computed(() => inputText.value.trim() || attachments.value.length > 0)
 
-// --- Voice input (Web Speech API) ---
-// TODO: re-enable when needed — browser-native speech-to-text
-// const hasSpeechRecognition = ref(false)
-// let recognition: SpeechRecognition | null = null
-// let finalTranscript = ''
-// let prefixText = ''
-// onMounted(() => {
-//   const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-//   if (!SR) return
-//   recognition = new SR()
-//   recognition.continuous = false
-//   recognition.interimResults = true
-//   recognition.lang = 'en-US'
-//   hasSpeechRecognition.value = true
-//   recognition.onresult = (event: SpeechRecognitionEvent) => { ... }
-//   recognition.onend = () => { ... }
-//   recognition.onerror = (event: SpeechRecognitionErrorEvent) => { ... }
-// })
-// onUnmounted(() => { if (recognition && isRecording.value) recognition.stop() })
+// Check voice support on mount
+onMounted(() => {
+  isVoiceSupported.value = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)
+})
+
+// Clean up on unmount
+onUnmounted(() => {
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    mediaRecorder.stop()
+  }
+})
+
+// --- Voice recording ---
+async function startRecording() {
+  if (!isVoiceSupported.value) {
+    voiceError.value = '语音录制不受支持'
+    return
+  }
+
+  try {
+    voiceError.value = null
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    mediaRecorder = new MediaRecorder(stream)
+    audioChunks = []
+
+    mediaRecorder.ondataavailable = (event) => {
+      audioChunks.push(event.data)
+    }
+
+    mediaRecorder.onstop = () => {
+      const audioBlob = new Blob(audioChunks, { type: 'audio/wav' })
+      const audioUrl = URL.createObjectURL(audioBlob)
+      const audioFile = new File([audioBlob], `voice-${Date.now()}.wav`, { type: 'audio/wav' })
+
+      // Add as attachment
+      const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8)
+      attachments.value.push({
+        id,
+        name: audioFile.name,
+        type: audioFile.type,
+        size: audioFile.size,
+        url: audioUrl,
+        file: audioFile
+      })
+
+      // Stop all tracks
+      stream.getTracks().forEach(track => track.stop())
+    }
+
+    mediaRecorder.start()
+    isRecording.value = true
+  } catch (error: any) {
+    voiceError.value = error.message || '无法启动语音录制'
+    console.error('语音录制错误:', error)
+  }
+}
+
+function stopRecording() {
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    mediaRecorder.stop()
+    isRecording.value = false
+  }
+}
+
+function toggleRecording() {
+  if (isRecording.value) {
+    stopRecording()
+  } else {
+    startRecording()
+  }
+}
 
 // --- File attachment helpers ---
 
@@ -219,6 +278,30 @@ function isImage(type: string): boolean {
             </NButton>
           </template>
           {{ t('chat.attachFiles') }}
+        </NTooltip>
+        <NTooltip v-if="isVoiceSupported" trigger="hover">
+          <template #trigger>
+            <NButton
+              quaternary
+              size="small"
+              circle
+              :type="isRecording ? 'error' : 'default'"
+              @click="toggleRecording"
+            >
+              <template #icon>
+                <svg v-if="!isRecording" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                  <line x1="12" y1="19" x2="12" y2="23"/>
+                  <line x1="8" y1="23" x2="16" y2="23"/>
+                </svg>
+                <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <rect x="6" y="6" width="12" height="12" rx="2"/>
+                </svg>
+              </template>
+            </NButton>
+          </template>
+          {{ isRecording ? t('chat.stopRecording') : t('chat.startRecording') }}
         </NTooltip>
         <NButton
           v-if="chatStore.isStreaming"

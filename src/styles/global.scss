@@ -1,3 +1,4 @@
+@use 'liquid-glass' as *;
 @use 'variables' as *;
 
 *,
@@ -12,12 +13,12 @@ html, body, #app {
   height: 100%;
   width: 100%;
   overflow: hidden;
+  background: $bg-primary;
+  color: $text-primary;
 }
 
 body {
   font-family: $font-ui;
-  background-color: $bg-primary;
-  color: $text-primary;
   font-size: 14px;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
@@ -29,11 +30,12 @@ code, pre, .mono {
 }
 
 a {
-  color: $accent-primary;
+  color: $text-accent;
   text-decoration: none;
+  transition: color $transition-fast;
 
   &:hover {
-    color: $accent-hover;
+    color: lighten(#667eea, 10%);
   }
 }
 
@@ -47,14 +49,25 @@ a {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: $border-color;
+  background: rgba(255, 255, 255, 0.2);
   border-radius: 3px;
 
   &:hover {
-    background: $text-muted;
+    background: rgba(255, 255, 255, 0.3);
   }
 }
 
 ::selection {
-  background: rgba($accent-primary, 0.3);
+  background: rgba(102, 126, 234, 0.3);
+  color: $text-primary;
+}
+
+:focus-visible {
+  outline: 2px solid #667eea;
+  outline-offset: 2px;
+}
+
+:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }

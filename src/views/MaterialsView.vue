@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { NButton, NInput, NSelect, NSpin, NCard, NStatistic, NGrid, NGridItem, NTag, NTooltip, NEmpty, NUpload, NIcon } from 'naive-ui'
+import { NButton, NInput, NSelect, NSpin, NCard, NStatistic, NGrid, NGridItem, NTag, NTooltip, NEmpty, NUpload, NIcon, NModal } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 
 interface Material {
@@ -15,6 +15,9 @@ interface Material {
   description?: string
   usedIn: string[]
   similarity?: number
+  source: 'upload' | 'chat'
+  chatSessionId?: string
+  chatMessageId?: string
 }
 
 interface MaterialStats {
@@ -24,6 +27,8 @@ interface MaterialStats {
   recentUploads: Material[]
   storageUsed: number
   storageLimit: number
+  fromChat: number
+  fromUpload: number
 }
 
 const { t } = useI18n()
@@ -36,6 +41,7 @@ const selectedType = ref('all')
 const sortBy = ref('date')
 const showUpload = ref(false)
 const selectedMaterial = ref<Material | null>(null)
+const previewVisible = ref(false)
 
 // Mock data for demonstration
 const mockMaterials: Material[] = [
@@ -50,7 +56,8 @@ const mockMaterials: Material[] = [
     tags: ['演示文稿', '项目'],
     description: 'Hermes Agent 项目介绍演示文稿',
     usedIn: ['聊天会话', '定时任务'],
-    similarity: 0.85
+    similarity: 0.85,
+    source: 'upload'
   },
   {
     id: '2',
@@ -63,7 +70,8 @@ const mockMaterials: Material[] = [
     tags: ['架构', '设计'],
     description: 'Hermes Agent 系统架构图',
     usedIn: ['文档', '演示'],
-    similarity: 0.72
+    similarity: 0.72,
+    source: 'upload'
   },
   {
     id: '3',
@@ -76,7 +84,8 @@ const mockMaterials: Material[] = [
     tags: ['API', '文档'],
     description: 'Hermes Agent API 接口文档',
     usedIn: ['开发', '测试'],
-    similarity: 0.93
+    similarity: 0.93,
+    source: 'upload'
   },
   {
     id: '4',
@@ -89,7 +98,8 @@ const mockMaterials: Material[] = [
     tags: ['演示', '视频'],
     description: 'Hermes Agent 功能演示视频',
     usedIn: ['宣传', '培训'],
-    similarity: 0.68
+    similarity: 0.68,
+    source: 'upload'
   },
   {
     id: '5',
@@ -102,7 +112,8 @@ const mockMaterials: Material[] = [
     tags: ['音乐', '背景'],
     description: '应用背景音乐',
     usedIn: ['视频', '演示'],
-    similarity: 0.45
+    similarity: 0.45,
+    source: 'upload'
   },
   {
     id: '6',
@@ -115,7 +126,8 @@ const mockMaterials: Material[] = [
     tags: ['配置', 'JSON'],
     description: '系统配置文件',
     usedIn: ['部署', '配置'],
-    similarity: 0.88
+    similarity: 0.88,
+    source: 'upload'
   }
 ]
 
@@ -166,7 +178,9 @@ const materialStats = computed<MaterialStats>(() => {
       .sort((a, b) => b.uploadedAt - a.uploadedAt)
       .slice(0, 5),
     storageUsed: materials.value.reduce((sum, m) => sum + m.size, 0),
-    storageLimit: 1073741824 // 1GB
+    storageLimit: 1073741824, // 1GB
+    fromChat: materials.value.filter(m => m.source === 'chat').length,
+    fromUpload: materials.value.filter(m => m.source === 'upload').length
   }
 
   // Calculate statistics by type
@@ -255,7 +269,8 @@ async function handleUpload(data: { file: { file: File | null } }) {
       lastModified: Date.now(),
       url: URL.createObjectURL(data.file.file!),
       tags: [],
-      usedIn: []
+      usedIn: [],
+      source: 'upload'
     }
     materials.value.unshift(newMaterial)
     console.log('上传成功:', data.file.file!.name)
@@ -290,6 +305,7 @@ function handleCopyLink(material: Material) {
 
 function handleView(material: Material) {
   selectedMaterial.value = material
+  previewVisible.value = true
 }
 
 // Lifecycle
@@ -338,24 +354,34 @@ onMounted(() => {
         <!-- Statistics Section -->
         <div class="statistics-section">
           <h3 class="section-title">{{ t('materials.statistics.title') }}</h3>
-          <NGrid :x-gap="12" :y-gap="12" :cols="4">
+          <NGrid :x-gap="12" :y-gap="12" :cols="6">
             <NGridItem>
-              <NCard size="small">
+              <NCard size="small" class="glass-card">
                 <NStatistic :label="t('materials.statistics.totalFiles')" :value="materialStats.totalFiles" />
               </NCard>
             </NGridItem>
             <NGridItem>
-              <NCard size="small">
+              <NCard size="small" class="glass-card">
                 <NStatistic :label="t('materials.statistics.totalSize')" :value="formatSize(materialStats.totalSize)" />
               </NCard>
             </NGridItem>
             <NGridItem>
-              <NCard size="small">
+              <NCard size="small" class="glass-card">
+                <NStatistic :label="t('materials.statistics.fromChat')" :value="materialStats.fromChat" />
+              </NCard>
+            </NGridItem>
+            <NGridItem>
+              <NCard size="small" class="glass-card">
+                <NStatistic :label="t('materials.statistics.fromUpload')" :value="materialStats.fromUpload" />
+              </NCard>
+            </NGridItem>
+            <NGridItem>
+              <NCard size="small" class="glass-card">
                 <NStatistic :label="t('materials.statistics.storageUsed')" :value="formatSize(materialStats.storageUsed)" />
               </NCard>
             </NGridItem>
             <NGridItem>
-              <NCard size="small">
+              <NCard size="small" class="glass-card">
                 <NStatistic :label="t('materials.statistics.storageLimit')" :value="formatSize(materialStats.storageLimit)" />
               </NCard>
             </NGridItem>
@@ -410,14 +436,22 @@ onMounted(() => {
               :key="material.id"
               size="small"
               hoverable
-              class="material-card"
+              class="material-card glass-card"
             >
               <div class="material-header">
                 <span class="type-icon">{{ getTypeIcon(material.type) }}</span>
                 <span class="material-name">{{ material.name }}</span>
-                <NTag :type="getTypeColor(material.type)" size="small">
-                  {{ t(`materials.fileTypes.${material.type}`) }}
-                </NTag>
+                <div class="material-tags">
+                  <NTag :type="getTypeColor(material.type)" size="small">
+                    {{ t(`materials.fileTypes.${material.type}`) }}
+                  </NTag>
+                  <NTag v-if="material.source === 'chat'" type="info" size="small">
+                    {{ t('materials.source.chat') }}
+                  </NTag>
+                  <NTag v-else type="success" size="small">
+                    {{ t('materials.source.upload') }}
+                  </NTag>
+                </div>
               </div>
               <div class="material-body">
                 <div class="material-meta">
@@ -498,44 +532,100 @@ onMounted(() => {
     </div>
 
     <!-- Material Preview Modal -->
-    <div v-if="selectedMaterial" class="preview-modal">
-      <div class="preview-content">
-        <h3>{{ t('materials.preview.title') }}</h3>
-        <div class="preview-body">
-          <div class="preview-header">
-            <span class="type-icon">{{ getTypeIcon(selectedMaterial.type) }}</span>
-            <span class="material-name">{{ selectedMaterial.name }}</span>
+    <NModal
+      v-model:show="previewVisible"
+      preset="card"
+      :title="t('materials.preview.title')"
+      style="width: 800px; max-width: 90vw;"
+      :mask-closable="true"
+      @close="selectedMaterial = null"
+    >
+      <div v-if="selectedMaterial" class="preview-body">
+        <div class="preview-header">
+          <span class="type-icon">{{ getTypeIcon(selectedMaterial.type) }}</span>
+          <span class="material-name">{{ selectedMaterial.name }}</span>
+          <NTag :type="getTypeColor(selectedMaterial.type)" size="small">
+            {{ t(`materials.fileTypes.${selectedMaterial.type}`) }}
+          </NTag>
+        </div>
+
+        <!-- File Preview -->
+        <div class="preview-content">
+          <template v-if="selectedMaterial.type === 'image'">
+            <img
+              :src="selectedMaterial.url"
+              :alt="selectedMaterial.name"
+              class="preview-image"
+            />
+          </template>
+          <template v-else-if="selectedMaterial.type === 'video'">
+            <video
+              :src="selectedMaterial.url"
+              controls
+              class="preview-video"
+            />
+          </template>
+          <template v-else-if="selectedMaterial.type === 'audio'">
+            <audio
+              :src="selectedMaterial.url"
+              controls
+              class="preview-audio"
+            />
+          </template>
+          <template v-else>
+            <div class="preview-placeholder">
+              <NIcon size="64">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                </svg>
+              </NIcon>
+              <p>{{ t('materials.preview.noPreview') }}</p>
+              <p>{{ t('materials.preview.downloadToView') }}</p>
+            </div>
+          </template>
+        </div>
+
+        <!-- File Info -->
+        <div class="preview-info">
+          <div class="info-row">
+            <span class="info-label">{{ t('materials.preview.fileName') }}:</span>
+            <span class="info-value">{{ selectedMaterial.name }}</span>
           </div>
-          <div class="preview-info">
-            <div class="info-row">
-              <span class="info-label">{{ t('materials.preview.fileName') }}:</span>
-              <span class="info-value">{{ selectedMaterial.name }}</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">{{ t('materials.preview.fileSize') }}:</span>
-              <span class="info-value">{{ formatSize(selectedMaterial.size) }}</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">{{ t('materials.preview.fileType') }}:</span>
-              <span class="info-value">{{ t(`materials.fileTypes.${selectedMaterial.type}`) }}</span>
-            </div>
-            <div class="info-row">
-              <span class="info-label">{{ t('materials.preview.uploadDate') }}:</span>
-              <span class="info-value">{{ formatDate(selectedMaterial.uploadedAt) }}</span>
-            </div>
-            <div v-if="selectedMaterial.description" class="info-row">
-              <span class="info-label">{{ t('materials.preview.fileInfo') }}:</span>
-              <span class="info-value">{{ selectedMaterial.description }}</span>
-            </div>
+          <div class="info-row">
+            <span class="info-label">{{ t('materials.preview.fileSize') }}:</span>
+            <span class="info-value">{{ formatSize(selectedMaterial.size) }}</span>
           </div>
-          <div class="preview-actions">
-            <NButton @click="handleCopyLink(selectedMaterial)">{{ t('materials.preview.copy') }}</NButton>
-            <NButton type="error" @click="handleDelete(selectedMaterial)">{{ t('materials.preview.delete') }}</NButton>
-            <NButton @click="selectedMaterial = null">{{ t('materials.preview.close') }}</NButton>
+          <div class="info-row">
+            <span class="info-label">{{ t('materials.preview.fileType') }}:</span>
+            <span class="info-value">{{ t(`materials.fileTypes.${selectedMaterial.type}`) }}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">{{ t('materials.preview.uploadDate') }}:</span>
+            <span class="info-value">{{ formatDate(selectedMaterial.uploadedAt) }}</span>
+          </div>
+          <div v-if="selectedMaterial.description" class="info-row">
+            <span class="info-label">{{ t('materials.preview.fileInfo') }}:</span>
+            <span class="info-value">{{ selectedMaterial.description }}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">{{ t('materials.source.title') }}:</span>
+            <span class="info-value">
+              <NTag :type="selectedMaterial.source === 'chat' ? 'info' : 'success'" size="small">
+                {{ t(`materials.source.${selectedMaterial.source}`) }}
+              </NTag>
+            </span>
           </div>
         </div>
+
+        <!-- Actions -->
+        <div class="preview-actions">
+          <NButton @click="handleCopyLink(selectedMaterial)">{{ t('materials.preview.copy') }}</NButton>
+          <NButton type="error" @click="handleDelete(selectedMaterial)">{{ t('materials.preview.delete') }}</NButton>
+          <NButton @click="previewVisible = false">{{ t('materials.preview.close') }}</NButton>
+        </div>
       </div>
-    </div>
+    </NModal>
   </div>
 </template>
 
@@ -689,11 +779,11 @@ onMounted(() => {
 
 .material-card {
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all $transition-normal;
 
   &:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    box-shadow: $shadow-glass, $shadow-glow;
   }
 }
 
@@ -702,6 +792,13 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
   margin-bottom: 12px;
+}
+
+.material-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-left: auto;
 }
 
 .material-body {
@@ -723,12 +820,6 @@ onMounted(() => {
   line-height: 1.4;
 }
 
-.material-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-
 .tag {
   margin-right: 4px;
 }
@@ -737,55 +828,6 @@ onMounted(() => {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-}
-
-.upload-modal,
-.preview-modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.upload-content,
-.preview-content {
-  background-color: $bg-card;
-  border-radius: 8px;
-  padding: 24px;
-  width: 500px;
-  max-width: 90vw;
-  max-height: 90vh;
-  overflow-y: auto;
-}
-
-.upload-area {
-  margin: 20px 0;
-  border: 2px dashed $border-color;
-  border-radius: 8px;
-  padding: 40px;
-  text-align: center;
-}
-
-.upload-placeholder {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  color: $text-muted;
-}
-
-.upload-actions,
-.preview-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  margin-top: 20px;
 }
 
 .preview-body {
@@ -797,6 +839,42 @@ onMounted(() => {
   align-items: center;
   gap: 12px;
   margin-bottom: 20px;
+}
+
+.preview-content {
+  margin-bottom: 20px;
+  min-height: 300px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: $radius-md;
+  overflow: hidden;
+}
+
+.preview-image {
+  max-width: 100%;
+  max-height: 400px;
+}
+
+.preview-video {
+  max-width: 100%;
+  max-height: 400px;
+}
+
+.preview-audio {
+  width: 100%;
+  max-width: 500px;
+}
+
+.preview-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: $text-muted;
+  text-align: center;
 }
 
 .preview-info {
@@ -818,5 +896,12 @@ onMounted(() => {
   flex: 1;
   font-size: 12px;
   color: $text-primary;
+}
+
+.preview-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 20px;
 }
 </style>
