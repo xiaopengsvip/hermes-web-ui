@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { NInput } from 'naive-ui'
+import { useI18n } from 'vue-i18n'
 import SkillList from '@/components/skills/SkillList.vue'
 import SkillDetail from '@/components/skills/SkillDetail.vue'
 import { fetchSkills, type SkillCategory } from '@/api/skills'
 
+const { t } = useI18n()
 const categories = ref<SkillCategory[]>([])
 const loading = ref(false)
 const selectedCategory = ref('')
@@ -33,10 +35,10 @@ function handleSelect(category: string, skill: string) {
 <template>
   <div class="skills-view">
     <header class="skills-header">
-      <h2 class="header-title">Skills</h2>
+      <h2 class="header-title">{{ t('skills.title') }}</h2>
       <NInput
         v-model:value="searchQuery"
-        placeholder="Search skills..."
+        :placeholder="t('common.search') + '...'"
         size="small"
         clearable
         class="search-input"
@@ -44,7 +46,7 @@ function handleSelect(category: string, skill: string) {
     </header>
 
     <div class="skills-content">
-      <div v-if="loading && categories.length === 0" class="skills-loading">Loading...</div>
+      <div v-if="loading && categories.length === 0" class="skills-loading">{{ t('skills.loading') }}</div>
       <div v-else class="skills-layout">
           <div class="skills-sidebar">
             <SkillList
@@ -66,7 +68,7 @@ function handleSelect(category: string, skill: string) {
                 <polyline points="2 17 12 22 22 17" />
                 <polyline points="2 12 12 17 22 12" />
               </svg>
-              <span>Select a skill from the list</span>
+              <span>{{ t('skills.selectSkill') }}</span>
             </div>
           </div>
         </div>

@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import MarkdownRenderer from '@/components/chat/MarkdownRenderer.vue'
 import { fetchSkillContent, fetchSkillFiles, type SkillFileEntry } from '@/api/skills'
 
+const { t } = useI18n()
 const props = defineProps<{
   category: string
   skill: string
@@ -30,7 +32,7 @@ async function loadSkill() {
     content.value = skillContent
     files.value = skillFiles.filter(f => !f.isDir && f.path !== 'SKILL.md')
   } catch (err: any) {
-    content.value = `Failed to load skill: ${err.message}`
+    content.value = `${t('errors.loadFailed')}: ${err.message}`
   } finally {
     loading.value = false
   }
@@ -76,7 +78,7 @@ watch(() => `${props.category}/${props.skill}`, loadSkill, { immediate: true })
       <span class="detail-name">{{ skill }}</span>
     </div>
 
-    <div v-if="loading && !content" class="detail-loading">Loading...</div>
+    <div v-if="loading && !content" class="detail-loading">{{ t('common.loading') }}</div>
 
     <template v-else>
       <!-- Breadcrumb for file view -->
@@ -85,7 +87,7 @@ watch(() => `${props.category}/${props.skill}`, loadSkill, { immediate: true })
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="15 18 9 12 15 6" />
           </svg>
-          Back to {{ skill }}
+          {{ t('common.back') }} {{ skill }}
         </button>
         <span class="breadcrumb-path">{{ viewingFile }}</span>
       </div>
@@ -98,7 +100,7 @@ watch(() => `${props.category}/${props.skill}`, loadSkill, { immediate: true })
 
       <!-- Attached files -->
       <div v-if="!viewingFile && files.length > 0" class="detail-files">
-        <div class="files-header">Attached Files</div>
+        <div class="files-header">{{ t('skills.skillFiles') }}</div>
         <div class="files-list">
           <button
             v-for="f in files"

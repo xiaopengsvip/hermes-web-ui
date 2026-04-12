@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { NButton, NTooltip } from 'naive-ui'
+import { useI18n } from 'vue-i18n'
 import { useChatStore } from '@/stores/chat'
 import type { Attachment } from '@/stores/chat'
 
+const { t } = useI18n()
 const chatStore = useChatStore()
 const inputText = ref('')
 const textareaRef = ref<HTMLTextAreaElement>()
@@ -201,7 +203,7 @@ function isImage(type: string): boolean {
         ref="textareaRef"
         v-model="inputText"
         class="input-textarea"
-        placeholder="Type a message... (Enter to send, Shift+Enter for new line)"
+        :placeholder="t('chat.inputPlaceholder')"
         rows="1"
         @keydown="handleKeydown"
         @input="handleInput"
@@ -216,7 +218,7 @@ function isImage(type: string): boolean {
               </template>
             </NButton>
           </template>
-          Attach files
+          {{ t('chat.attachFiles') }}
         </NTooltip>
         <NButton
           v-if="chatStore.isStreaming"

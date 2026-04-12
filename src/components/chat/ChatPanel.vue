@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { NButton, NTooltip, NPopconfirm, useMessage } from 'naive-ui'
+import { useI18n } from 'vue-i18n'
 import MessageList from './MessageList.vue'
 import ChatInput from './ChatInput.vue'
 import { useChatStore } from '@/stores/chat'
 import { useAppStore } from '@/stores/app'
 
+const { t } = useI18n()
 const chatStore = useChatStore()
 const appStore = useAppStore()
 const message = useMessage()
@@ -54,7 +56,7 @@ function formatTime(ts: number) {
     <!-- Session List -->
     <aside class="session-list" :class="{ collapsed: !showSessions }">
       <div class="session-list-header">
-        <span v-if="showSessions" class="session-list-title">Sessions</span>
+        <span v-if="showSessions" class="session-list-title">{{ t('chat.sessions') }}</span>
         <NButton quaternary size="tiny" @click="handleNewChat" circle>
           <template #icon>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -62,8 +64,8 @@ function formatTime(ts: number) {
         </NButton>
       </div>
       <div v-if="showSessions" class="session-items">
-        <div v-if="chatStore.isLoadingSessions && sortedSessions.length === 0" class="session-loading">Loading...</div>
-        <div v-else-if="sortedSessions.length === 0" class="session-empty">No sessions</div>
+        <div v-if="chatStore.isLoadingSessions && sortedSessions.length === 0" class="session-loading">{{ t('chat.loadingSessions') }}</div>
+        <div v-else-if="sortedSessions.length === 0" class="session-empty">{{ t('chat.noSessions') }}</div>
         <button
           v-for="s in sortedSessions"
           :key="s.id"
@@ -87,7 +89,7 @@ function formatTime(ts: number) {
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
               </button>
             </template>
-            Delete this session?
+            {{ t('chat.deleteSessionConfirm') }}
           </NPopconfirm>
         </button>
       </div>

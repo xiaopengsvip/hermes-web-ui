@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { NButton, NTooltip, useMessage } from 'naive-ui'
+import { useI18n } from 'vue-i18n'
 import type { Job } from '@/api/jobs'
 import { useJobsStore } from '@/stores/jobs'
 
+const { t } = useI18n()
 const props = defineProps<{ job: Job }>()
 const emit = defineEmits<{
   edit: [jobId: string]
@@ -15,10 +17,10 @@ const message = useMessage()
 const jobId = computed(() => props.job.job_id || props.job.id)
 
 const statusLabel = computed(() => {
-  if (props.job.state === 'running') return 'Running'
-  if (props.job.state === 'paused') return 'Paused'
-  if (!props.job.enabled) return 'Disabled'
-  return 'Scheduled'
+  if (props.job.state === 'running') return t('jobs.status.running')
+  if (props.job.state === 'paused') return t('jobs.status.paused')
+  if (!props.job.enabled) return t('jobs.status.disabled')
+  return t('jobs.status.scheduled')
 })
 
 const statusType = computed(() => {
@@ -42,7 +44,7 @@ const formatTime = (t?: string | null) => {
 async function handlePause() {
   try {
     await jobsStore.pauseJob(jobId.value)
-    message.success('Job paused')
+    message.success(t('jobs.messages.jobPaused'))
   } catch (e: any) {
     message.error(e.message)
   }
@@ -51,7 +53,7 @@ async function handlePause() {
 async function handleResume() {
   try {
     await jobsStore.resumeJob(jobId.value)
-    message.success('Job resumed')
+    message.success(t('jobs.messages.jobResumed'))
   } catch (e: any) {
     message.error(e.message)
   }
@@ -60,7 +62,7 @@ async function handleResume() {
 async function handleRun() {
   try {
     await jobsStore.runJob(jobId.value)
-    message.info('Job triggered')
+    message.info(t('jobs.messages.jobTriggered'))
   } catch (e: any) {
     message.error(e.message)
   }
@@ -69,7 +71,7 @@ async function handleRun() {
 async function handleDelete() {
   try {
     await jobsStore.deleteJob(jobId.value)
-    message.success('Job deleted')
+    message.success(t('jobs.messages.jobDeleted'))
   } catch (e: any) {
     message.error(e.message)
   }
@@ -85,11 +87,11 @@ async function handleDelete() {
 
     <div class="card-body">
       <div class="info-row">
-        <span class="info-label">Schedule</span>
+        <span class="info-label">{{ t('jobs.schedule') }}</span>
         <code class="info-value mono">{{ scheduleExpr }}</code>
       </div>
       <div class="info-row">
-        <span class="info-label">Last Run</span>
+        <span class="info-label">{{ t('jobs.lastRun') }}</span>
         <span class="info-value">
           {{ formatTime(job.last_run_at) }}
           <span v-if="job.last_status" class="run-status" :class="{ ok: job.last_status === 'ok', err: job.last_status !== 'ok' }">
@@ -98,15 +100,15 @@ async function handleDelete() {
         </span>
       </div>
       <div class="info-row">
-        <span class="info-label">Next Run</span>
+        <span class="info-label">{{ t('jobs.nextRun') }}</span>
         <span class="info-value">{{ formatTime(job.next_run_at) }}</span>
       </div>
       <div class="info-row">
-        <span class="info-label">Deliver</span>
+        <span class="info-label">{{ t('jobs.delivery') }}</span>
         <span class="info-value">{{ job.deliver }}<template v-if="job.origin"> ({{ job.origin.platform }})</template></span>
       </div>
       <div v-if="job.repeat" class="info-row">
-        <span class="info-label">Repeat</span>
+        <span class="info-label">{{ t('jobs.repeat') }}</span>
         <span class="info-value">
           <template v-if="typeof job.repeat === 'string'">{{ job.repeat }}</template>
           <template v-else>{{ job.repeat.completed }} / {{ job.repeat.times ?? '∞' }}</template>
@@ -117,24 +119,24 @@ async function handleDelete() {
     <div class="card-actions">
       <NTooltip v-if="job.state !== 'paused' && job.enabled">
         <template #trigger>
-          <NButton size="tiny" quaternary @click="handlePause">Pause</NButton>
+          <NButton size="tiny" quaternary @click="handlePause">{{ t('jobs.actions.pause') }}</NButton>
         </template>
-        Pause job
+        {{ t('jobs.actions.pause') }}
       </NTooltip>
       <NTooltip v-else-if="job.state === 'paused'">
         <template #trigger>
-          <NButton size="tiny" quaternary @click="handleResume">Resume</NButton>
+          <NButton size="tiny" quaternary @click="handleResume">{{ t('jobs.actions.resume') }}</NButton>
         </template>
-        Resume job
+        {{ t('jobs.actions.resume') }}
       </NTooltip>
       <NTooltip>
         <template #trigger>
-          <NButton size="tiny" quaternary @click="handleRun">Run Now</NButton>
+          <NButton size="tiny" quaternary @click="handleRun">{{ t('jobs.actions.runNow') }}</NButton>
         </template>
-        Trigger immediately
+        {{ t('jobs.actions.runNow') }}
       </NTooltip>
-      <NButton size="tiny" quaternary @click="emit('edit', jobId)">Edit</NButton>
-      <NButton size="tiny" quaternary type="error" @click="handleDelete">Delete</NButton>
+      <NButton size="tiny" quaternary @click="emit('edit', jobId)">{{ t('jobs.actions.edit') }}</NButton>
+      <NButton size="tiny" quaternary type="error" @click="handleDelete">{{ t('jobs.actions.delete') }}</NButton>
     </div>
   </div>
 </template>

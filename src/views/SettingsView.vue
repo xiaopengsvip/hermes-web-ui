@@ -3,8 +3,10 @@ import { ref } from 'vue'
 import {
   NButton, NSwitch, NSlider, NDataTable, useMessage,
 } from 'naive-ui'
+import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 
+const { t } = useI18n()
 const appStore = useAppStore()
 const message = useMessage()
 
@@ -15,9 +17,9 @@ async function handleTestConnection() {
   try {
     await appStore.checkConnection()
     if (appStore.connected) {
-      message.success('Connected successfully')
+      message.success(t('settings.connected'))
     } else {
-      message.error('Connection failed')
+      message.error(t('settings.connectionFailed'))
     }
   } catch (e: any) {
     message.error(e.message)
@@ -27,9 +29,9 @@ async function handleTestConnection() {
 }
 
 const providerColumns = [
-  { title: 'Provider', key: 'provider' },
-  { title: 'Models', key: 'models' },
-  { title: 'Base URL', key: 'base_url' },
+  { title: t('settings.provider'), key: 'provider' },
+  { title: t('settings.models'), key: 'models' },
+  { title: t('settings.baseUrl'), key: 'base_url' },
 ]
 
 const endpoints = [
@@ -45,36 +47,36 @@ const endpoints = [
 <template>
   <div class="settings-view">
     <header class="settings-header">
-      <h2 class="header-title">Settings</h2>
+      <h2 class="header-title">{{ t('settings.title') }}</h2>
     </header>
 
     <div class="settings-content">
       <!-- API Configuration -->
       <section class="settings-section">
-        <h3 class="section-title">API Configuration</h3>
+        <h3 class="section-title">{{ t('settings.apiConfig') }}</h3>
         <div class="form-group">
           <div class="connection-status">
             <span class="status-dot" :class="{ on: appStore.connected, off: !appStore.connected }"></span>
-            <span>{{ appStore.connected ? 'Connected' : 'Disconnected' }}</span>
+            <span>{{ appStore.connected ? t('sidebar.connected') : t('sidebar.disconnected') }}</span>
             <span v-if="appStore.serverVersion" class="version">v{{ appStore.serverVersion }}</span>
           </div>
           <NButton type="primary" size="small" :loading="testingConnection" @click="handleTestConnection">
-            Test Connection
+            {{ t('settings.healthCheck') }}
           </NButton>
         </div>
       </section>
 
       <!-- Model Management -->
       <section class="settings-section">
-        <h3 class="section-title">Model Management</h3>
+        <h3 class="section-title">{{ t('settings.modelManagement') }}</h3>
         <div class="form-group">
-          <label class="form-label">Current Model</label>
+          <label class="form-label">{{ t('settings.currentModel') }}</label>
           <div class="current-model">{{ appStore.selectedModel || 'Not set' }}</div>
         </div>
 
         <div v-if="appStore.modelGroups.length > 0" class="form-group">
-          <label class="form-label">Available Models</label>
-          <p class="form-hint">Models are discovered from ~/.hermes/auth.json credential pool. Use the sidebar selector to switch.</p>
+          <label class="form-label">{{ t('settings.availableModels') }}</label>
+          <p class="form-hint">{{ t('settings.modelsSource') }}</p>
           <NDataTable
             :columns="providerColumns"
             :data="appStore.modelGroups.map(g => ({
@@ -91,13 +93,13 @@ const endpoints = [
 
       <!-- Chat Settings -->
       <section class="settings-section">
-        <h3 class="section-title">Chat Settings</h3>
+        <h3 class="section-title">{{ t('settings.chatSettings') }}</h3>
         <div class="form-group">
-          <label class="form-label">Stream Responses</label>
+          <label class="form-label">{{ t('settings.streamResponses') }}</label>
           <NSwitch v-model:value="appStore.streamEnabled" />
         </div>
         <div class="form-group">
-          <label class="form-label">Session Persistence</label>
+          <label class="form-label">{{ t('settings.sessionPersistence') }}</label>
           <NSwitch v-model:value="appStore.sessionPersistence" />
         </div>
         <div class="form-group">
@@ -108,7 +110,7 @@ const endpoints = [
 
       <!-- About -->
       <section class="settings-section">
-        <h3 class="section-title">About</h3>
+        <h3 class="section-title">{{ t('settings.about') }}</h3>
         <p class="about-text">
           Hermes Agent Web UI
           <br />Version 0.1.3

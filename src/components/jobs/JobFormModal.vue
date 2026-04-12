@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { NModal, NForm, NFormItem, NInput, NButton, NSelect, NInputNumber, useMessage } from 'naive-ui'
+import { useI18n } from 'vue-i18n'
 import { useJobsStore } from '@/stores/jobs'
 
+const { t } = useI18n()
 const props = defineProps<{
   jobId: string | null
 }>()
@@ -31,11 +33,11 @@ const presetValue = ref<string | null>(null)
 const isEdit = computed(() => !!props.jobId)
 
 const schedulePresets = [
-  { label: 'Every minute', value: '* * * * *' },
-  { label: 'Every 5 minutes', value: '*/5 * * * *' },
-  { label: 'Every hour', value: '0 * * * *' },
-  { label: 'Every day at 00:00', value: '0 0 * * *' },
-  { label: 'Every day at 09:00', value: '0 9 * * *' },
+  { label: t('jobs.presets.everyMinute'), value: '* * * * *' },
+  { label: t('jobs.presets.every5Minutes'), value: '*/5 * * * *' },
+  { label: t('jobs.presets.everyHour'), value: '0 * * * *' },
+  { label: t('jobs.presets.midnight'), value: '0 0 * * *' },
+  { label: t('jobs.presets.morning'), value: '0 9 * * *' },
   { label: 'Every Monday at 09:00', value: '0 9 * * 1' },
   { label: 'Every month 1st at 09:00', value: '0 9 1 * *' },
 ]
@@ -85,10 +87,10 @@ async function handleSave() {
 
     if (isEdit.value) {
       await jobsStore.updateJob(props.jobId!, payload)
-      message.success('Job updated')
+      message.success(t('jobs.messages.jobUpdated'))
     } else {
       await jobsStore.createJob(payload)
-      message.success('Job created')
+      message.success(t('jobs.messages.jobCreated'))
     }
     emit('saved')
   } catch (e: any) {
@@ -108,13 +110,13 @@ function handleClose() {
   <NModal
     v-model:show="showModal"
     preset="card"
-    :title="isEdit ? 'Edit Job' : 'Create Job'"
+    :title="isEdit ? t('jobs.editJob') : t('jobs.createJob')"
     :style="{ width: '520px' }"
     :mask-closable="!loading"
     @after-leave="emit('close')"
   >
     <NForm label-placement="top">
-      <NFormItem label="Name" required>
+      <NFormItem :label="t('jobs.jobName')" required>
         <NInput
           v-model:value="formData.name"
           placeholder="Job name"

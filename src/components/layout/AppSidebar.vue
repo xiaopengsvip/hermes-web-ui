@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import ModelSelector from './ModelSelector.vue'
+import LanguageSwitcher from './LanguageSwitcher.vue'
 
+const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const appStore = useAppStore()
@@ -19,7 +22,7 @@ function handleNav(key: string) {
   <aside class="sidebar">
     <div class="sidebar-logo" @click="router.push('/')">
       <img src="/assets/logo.png" alt="Hermes" class="logo-img" />
-      <span class="logo-text">Hermes</span>
+      <span class="logo-text">{{ t('sidebar.logo') }}</span>
     </div>
 
     <nav class="sidebar-nav">
@@ -31,7 +34,7 @@ function handleNav(key: string) {
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
           <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
         </svg>
-        <span>Chat</span>
+        <span>{{ t('sidebar.chat') }}</span>
       </button>
 
       <button
@@ -45,7 +48,7 @@ function handleNav(key: string) {
           <line x1="8" y1="2" x2="8" y2="6" />
           <line x1="3" y1="10" x2="21" y2="10" />
         </svg>
-        <span>Jobs</span>
+        <span>{{ t('sidebar.jobs') }}</span>
       </button>
 
       <button
@@ -58,7 +61,7 @@ function handleNav(key: string) {
           <polyline points="2 17 12 22 22 17" />
           <polyline points="2 12 12 17 22 12" />
         </svg>
-        <span>Skills</span>
+        <span>{{ t('sidebar.skills') }}</span>
       </button>
 
       <button
@@ -71,7 +74,7 @@ function handleNav(key: string) {
           <path d="M10 22h4" />
           <path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z" />
         </svg>
-        <span>Memory</span>
+        <span>{{ t('sidebar.memory') }}</span>
       </button>
 
       <button
@@ -86,7 +89,7 @@ function handleNav(key: string) {
           <line x1="16" y1="17" x2="8" y2="17" />
           <polyline points="10 9 9 9 8 9" />
         </svg>
-        <span>Logs</span>
+        <span>{{ t('sidebar.logs') }}</span>
       </button>
     </nav>
 
@@ -96,10 +99,11 @@ function handleNav(key: string) {
       <div class="status-row">
         <div class="status-indicator" :class="{ connected: appStore.connected, disconnected: !appStore.connected }">
           <span class="status-dot"></span>
-          <span class="status-text">{{ appStore.connected ? 'Connected' : 'Disconnected' }}</span>
+          <span class="status-text">{{ appStore.connected ? t('sidebar.connected') : t('sidebar.disconnected') }}</span>
         </div>
       </div>
-      <div class="version-info">Hermes {{ appStore.serverVersion || 'v0.1.0' }}</div>
+      <LanguageSwitcher />
+      <div class="version-info">{{ t('sidebar.logo') }} {{ appStore.serverVersion || 'v0.1.0' }}</div>
     </div>
   </aside>
 </template>
