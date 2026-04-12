@@ -14,9 +14,9 @@ const router = createRouter({
       component: () => import('@/views/JobsView.vue'),
     },
     {
-      path: '/logs',
-      name: 'logs',
-      component: () => import('@/views/LogsView.vue'),
+      path: '/materials',
+      name: 'materials',
+      component: () => import('@/views/MaterialsView.vue'),
     },
     {
       path: '/skills',
@@ -27,6 +27,11 @@ const router = createRouter({
       path: '/memory',
       name: 'memory',
       component: () => import('@/views/MemoryView.vue'),
+    },
+    {
+      path: '/logs',
+      name: 'logs',
+      component: () => import('@/views/LogsView.vue'),
     },
     {
       path: '/settings',

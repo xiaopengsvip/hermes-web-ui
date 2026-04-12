@@ -28,6 +28,7 @@
     "logo": "Hermes",
     "chat": "聊天",
     "jobs": "定时任务",
+    "materials": "素材库",
     "skills": "技能",
     "memory": "记忆",
     "logs": "日志",
@@ -98,6 +99,83 @@
       "everyHour": "每小时",
       "midnight": "每天00:00",
       "morning": "每天09:00"
+    }
+  },
+  "materials": {
+    "title": "素材库",
+    "upload": "上传素材",
+    "uploading": "上传中...",
+    "uploadSuccess": "上传成功",
+    "uploadFailed": "上传失败",
+    "dragDrop": "拖拽文件到此处上传",
+    "browse": "浏览文件",
+    "noMaterials": "暂无素材",
+    "searchPlaceholder": "搜索素材...",
+    "filterByType": "按类型筛选",
+    "sortBy": "排序方式",
+    "sortOptions": {
+      "name": "名称",
+      "date": "日期",
+      "size": "大小",
+      "type": "类型"
+    },
+    "fileTypes": {
+      "all": "全部",
+      "image": "图片",
+      "document": "文档",
+      "video": "视频",
+      "audio": "音频",
+      "code": "代码",
+      "other": "其他"
+    },
+    "statistics": {
+      "title": "内容统计",
+      "totalFiles": "总文件数",
+      "totalSize": "总大小",
+      "byType": "按类型统计",
+      "recentUploads": "最近上传",
+      "storageUsed": "已用空间",
+      "storageLimit": "空间限制"
+    },
+    "smartReuse": {
+      "title": "智能复用",
+      "description": "基于内容相似度推荐可复用的素材",
+      "suggestions": "推荐素材",
+      "noSuggestions": "暂无推荐",
+      "similarity": "相似度",
+      "usedIn": "使用于",
+      "lastUsed": "上次使用"
+    },
+    "preview": {
+      "title": "预览",
+      "close": "关闭",
+      "download": "下载",
+      "copy": "复制链接",
+      "delete": "删除",
+      "fileInfo": "文件信息",
+      "fileName": "文件名",
+      "fileSize": "文件大小",
+      "fileType": "文件类型",
+      "uploadDate": "上传日期",
+      "lastModified": "最后修改"
+    },
+    "actions": {
+      "view": "查看",
+      "download": "下载",
+      "copyLink": "复制链接",
+      "delete": "删除",
+      "rename": "重命名",
+      "move": "移动",
+      "share": "分享"
+    },
+    "messages": {
+      "deleteConfirm": "确定要删除这个素材吗？",
+      "deleteSuccess": "删除成功",
+      "deleteFailed": "删除失败",
+      "copySuccess": "链接已复制",
+      "copyFailed": "复制失败",
+      "renameSuccess": "重命名成功",
+      "renameFailed": "重命名失败"
     }
   },
   "skills": {

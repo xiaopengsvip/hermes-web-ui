@@ -28,6 +28,7 @@
     "logo": "Hermes",
     "chat": "Chat",
     "jobs": "Jobs",
+    "materials": "Materials",
     "skills": "Skills",
     "memory": "Memory",
     "logs": "Logs",
@@ -98,6 +99,83 @@
       "everyHour": "Every hour",
       "midnight": "Every day at 00:00",
       "morning": "Every day at 09:00"
+    }
+  },
+  "materials": {
+    "title": "Materials",
+    "upload": "Upload",
+    "uploading": "Uploading...",
+    "uploadSuccess": "Upload successful",
+    "uploadFailed": "Upload failed",
+    "dragDrop": "Drag and drop files here to upload",
+    "browse": "Browse files",
+    "noMaterials": "No materials",
+    "searchPlaceholder": "Search materials...",
+    "filterByType": "Filter by type",
+    "sortBy": "Sort by",
+    "sortOptions": {
+      "name": "Name",
+      "date": "Date",
+      "size": "Size",
+      "type": "Type"
+    },
+    "fileTypes": {
+      "all": "All",
+      "image": "Image",
+      "document": "Document",
+      "video": "Video",
+      "audio": "Audio",
+      "code": "Code",
+      "other": "Other"
+    },
+    "statistics": {
+      "title": "Statistics",
+      "totalFiles": "Total files",
+      "totalSize": "Total size",
+      "byType": "By type",
+      "recentUploads": "Recent uploads",
+      "storageUsed": "Storage used",
+      "storageLimit": "Storage limit"
+    },
+    "smartReuse": {
+      "title": "Smart Reuse",
+      "description": "Recommend reusable materials based on content similarity",
+      "suggestions": "Suggestions",
+      "noSuggestions": "No suggestions",
+      "similarity": "Similarity",
+      "usedIn": "Used in",
+      "lastUsed": "Last used"
+    },
+    "preview": {
+      "title": "Preview",
+      "close": "Close",
+      "download": "Download",
+      "copy": "Copy link",
+      "delete": "Delete",
+      "fileInfo": "File info",
+      "fileName": "File name",
+      "fileSize": "File size",
+      "fileType": "File type",
+      "uploadDate": "Upload date",
+      "lastModified": "Last modified"
+    },
+    "actions": {
+      "view": "View",
+      "download": "Download",
+      "copyLink": "Copy link",
+      "delete": "Delete",
+      "rename": "Rename",
+      "move": "Move",
+      "share": "Share"
+    },
+    "messages": {
+      "deleteConfirm": "Are you sure you want to delete this material?",
+      "deleteSuccess": "Deleted successfully",
+      "deleteFailed": "Delete failed",
+      "copySuccess": "Link copied",
+      "copyFailed": "Copy failed",
+      "renameSuccess": "Renamed successfully",
+      "renameFailed": "Rename failed"
     }
   },
   "skills": {
