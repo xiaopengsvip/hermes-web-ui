@@ -6,7 +6,8 @@ import {
 } from 'naive-ui'
 import {
   fetchSystemStatus, wakeHermes, restartGateway, stopGateway,
-  fetchActiveSessions, type SystemStatus, type ActiveSession
+  fetchActiveSessions, shutdownWebUI, restartWebUI,
+  type SystemStatus, type ActiveSession
 } from '@/api/system'
 
 useI18n()
@@ -88,6 +89,31 @@ async function handleStop() {
     message.error(err.message || 'Stop failed')
   } finally {
     actionLoading.value = ''
+  }
+}
+
+async function handleWebUIRestart() {
+  actionLoading.value = 'webui-restart'
+  try {
+    await restartWebUI()
+    // Server will exit with code 42, wrapper script restarts it
+    message.success('Web UI restarting...')
+    setTimeout(() => window.location.reload(), 3000)
+  } catch {
+    // Connection lost is expected during restart
+    setTimeout(() => window.location.reload(), 3000)
+  } finally {
+    actionLoading.value = ''
+  }
+}
+
+async function handleWebUIShutdown() {
+  actionLoading.value = 'webui-shutdown'
+  try {
+    await shutdownWebUI()
+    message.success('Web UI shutting down...')
+  } catch {
+    // Connection lost is expected
   }
 }
 
@@ -219,6 +245,29 @@ onUnmounted(() => {
             <NTag :type="getStatusType(status.gateway_status)" size="small">
               Gateway: {{ status.gateway_status }}
             </NTag>
+          </div>
+        </section>
+
+        <!-- Web UI Control -->
+        <section class="section">
+          <h3>Web UI Control</h3>
+          <div class="action-bar">
+            <NButton
+              size="small"
+              :loading="actionLoading === 'webui-restart'"
+              @click="handleWebUIRestart"
+            >
+              ↻ Restart Web UI
+            </NButton>
+            <NPopconfirm @positive-click="handleWebUIShutdown">
+              <template #trigger>
+                <NButton size="small" type="error" :loading="actionLoading === 'webui-shutdown'">
+                  ■ Stop Web UI
+                </NButton>
+              </template>
+              Stop the Web UI server? You will need to restart it manually.
+            </NPopconfirm>
+            <NTag type="success" size="small">Web UI: running</NTag>
           </div>
         </section>
 

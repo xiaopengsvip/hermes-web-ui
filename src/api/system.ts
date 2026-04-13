@@ -148,3 +148,11 @@ export async function fetchActiveSessions(): Promise<{ sessions: ActiveSession[]
 export async function fetchSystemProcesses(): Promise<{ processes: Array<{ pid: number; command: string; elapsed: string }> }> {
   return request('/api/system/processes')
 }
+
+export async function shutdownWebUI(): Promise<{ success: boolean; message?: string }> {
+  return request('/api/system/shutdown', { method: 'POST' })
+}
+
+export async function restartWebUI(): Promise<{ success: boolean; message?: string }> {
+  return request('/api/system/restart', { method: 'POST' })
+}

@@ -247,6 +247,25 @@ systemRoutes.get('/api/system/processes', async (ctx) => {
   }
 })
 
+// POST /api/system/shutdown — graceful shutdown of web UI server
+systemRoutes.post('/api/system/shutdown', async (ctx) => {
+  ctx.body = { success: true, message: 'Shutting down...' }
+  // Send response first, then exit
+  setTimeout(() => {
+    console.log('  ✗ Web UI server shutting down...')
+    process.exit(0)
+  }, 500)
+})
+
+// POST /api/system/restart — restart web UI server
+systemRoutes.post('/api/system/restart', async (ctx) => {
+  ctx.body = { success: true, message: 'Restarting...' }
+  setTimeout(() => {
+    console.log('  ↻ Web UI server restarting...')
+    process.exit(42) // special exit code for restart
+  }, 500)
+})
+
 // GET /api/system/sessions/active — active sessions with details
 systemRoutes.get('/api/system/sessions/active', async (ctx) => {
   try {
