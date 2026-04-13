@@ -353,6 +353,23 @@
     "copy": "Copy",
     "copied": "Copied"
   },
+  "version": {
+    "title": "Version Info",
+    "webUi": "Web UI",
+    "hermesAgent": "Hermes Agent",
+    "uptime": "Uptime",
+    "systemInfo": "System Info",
+    "platform": "Platform",
+    "serverPort": "Server Port",
+    "upstream": "Upstream",
+    "gateway": "Gateway",
+    "license": "License",
+    "features": "Features",
+    "backendRoutes": "Backend Routes",
+    "dependencies": "Dependencies",
+    "devDependencies": "Dev Dependencies",
+    "generated": "Generated"
+  },
   "errors": {
     "loadFailed": "Load failed",
     "saveFailed": "Save failed",

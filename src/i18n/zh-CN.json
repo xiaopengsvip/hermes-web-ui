@@ -353,6 +353,23 @@
     "copy": "复制",
     "copied": "已复制"
   },
+  "version": {
+    "title": "版本信息",
+    "webUi": "Web UI",
+    "hermesAgent": "Hermes Agent",
+    "uptime": "运行时间",
+    "systemInfo": "系统信息",
+    "platform": "平台",
+    "serverPort": "服务端口",
+    "upstream": "上游服务",
+    "gateway": "网关",
+    "license": "许可证",
+    "features": "功能特性",
+    "backendRoutes": "后端路由",
+    "dependencies": "生产依赖",
+    "devDependencies": "开发依赖",
+    "generated": "生成时间"
+  },
   "errors": {
     "loadFailed": "加载失败",
     "saveFailed": "保存失败",
