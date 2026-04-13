@@ -7,7 +7,7 @@ import {
 } from 'naive-ui'
 import {
   fetchGitHubRepos, fetchGitHubUser, fetchGitHubCommits,
-  createGitHubRepo, deleteGitHubRepo,
+  createGitHubRepo, deleteGitHubRepo, checkGitHubToken, saveGitHubToken,
   type GitHubRepo, type GitHubUser, type GitHubCommit
 } from '@/api/github'
 
@@ -20,6 +20,12 @@ const loading = ref(true)
 const error = ref('')
 const sortField = ref('updated')
 const searchQuery = ref('')
+
+// Token setup
+const tokenChecked = ref(false)
+const tokenConfigured = ref(false)
+const setupToken = ref('')
+const savingToken = ref(false)
 
 // Create modal
 const showCreateModal = ref(false)
@@ -47,6 +53,36 @@ const filteredRepos = computed(() => {
   return result
 })
 
+async function checkToken() {
+  try {
+    const res = await checkGitHubToken()
+    tokenConfigured.value = res.configured
+  } catch {
+    tokenConfigured.value = false
+  }
+  tokenChecked.value = true
+}
+
+async function handleSaveToken() {
+  if (!setupToken.value.trim()) return
+  savingToken.value = true
+  try {
+    const res = await saveGitHubToken(setupToken.value.trim())
+    if (res.success || !res.error) {
+      message.success('Token saved successfully')
+      tokenConfigured.value = true
+      setupToken.value = ''
+      await loadData()
+    } else {
+      message.error(res.error || 'Failed to save token')
+    }
+  } catch (err: any) {
+    message.error(err.message || 'Failed to save token')
+  } finally {
+    savingToken.value = false
+  }
+}
+
 async function loadData() {
   loading.value = true
   error.value = ''
@@ -58,7 +94,13 @@ async function loadData() {
     user.value = userRes
     repos.value = reposRes.repos
   } catch (err: any) {
-    error.value = err.message || 'Failed to load GitHub data'
+    const msg = err.message || 'Failed to load GitHub data'
+    if (msg.includes('No GitHub token') || msg.includes('401')) {
+      tokenConfigured.value = false
+      tokenChecked.value = true
+    } else {
+      error.value = msg
+    }
   } finally {
     loading.value = false
   }
@@ -141,146 +183,196 @@ function getLangColor(lang: string | null): string {
   return colors[lang || ''] || '#888'
 }
 
-onMounted(loadData)
+onMounted(async () => {
+  await checkToken()
+  if (tokenConfigured.value) {
+    await loadData()
+  } else {
+    loading.value = false
+  }
+})
 </script>
 
 <template>
   <div class="github-view">
-    <header class="page-header">
-      <div class="header-left">
-        <h2>GitHub</h2>
-        <div v-if="user" class="user-info">
-          <img :src="user.avatar_url" :alt="user.login" class="user-avatar" />
-          <span class="user-name">{{ user.name || user.login }}</span>
+    <!-- Token Setup Screen -->
+    <div v-if="tokenChecked && !tokenConfigured" class="setup-screen">
+      <div class="setup-card">
+        <div class="setup-icon">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/>
+          </svg>
         </div>
+        <h2>Connect GitHub</h2>
+        <p class="setup-desc">
+          Enter your GitHub Personal Access Token to manage repositories.
+        </p>
+        <div class="setup-form">
+          <NInput
+            v-model:value="setupToken"
+            type="password"
+            placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+            show-password-on="click"
+            size="large"
+          />
+          <NButton
+            type="primary"
+            size="large"
+            block
+            :loading="savingToken"
+            :disabled="!setupToken.trim()"
+            @click="handleSaveToken"
+          >
+            Save Token
+          </NButton>
+        </div>
+        <p class="setup-help">
+          Generate at: GitHub Settings → Developer settings → Personal access tokens
+        </p>
       </div>
-      <div class="header-actions">
-        <NInput
-          v-model:value="searchQuery"
-          placeholder="Search repos..."
-          size="small"
-          clearable
-          style="width: 200px"
-        />
-        <NButton size="small" @click="loadData" :loading="loading">
-          Refresh
-        </NButton>
-        <NButton size="small" type="primary" @click="showCreateModal = true">
-          New Repo
-        </NButton>
-      </div>
-    </header>
+    </div>
 
-    <div v-if="error" class="error-banner">{{ error }}</div>
+    <!-- Main Content (token configured) -->
+    <template v-else-if="tokenConfigured">
+      <header class="page-header">
+        <div class="header-left">
+          <h2>GitHub</h2>
+          <div v-if="user" class="user-info">
+            <img :src="user.avatar_url" :alt="user.login" class="user-avatar" />
+            <span class="user-name">{{ user.name || user.login }}</span>
+          </div>
+        </div>
+        <div class="header-actions">
+          <NInput
+            v-model:value="searchQuery"
+            placeholder="Search repos..."
+            size="small"
+            clearable
+            style="width: 200px"
+          />
+          <NButton size="small" @click="loadData" :loading="loading">
+            Refresh
+          </NButton>
+          <NButton size="small" type="primary" @click="showCreateModal = true">
+            New Repo
+          </NButton>
+        </div>
+      </header>
 
-    <NSpin :show="loading" style="min-height: 200px">
-      <NEmpty v-if="!loading && filteredRepos.length === 0" description="No repositories" />
-      <div v-else class="repo-grid">
-        <div
-          v-for="repo in filteredRepos"
-          :key="repo.full_name"
-          class="repo-card"
-          @click="showDetails(repo)"
-        >
-          <div class="repo-header">
-            <div class="repo-name">
-              <svg v-if="repo.private" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="lock-icon">
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-              </svg>
-              <svg v-else width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
-              </svg>
-              <span>{{ repo.name }}</span>
+      <div v-if="error" class="error-banner">{{ error }}</div>
+
+      <NSpin :show="loading" style="min-height: 200px">
+        <NEmpty v-if="!loading && filteredRepos.length === 0" description="No repositories" />
+        <div v-else class="repo-grid">
+          <div
+            v-for="repo in filteredRepos"
+            :key="repo.full_name"
+            class="repo-card"
+            @click="showDetails(repo)"
+          >
+            <div class="repo-header">
+              <div class="repo-name">
+                <svg v-if="repo.private" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="lock-icon">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                </svg>
+                <svg v-else width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                </svg>
+                <span>{{ repo.name }}</span>
+              </div>
+              <NPopconfirm @positive-click.stop="handleDelete(repo)">
+                <template #trigger>
+                  <button class="delete-btn" @click.stop>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                    </svg>
+                  </button>
+                </template>
+                Delete {{ repo.full_name }}?
+              </NPopconfirm>
             </div>
-            <NPopconfirm @positive-click.stop="handleDelete(repo)">
-              <template #trigger>
-                <button class="delete-btn" @click.stop>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                  </svg>
-                </button>
-              </template>
-              Delete {{ repo.full_name }}?
-            </NPopconfirm>
-          </div>
-          <p v-if="repo.description" class="repo-desc">{{ repo.description }}</p>
-          <div class="repo-meta">
-            <span v-if="repo.language" class="repo-lang">
-              <span class="lang-dot" :style="{ backgroundColor: getLangColor(repo.language) }"></span>
-              {{ repo.language }}
-            </span>
-            <span class="repo-stars">★ {{ repo.stargazers_count }}</span>
-            <span class="repo-forks">⑂ {{ repo.forks_count }}</span>
-            <span class="repo-updated">{{ formatRelativeTime(repo.pushed_at) }}</span>
-          </div>
-          <div v-if="repo.topics?.length" class="repo-topics">
-            <NTag v-for="topic in repo.topics.slice(0, 4)" :key="topic" size="tiny" round>
-              {{ topic }}
-            </NTag>
-          </div>
-        </div>
-      </div>
-    </NSpin>
-
-    <!-- Create Modal -->
-    <NModal
-      v-model:show="showCreateModal"
-      preset="dialog"
-      title="Create Repository"
-      positive-text="Create"
-      :loading="creating"
-      @positive-click="handleCreate"
-    >
-      <div class="modal-form">
-        <div class="form-field">
-          <label>Name</label>
-          <NInput v-model:value="newRepoName" placeholder="repository-name" />
-        </div>
-        <div class="form-field">
-          <label>Description</label>
-          <NInput v-model:value="newRepoDesc" type="textarea" placeholder="Optional description" :rows="2" />
-        </div>
-        <div class="form-field">
-          <label>
-            <input type="checkbox" v-model="newRepoPrivate" />
-            Private repository
-          </label>
-        </div>
-      </div>
-    </NModal>
-
-    <!-- Detail Modal -->
-    <NModal
-      v-model:show="showDetailModal"
-      preset="card"
-      :title="selectedRepo?.full_name || ''"
-      style="width: 600px; max-width: 90vw"
-    >
-      <div v-if="selectedRepo" class="repo-detail">
-        <div class="detail-links">
-          <a :href="selectedRepo.html_url" target="_blank" class="link-btn">
-            Open in GitHub →
-          </a>
-          <span class="clone-url">{{ selectedRepo.ssh_url }}</span>
-        </div>
-        <div class="detail-info">
-          <span>Branch: <strong>{{ selectedRepo.default_branch }}</strong></span>
-          <span>Issues: {{ selectedRepo.open_issues_count }}</span>
-          <span>Updated: {{ formatDate(selectedRepo.updated_at) }}</span>
-        </div>
-        <h4>Recent Commits</h4>
-        <NSpin :show="loadingCommits">
-          <NEmpty v-if="!loadingCommits && commits.length === 0" description="No commits" />
-          <div v-else class="commit-list">
-            <div v-for="commit in commits" :key="commit.sha" class="commit-item">
-              <span class="commit-sha">{{ commit.sha }}</span>
-              <a :href="commit.url" target="_blank" class="commit-msg">{{ commit.message }}</a>
-              <span class="commit-date">{{ formatRelativeTime(commit.author.date) }}</span>
+            <p v-if="repo.description" class="repo-desc">{{ repo.description }}</p>
+            <div class="repo-meta">
+              <span v-if="repo.language" class="repo-lang">
+                <span class="lang-dot" :style="{ backgroundColor: getLangColor(repo.language) }"></span>
+                {{ repo.language }}
+              </span>
+              <span class="repo-stars">★ {{ repo.stargazers_count }}</span>
+              <span class="repo-forks">⑂ {{ repo.forks_count }}</span>
+              <span class="repo-updated">{{ formatRelativeTime(repo.pushed_at) }}</span>
+            </div>
+            <div v-if="repo.topics?.length" class="repo-topics">
+              <NTag v-for="topic in repo.topics.slice(0, 4)" :key="topic" size="tiny" round>
+                {{ topic }}
+              </NTag>
             </div>
           </div>
-        </NSpin>
-      </div>
-    </NModal>
+        </div>
+      </NSpin>
+
+      <!-- Create Modal -->
+      <NModal
+        v-model:show="showCreateModal"
+        preset="dialog"
+        title="Create Repository"
+        positive-text="Create"
+        :loading="creating"
+        @positive-click="handleCreate"
+      >
+        <div class="modal-form">
+          <div class="form-field">
+            <label>Name</label>
+            <NInput v-model:value="newRepoName" placeholder="repository-name" />
+          </div>
+          <div class="form-field">
+            <label>Description</label>
+            <NInput v-model:value="newRepoDesc" type="textarea" placeholder="Optional description" :rows="2" />
+          </div>
+          <div class="form-field">
+            <label>
+              <input type="checkbox" v-model="newRepoPrivate" />
+              Private repository
+            </label>
+          </div>
+        </div>
+      </NModal>
+
+      <!-- Detail Modal -->
+      <NModal
+        v-model:show="showDetailModal"
+        preset="card"
+        :title="selectedRepo?.full_name || ''"
+        style="width: 600px; max-width: 90vw"
+      >
+        <div v-if="selectedRepo" class="repo-detail">
+          <div class="detail-links">
+            <a :href="selectedRepo.html_url" target="_blank" class="link-btn">
+              Open in GitHub →
+            </a>
+            <span class="clone-url">{{ selectedRepo.ssh_url }}</span>
+          </div>
+          <div class="detail-info">
+            <span>Branch: <strong>{{ selectedRepo.default_branch }}</strong></span>
+            <span>Issues: {{ selectedRepo.open_issues_count }}</span>
+            <span>Updated: {{ formatDate(selectedRepo.updated_at) }}</span>
+          </div>
+          <h4>Recent Commits</h4>
+          <NSpin :show="loadingCommits">
+            <NEmpty v-if="!loadingCommits && commits.length === 0" description="No commits" />
+            <div v-else class="commit-list">
+              <div v-for="commit in commits" :key="commit.sha" class="commit-item">
+                <span class="commit-sha">{{ commit.sha }}</span>
+                <a :href="commit.url" target="_blank" class="commit-msg">{{ commit.message }}</a>
+                <span class="commit-date">{{ formatRelativeTime(commit.author.date) }}</span>
+              </div>
+            </div>
+          </NSpin>
+        </div>
+      </NModal>
+    </template>
+
+    <!-- Loading state -->
+    <NSpin v-else style="min-height: 200px" />
   </div>
 </template>
 
@@ -295,6 +387,60 @@ onMounted(loadData)
   overflow: hidden;
 }
 
+// Setup Screen
+.setup-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+}
+
+.setup-card {
+  text-align: center;
+  max-width: 420px;
+  width: 100%;
+  padding: 40px;
+  background: $bg-secondary;
+  border: 1px solid $border-color;
+  border-radius: $radius-lg;
+
+  h2 {
+    font-size: 22px;
+    font-weight: 600;
+    color: $text-primary;
+    margin: 16px 0 8px;
+  }
+}
+
+.setup-icon {
+  color: $text-muted;
+  margin-bottom: 8px;
+
+  svg {
+    opacity: 0.6;
+  }
+}
+
+.setup-desc {
+  font-size: 14px;
+  color: $text-secondary;
+  margin: 0 0 24px;
+  line-height: 1.5;
+}
+
+.setup-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.setup-help {
+  font-size: 12px;
+  color: $text-muted;
+  margin: 16px 0 0;
+}
+
+// Main content
 .page-header {
   display: flex;
   align-items: center;
@@ -505,33 +651,34 @@ onMounted(loadData)
 .commit-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  padding: 6px 0;
-  border-bottom: 1px solid $border-color;
-
-  &:last-child { border-bottom: none; }
+  gap: 10px;
+  padding: 6px 10px;
+  background: $bg-secondary;
+  border-radius: $radius-sm;
 }
 
 .commit-sha {
+  font-size: 11px;
   font-family: $font-code;
   color: $accent-primary;
-  font-size: 11px;
+  flex-shrink: 0;
 }
 
 .commit-msg {
-  flex: 1;
+  font-size: 12px;
   color: $text-primary;
   text-decoration: none;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  &:hover { text-decoration: underline; }
+  flex: 1;
+
+  &:hover { color: $accent-primary; text-decoration: underline; }
 }
 
 .commit-date {
-  color: $text-muted;
   font-size: 11px;
+  color: $text-muted;
   flex-shrink: 0;
 }
 </style>

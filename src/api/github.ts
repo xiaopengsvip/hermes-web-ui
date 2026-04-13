@@ -70,3 +70,14 @@ export async function createGitHubRepo(data: { name: string; description?: strin
 export async function deleteGitHubRepo(owner: string, repo: string): Promise<void> {
   await request(`/api/github/repos/${owner}/${repo}`, { method: 'DELETE' })
 }
+
+export async function checkGitHubToken(): Promise<{ configured: boolean }> {
+  return request<{ configured: boolean }>('/api/github/token-status')
+}
+
+export async function saveGitHubToken(token: string): Promise<{ success: boolean; error?: string }> {
+  return request('/api/github/token', {
+    method: 'POST',
+    body: JSON.stringify({ token }),
+  })
+}

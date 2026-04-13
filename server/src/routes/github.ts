@@ -1,7 +1,46 @@
 import Router from '@koa/router'
+import { readFile, writeFile, copyFile } from 'fs/promises'
+import { resolve } from 'path'
+import { homedir } from 'os'
 import * as github from '../services/github'
 
 export const githubRoutes = new Router()
+
+// GET /api/github/token-status — check if token is available
+githubRoutes.get('/api/github/token-status', async (ctx) => {
+  const token = await github.getToken()
+  ctx.body = { configured: !!token }
+})
+
+// POST /api/github/token — save GitHub token to auth.json
+githubRoutes.post('/api/github/token', async (ctx) => {
+  try {
+    const body = ctx.request.body as any
+    const token = (body?.token || '').trim()
+    if (!token) {
+      ctx.status = 400
+      ctx.body = { error: 'Token is required' }
+      return
+    }
+
+    const authPath = resolve(homedir(), '.hermes', 'auth.json')
+    let auth: any = {}
+    try {
+      const raw = await readFile(authPath, 'utf-8')
+      auth = JSON.parse(raw)
+    } catch { /* no auth file yet */ }
+
+    // Backup before modifying
+    try { await copyFile(authPath, authPath + '.bak') } catch { /* ignore */ }
+
+    auth.github_token = token
+    await writeFile(authPath, JSON.stringify(auth, null, 2), 'utf-8')
+    ctx.body = { success: true }
+  } catch (err: any) {
+    ctx.status = 500
+    ctx.body = { error: err.message }
+  }
+})
 
 // GET /api/github/user — authenticated user info
 githubRoutes.get('/api/github/user', async (ctx) => {

@@ -42,7 +42,7 @@ export interface GitHubCommit {
 /**
  * Get GitHub token from environment or ~/.hermes/auth.json
  */
-async function getToken(): Promise<string | null> {
+export async function getToken(): Promise<string | null> {
   // 1. Environment variable
   if (process.env.GITHUB_TOKEN) return process.env.GITHUB_TOKEN
   if (process.env.GH_TOKEN) return process.env.GH_TOKEN
