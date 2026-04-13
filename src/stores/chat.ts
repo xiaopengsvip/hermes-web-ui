@@ -264,7 +264,19 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
-  function updateSessionTitle() {
+  function updateSessionTitle(sessionId?: string, newTitle?: string) {
+    if (sessionId && newTitle) {
+      // Explicit rename
+      const session = sessions.value.find(s => s.id === sessionId)
+      if (session) {
+        session.title = newTitle
+        session.updatedAt = Date.now()
+        if (activeSession.value?.id === sessionId) {
+          activeSession.value.title = newTitle
+        }
+      }
+      return
+    }
     if (!activeSession.value) return
     if (activeSession.value.title === 'New Chat') {
       const firstUser = messages.value.find(m => m.role === 'user')
@@ -494,5 +506,6 @@ export const useChatStore = defineStore('chat', () => {
     sendMessage,
     stopStreaming,
     loadSessions,
+    updateSessionTitle,
   }
 })

@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { NButton, NTooltip, NPopconfirm, useMessage } from 'naive-ui'
+import { ref, computed, nextTick } from 'vue'
+import { NButton, NTooltip, NPopconfirm, NDropdown, NInput, NModal, useMessage } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 import MessageList from './MessageList.vue'
 import ChatInput from './ChatInput.vue'
 import { useChatStore } from '@/stores/chat'
 import { useAppStore } from '@/stores/app'
+import { renameSession } from '@/api/sessions'
 
 const { t } = useI18n()
 const chatStore = useChatStore()
@@ -49,6 +50,43 @@ function formatTime(ts: number) {
   if (isToday) return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   return d.toLocaleDateString([], { month: 'short', day: 'numeric' })
 }
+
+// Session context menu
+const showRenameModal = ref(false)
+const renameTarget = ref<{ id: string; title: string } | null>(null)
+const renameInput = ref('')
+const renameInputRef = ref<InstanceType<typeof NInput> | null>(null)
+
+const sessionMenuOptions = [
+  { label: 'Rename', key: 'rename' },
+  { label: 'Copy ID', key: 'copyId' },
+]
+
+function handleSessionMenuSelect(key: string, sessionId: string) {
+  const session = chatStore.sessions.find(s => s.id === sessionId)
+  if (key === 'rename' && session) {
+    renameTarget.value = { id: session.id, title: session.title }
+    renameInput.value = session.title
+    showRenameModal.value = true
+    nextTick(() => renameInputRef.value?.focus())
+  } else if (key === 'copyId') {
+    navigator.clipboard.writeText(sessionId)
+    message.success('Copied')
+  }
+}
+
+async function handleRenameConfirm() {
+  if (!renameTarget.value || !renameInput.value.trim()) return
+  const ok = await renameSession(renameTarget.value.id, renameInput.value.trim())
+  if (ok) {
+    chatStore.updateSessionTitle(renameTarget.value.id, renameInput.value.trim())
+    message.success('Session renamed')
+  } else {
+    message.error('Failed to rename')
+  }
+  showRenameModal.value = false
+  renameTarget.value = null
+}
 </script>
 
 <template>
@@ -72,6 +110,7 @@ function formatTime(ts: number) {
           class="session-item"
           :class="{ active: s.id === chatStore.activeSessionId }"
           @click="chatStore.switchSession(s.id)"
+          @contextmenu.prevent="handleSessionMenuSelect('rename', s.id)"
         >
           <div class="session-item-content">
             <span class="session-item-title">{{ s.title }}</span>
@@ -80,6 +119,15 @@ function formatTime(ts: number) {
               <span class="session-item-time">{{ formatTime(s.createdAt) }}</span>
             </span>
           </div>
+          <NDropdown
+            :options="sessionMenuOptions"
+            trigger="click"
+            @select="(key: string) => handleSessionMenuSelect(key, s.id)"
+          >
+            <button class="session-item-menu" @click.stop>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
+            </button>
+          </NDropdown>
           <NPopconfirm
             v-if="s.id !== chatStore.activeSessionId || sortedSessions.length > 1"
             @positive-click="handleDeleteSession(s.id)"
@@ -132,6 +180,23 @@ function formatTime(ts: number) {
       <MessageList />
       <ChatInput />
     </div>
+
+    <!-- Rename Session Modal -->
+    <NModal
+      v-model:show="showRenameModal"
+      preset="dialog"
+      title="Rename Session"
+      positive-text="Confirm"
+      negative-text="Cancel"
+      @positive-click="handleRenameConfirm"
+    >
+      <NInput
+        ref="renameInputRef"
+        v-model:value="renameInput"
+        placeholder="Session title"
+        @keyup.enter="handleRenameConfirm"
+      />
+    </NModal>
   </div>
 </template>
 
@@ -209,6 +274,7 @@ function formatTime(ts: number) {
     background: rgba($accent-primary, 0.06);
     color: $text-primary;
 
+    .session-item-menu,
     .session-item-delete {
       opacity: 1;
     }
@@ -258,6 +324,23 @@ function formatTime(ts: number) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.session-item-menu {
+  flex-shrink: 0;
+  opacity: 0;
+  padding: 2px;
+  border: none;
+  background: none;
+  color: $text-muted;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: all $transition-fast;
+
+  &:hover {
+    color: $text-primary;
+    background: rgba($text-primary, 0.1);
+  }
 }
 
 .session-item-delete {
