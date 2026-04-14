@@ -12,11 +12,14 @@ import {
   NSelect,
   NDatePicker,
   NProgress,
+  NSwitch,
+  NInputNumber,
 } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
+import { fetchSecurityLatest, runSecurityAudit, saveSecuritySettings, type SecurityReport, type SecuritySettings } from '@/api/security-center'
 
-type InsightTab = 'audit' | 'reports'
+type InsightTab = 'audit' | 'reports' | 'security'
 
 interface AuditLog {
   id: string
@@ -57,10 +60,36 @@ const selectedType = ref<'all' | 'daily' | 'weekly' | 'monthly'>('all')
 
 const auditLogs = ref<AuditLog[]>([])
 const reports = ref<Report[]>([])
+const securityReport = ref<SecurityReport | null>(null)
+const securitySettings = ref<SecuritySettings>({ enabled: true, dailyHour: 3, lastRunAt: 0 })
+const securityRunning = ref(false)
+
+async function loadSecurity() {
+  const data = await fetchSecurityLatest()
+  securityReport.value = data.report
+  securitySettings.value = data.settings
+}
+
+async function runSecurityNow() {
+  securityRunning.value = true
+  try {
+    const data = await runSecurityAudit()
+    securityReport.value = data.report
+    securitySettings.value = data.settings
+  } finally {
+    securityRunning.value = false
+  }
+}
+
+async function saveSecurityPolicy() {
+  const data = await saveSecuritySettings(securitySettings.value)
+  securitySettings.value = data.settings
+}
 
 function initTabFromRoute() {
   const q = (route.query.tab as string | undefined)?.toLowerCase()
   if (q === 'reports') tab.value = 'reports'
+  else if (q === 'security') tab.value = 'security'
   else tab.value = 'audit'
 }
 
@@ -245,11 +274,12 @@ function switchTab(next: InsightTab) {
   router.replace({ name: 'insights', query: { tab: next } })
 }
 
-onMounted(() => {
+onMounted(async () => {
   loading.value = true
   initTabFromRoute()
   auditLogs.value = [...mockAuditLogs]
   reports.value = [...mockReports].sort((a, b) => b.date - a.date)
+  await loadSecurity().catch(() => undefined)
   loading.value = false
 })
 </script>
@@ -262,6 +292,7 @@ onMounted(() => {
         <div class="tab-switch">
           <button class="tab-btn" :class="{ active: tab === 'audit' }" @click="switchTab('audit')">{{ t('sidebar.audit') }}</button>
           <button class="tab-btn" :class="{ active: tab === 'reports' }" @click="switchTab('reports')">{{ t('sidebar.reports') }}</button>
+          <button class="tab-btn" :class="{ active: tab === 'security' }" @click="switchTab('security')">{{ t('sidebar.securityCenter') }}</button>
         </div>
       </div>
       <div class="header-actions">
@@ -272,9 +303,18 @@ onMounted(() => {
           <NSelect v-model:value="selectedStatus" :options="statusOptions" size="small" style="width: 160px" :placeholder="t('audit.filterByStatus')" />
         </template>
 
-        <template v-else>
+        <template v-else-if="tab === 'reports'">
           <NSelect v-model:value="selectedType" :options="reportTypeOptions" size="small" style="width: 180px" :placeholder="t('reports.type')" />
           <NButton type="primary" class="btn-generate">{{ t('reports.generate') }}</NButton>
+        </template>
+
+        <template v-else>
+          <div class="security-inline">
+            <span>{{ t('securityCenter.dailyAudit') }}</span>
+            <NSwitch v-model:value="securitySettings.enabled" @update:value="saveSecurityPolicy" />
+          </div>
+          <NInputNumber v-model:value="securitySettings.dailyHour" :min="0" :max="23" style="width: 120px" :placeholder="t('securityCenter.hour')" @update:value="saveSecurityPolicy" />
+          <NButton type="warning" :loading="securityRunning" @click="runSecurityNow">{{ t('securityCenter.runNow') }}</NButton>
         </template>
       </div>
     </header>
@@ -378,7 +418,7 @@ onMounted(() => {
           </div>
         </template>
 
-        <template v-else>
+        <template v-else-if="tab === 'reports'">
           <div class="statistics-section">
             <h3 class="section-title">{{ t('reports.statistics.title') }}</h3>
             <NGrid :x-gap="12" :y-gap="12" :cols="4">
@@ -426,6 +466,41 @@ onMounted(() => {
             </div>
             <NEmpty v-else :description="t('reports.noReports')" />
           </div>
+        </template>
+
+        <template v-else>
+          <NCard class="security-card" size="small">
+            <div class="security-head">
+              <div>
+                <h3>{{ t('securityCenter.title') }}</h3>
+                <p>{{ t('securityCenter.subtitle') }}</p>
+              </div>
+              <NTag :type="(securityReport?.score || 0) >= 80 ? 'success' : (securityReport?.score || 0) >= 60 ? 'warning' : 'error'">
+                {{ t('securityCenter.score') }} {{ securityReport?.score ?? 0 }}
+              </NTag>
+            </div>
+            <div class="security-meta">
+              <span>{{ t('securityCenter.lastRun') }}: {{ securitySettings.lastRunAt ? formatDateTime(securitySettings.lastRunAt) : '-' }}</span>
+              <span>{{ t('securityCenter.dailyHour') }}: {{ securitySettings.dailyHour }}:00</span>
+            </div>
+            <div class="security-summary" v-if="securityReport">
+              <NTag type="error">High {{ securityReport.summary.high }}</NTag>
+              <NTag type="warning">Medium {{ securityReport.summary.medium }}</NTag>
+              <NTag type="info">Low {{ securityReport.summary.low }}</NTag>
+            </div>
+          </NCard>
+
+          <div v-if="securityReport?.findings?.length" class="security-findings">
+            <NCard v-for="f in securityReport.findings" :key="f.id" size="small">
+              <div class="finding-head">
+                <strong>{{ f.title }}</strong>
+                <NTag :type="f.severity === 'high' ? 'error' : f.severity === 'medium' ? 'warning' : 'info'">{{ f.severity }}</NTag>
+              </div>
+              <p class="finding-detail">{{ f.detail }}</p>
+              <p class="finding-rec">{{ t('securityCenter.recommendation') }}: {{ f.recommendation }}</p>
+            </NCard>
+          </div>
+          <NEmpty v-else :description="t('securityCenter.clean')" />
         </template>
       </NSpin>
     </div>
@@ -490,6 +565,26 @@ onMounted(() => {
   align-items: center;
   gap: 10px;
 }
+
+.security-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: $text-secondary;
+}
+
+.security-card { margin-top: 12px; }
+.security-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;
+  h3 { margin: 0; font-size: 16px; }
+  p { margin: 4px 0 0; color: $text-muted; font-size: 12px; }
+}
+.security-meta { margin-top: 8px; display: flex; gap: 16px; color: $text-muted; font-size: 12px; flex-wrap: wrap; }
+.security-summary { margin-top: 10px; display: flex; gap: 8px; }
+.security-findings { margin-top: 10px; display: grid; gap: 8px; }
+.finding-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.finding-detail { margin: 8px 0 4px; color: $text-secondary; font-size: 13px; }
+.finding-rec { margin: 0; color: $text-muted; font-size: 12px; }
 
 .date-picker {
   width: 260px;

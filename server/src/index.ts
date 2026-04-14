@@ -20,6 +20,9 @@ import { terminalRoutes } from './routes/terminal'
 import { systemRoutes } from './routes/system'
 import { versionRoutes } from './routes/version'
 import { modelRoutes } from './routes/models'
+import { projectCenterRoutes } from './routes/project-center'
+import { configCenterRoutes } from './routes/config-center'
+import { securityCenterRoutes, initSecurityCenterScheduler } from './routes/security-center'
 import * as hermesCli from './services/hermes-cli'
 const { restartGateway } = hermesCli
 
@@ -27,6 +30,7 @@ export async function bootstrap() {
   await mkdir(config.uploadDir, { recursive: true })
   await mkdir(config.dataDir, { recursive: true })
   await ensureApiServerConfig()
+  await initSecurityCenterScheduler()
 
   const app = new Koa()
 
@@ -46,6 +50,9 @@ export async function bootstrap() {
   app.use(modelRoutes.routes())
   app.use(systemRoutes.routes())
   app.use(versionRoutes.routes())
+  app.use(projectCenterRoutes.routes())
+  app.use(configCenterRoutes.routes())
+  app.use(securityCenterRoutes.routes())
 
   // Health endpoint with version
   app.use(async (ctx, next) => {
