@@ -254,6 +254,18 @@ onUnmounted(() => {
           </NGridItem>
         </NGrid>
 
+        <!-- Legacy Platform Identity -->
+        <section class="section">
+          <h3>{{ t('services.legacyBrand.title') }}</h3>
+          <div class="legacy-brand-card">
+            <img src="/assets/logo.png" alt="Hermes" class="legacy-brand-avatar" />
+            <div class="legacy-brand-meta">
+              <div class="legacy-brand-name">Hermes</div>
+              <div class="legacy-brand-desc">{{ t('services.legacyBrand.description') }}</div>
+            </div>
+          </div>
+        </section>
+
         <!-- Gateway Actions -->
         <section class="section">
           <h3>{{ t('services.gatewayControl') }}</h3>
@@ -465,6 +477,41 @@ onUnmounted(() => {
   margin: 0 0 12px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+}
+
+.legacy-brand-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: $bg-secondary;
+  border: 1px solid $border-color;
+  border-radius: $radius-md;
+}
+
+.legacy-brand-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid $border-color;
+}
+
+.legacy-brand-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.legacy-brand-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: $text-primary;
+}
+
+.legacy-brand-desc {
+  font-size: 12px;
+  color: $text-muted;
 }
 
 .section-title-row {

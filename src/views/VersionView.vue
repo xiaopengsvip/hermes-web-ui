@@ -49,7 +49,7 @@ async function load() {
 function copyVersion() {
   if (!info.value) return
   const text = [
-    `Hermes Web UI v${info.value.web_ui.version}`,
+    `EVR-AI开发工作系统 v1`,
     `Hermes Agent: ${info.value.hermes.version}`,
     `Node.js: ${info.value.runtime.node}`,
     `Platform: ${info.value.runtime.platform}/${info.value.runtime.arch}`,
@@ -110,7 +110,7 @@ onMounted(load)
             <NCard size="small" class="stat-card">
               <NStatistic :label="t('version.webUi')">
                 <template #default>
-                  <span class="version-value">v{{ info.web_ui.version }}</span>
+                  <span class="version-value">v1</span>
                 </template>
               </NStatistic>
             </NCard>

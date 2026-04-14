@@ -27,7 +27,7 @@
     "no": "No"
   },
   "sidebar": {
-    "logo": "Hermes",
+    "logo": "EVR-AI开发工作系统",
     "chat": "Chat",
     "jobs": "Jobs",
     "materials": "Materials",
@@ -635,6 +635,10 @@
     "msgCount": "{count} msgs",
     "toolCount": "{count} tools",
     "pidLabel": "PID {pid}",
+    "legacyBrand": {
+      "title": "Legacy Platform Identity",
+      "description": "Original platform name and avatar have been moved to the Services section."
+    },
     "stats": {
       "hermesVersion": "Hermes Version",
       "activeSessions": "Active Sessions",

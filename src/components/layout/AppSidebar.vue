@@ -30,7 +30,7 @@ defineExpose({ collapsed })
   <aside class="sidebar" :class="{ collapsed }">
     <div class="sidebar-header">
       <div class="sidebar-logo" @click="router.push('/')">
-        <img src="/assets/logo.png" alt="Hermes" class="logo-img" />
+        <img src="/everettlogo.jpg" :alt="t('sidebar.logo')" class="logo-img" />
         <span v-if="!collapsed" class="logo-text">{{ t('sidebar.logo') }}</span>
       </div>
       <button class="collapse-btn" @click="toggleCollapse" :title="collapsed ? t('sidebar.expand') : t('sidebar.collapse')">
@@ -254,7 +254,7 @@ defineExpose({ collapsed })
         <LanguageSwitcher />
         <ThemeSwitcher />
       </div>
-      <div v-if="!collapsed" class="version-info">{{ t('sidebar.logo') }} {{ appStore.serverVersion || 'v0.1.0' }}</div>
+      <div v-if="!collapsed" class="version-info">{{ t('sidebar.logo') }} v1</div>
     </div>
   </aside>
 </template>

@@ -27,7 +27,7 @@
     "no": "否"
   },
   "sidebar": {
-    "logo": "Hermes",
+    "logo": "EVR-AI开发工作系统",
     "chat": "聊天",
     "jobs": "定时任务",
     "materials": "素材库",
@@ -663,6 +663,10 @@
     "msgCount": "{count} 条消息",
     "toolCount": "{count} 次工具调用",
     "pidLabel": "PID {pid}",
+    "legacyBrand": {
+      "title": "平台原始标识",
+      "description": "原平台名称与头像已迁移到服务板块。"
+    },
     "stats": {
       "hermesVersion": "Hermes 版本",
       "activeSessions": "活跃会话",
