@@ -2,6 +2,7 @@ import Router from '@koa/router'
 import { chmod, readFile, writeFile } from 'fs/promises'
 import { resolve } from 'path'
 import { config } from '../config'
+import * as hermesCli from '../services/hermes-cli'
 
 export const configCenterRoutes = new Router()
 
@@ -24,6 +25,21 @@ export interface ConfigCenterState {
     cloudflareToken: string
     relayApiKey: string
     hermesApiKey: string
+    sshPassword: string
+    serverRootPassword: string
+  }
+  sessionDesign: {
+    defaultSessionPrompt: string
+    uiDesignPrompt: string
+    contentPolicy: string
+  }
+  serverConnection: {
+    serverHost: string
+    serverPort: number
+    bffPort: number
+    apiPort: number
+    relayPort: number
+    sshUser: string
   }
   audit: {
     enabled: boolean
@@ -54,6 +70,21 @@ const defaults: ConfigCenterState = {
     cloudflareToken: '',
     relayApiKey: '',
     hermesApiKey: '',
+    sshPassword: '',
+    serverRootPassword: '',
+  },
+  sessionDesign: {
+    defaultSessionPrompt: '你是 Hermes 项目调度助手，优先中文，直接执行。',
+    uiDesignPrompt: '现代炫酷、玻璃拟态、信息密度高、强调实时反馈。',
+    contentPolicy: '禁止在聊天中明文回显密钥；仅在配置中心维护。',
+  },
+  serverConnection: {
+    serverHost: '43.167.213.143',
+    serverPort: 22,
+    bffPort: config.port,
+    apiPort: Number(String(config.upstream).split(':').pop() || 8642),
+    relayPort: 443,
+    sshUser: 'root',
   },
   audit: {
     enabled: true,
@@ -75,6 +106,8 @@ function mergeState(base: ConfigCenterState, patch: Partial<ConfigCenterState>):
     ...patch,
     profile: { ...base.profile, ...(patch.profile || {}) },
     platforms: { ...base.platforms, ...(patch.platforms || {}) },
+    sessionDesign: { ...base.sessionDesign, ...(patch.sessionDesign || {}) },
+    serverConnection: { ...base.serverConnection, ...(patch.serverConnection || {}) },
     audit: { ...base.audit, ...(patch.audit || {}) },
     secrets: { ...base.secrets },
     updatedAt: Date.now(),
@@ -125,6 +158,8 @@ function toPublicState(state: ConfigCenterState) {
       cloudflareToken: maskSecret(state.secrets.cloudflareToken),
       relayApiKey: maskSecret(state.secrets.relayApiKey),
       hermesApiKey: maskSecret(state.secrets.hermesApiKey),
+      sshPassword: maskSecret(state.secrets.sshPassword),
+      serverRootPassword: maskSecret(state.secrets.serverRootPassword),
     },
     secretsConfigured: {
       githubToken: !!state.secrets.githubToken,
@@ -132,6 +167,8 @@ function toPublicState(state: ConfigCenterState) {
       cloudflareToken: !!state.secrets.cloudflareToken,
       relayApiKey: !!state.secrets.relayApiKey,
       hermesApiKey: !!state.secrets.hermesApiKey,
+      sshPassword: !!state.secrets.sshPassword,
+      serverRootPassword: !!state.secrets.serverRootPassword,
     },
   }
 }
@@ -139,6 +176,41 @@ function toPublicState(state: ConfigCenterState) {
 configCenterRoutes.get('/api/config-center', async (ctx) => {
   const raw = await loadRawConfig()
   ctx.body = toPublicState(raw)
+})
+
+configCenterRoutes.get('/api/config-center/overview', async (ctx) => {
+  const raw = await loadRawConfig()
+  let sessions: any[] = []
+  try {
+    sessions = await hermesCli.listSessions(undefined, 50)
+  } catch {
+    sessions = []
+  }
+
+  const totalMessages = sessions.reduce((sum, s) => sum + Number(s.message_count || 0), 0)
+  const totalToolCalls = sessions.reduce((sum, s) => sum + Number(s.tool_call_count || 0), 0)
+
+  ctx.body = {
+    config: toPublicState(raw),
+    sessionSummary: {
+      totalSessions: sessions.length,
+      totalMessages,
+      totalToolCalls,
+      latestSessions: sessions.slice(0, 5).map((s) => ({
+        id: s.id,
+        title: s.title || 'Untitled',
+        model: s.model,
+        startedAt: s.started_at,
+        messageCount: s.message_count,
+      })),
+    },
+    ports: {
+      bffPort: raw.serverConnection.bffPort || config.port,
+      apiPort: raw.serverConnection.apiPort || Number(String(config.upstream).split(':').pop() || 8642),
+      relayPort: raw.serverConnection.relayPort || 443,
+      sshPort: raw.serverConnection.serverPort || 22,
+    },
+  }
 })
 
 configCenterRoutes.post('/api/config-center', async (ctx) => {
