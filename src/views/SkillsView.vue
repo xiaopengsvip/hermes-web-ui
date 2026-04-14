@@ -108,7 +108,7 @@ function handleSelect(category: string, skill: string) {
 
 .skills-content {
   flex: 1;
-  overflow: hidden;
+  overflow-y: auto;
 }
 
 .skills-loading {

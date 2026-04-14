@@ -8,14 +8,18 @@ import { mkdir } from 'fs/promises'
 import { config } from './config'
 import { proxyRoutes } from './routes/proxy'
 import { uploadRoutes } from './routes/upload'
+import { materialsRoutes } from './routes/materials'
 import { sessionRoutes } from './routes/sessions'
 import { webhookRoutes } from './routes/webhook'
 import { logRoutes } from './routes/logs'
 import { fsRoutes } from './routes/filesystem'
 import { githubRoutes } from './routes/github'
 import { vercelRoutes } from './routes/vercel'
+import { cloudflareRoutes } from './routes/cloudflare'
+import { terminalRoutes } from './routes/terminal'
 import { systemRoutes } from './routes/system'
 import { versionRoutes } from './routes/version'
+import { modelRoutes } from './routes/models'
 import * as hermesCli from './services/hermes-cli'
 const { restartGateway } = hermesCli
 
@@ -32,10 +36,14 @@ export async function bootstrap() {
   app.use(webhookRoutes.routes())
   app.use(logRoutes.routes())
   app.use(uploadRoutes.routes())
+  app.use(materialsRoutes.routes())
   app.use(sessionRoutes.routes())
   app.use(fsRoutes.routes())
   app.use(githubRoutes.routes())
   app.use(vercelRoutes.routes())
+  app.use(cloudflareRoutes.routes())
+  app.use(terminalRoutes.routes())
+  app.use(modelRoutes.routes())
   app.use(systemRoutes.routes())
   app.use(versionRoutes.routes())
 

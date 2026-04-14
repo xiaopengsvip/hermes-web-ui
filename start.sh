@@ -6,6 +6,10 @@ DIR="$(cd "$(dirname "$0")" && pwd)"
 PID_FILE="$DIR/.hermes-web-ui/webui.pid"
 LOG_FILE="$DIR/.hermes-web-ui/server.log"
 NODE_BIN="$(which node 2>/dev/null || echo "/home/xiao2027/.local/bin/node")"
+# Ensure web-ui child processes can call Hermes CLI from venv
+HERMES_PROJECT_DIR="/home/xiao2027/.hermes/hermes-agent"
+HERMES_VENV_BIN="$HERMES_PROJECT_DIR/venv/bin"
+export PATH="$HERMES_VENV_BIN:$HERMES_PROJECT_DIR:$PATH"
 
 mkdir -p "$DIR/.hermes-web-ui"
 

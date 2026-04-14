@@ -24,6 +24,7 @@ const showDetailModal = ref(false)
 const selectedProject = ref<VercelProject | null>(null)
 const projectDeployments = ref<VercelDeployment[]>([])
 const projectDomains = ref<VercelDomain[]>([])
+const defaultProjectAvatar = '/everettlogo.jpg'
 
 async function loadData() {
   loading.value = true
@@ -129,7 +130,8 @@ onMounted(loadData)
       </div>
     </header>
 
-    <div v-if="error" class="error-banner">{{ error }}</div>
+    <div class="vercel-content">
+      <div v-if="error" class="error-banner">{{ error }}</div>
 
     <NSpin :show="loading" style="min-height: 200px">
       <NEmpty v-if="!loading && projects.length === 0" description="No Vercel projects or token not configured" />
@@ -145,6 +147,7 @@ onMounted(loadData)
               @click="showDetails(project)"
             >
               <div class="project-header">
+                <img :src="defaultProjectAvatar" alt="project avatar" class="project-avatar" />
                 <span class="project-icon">{{ getFrameworkIcon(project.framework) }}</span>
                 <span class="project-name">{{ project.name }}</span>
                 <span v-if="project.framework" class="project-framework">{{ project.framework }}</span>
@@ -232,6 +235,7 @@ onMounted(loadData)
         </NSpin>
       </div>
     </NModal>
+    </div>
   </div>
 </template>
 
@@ -242,15 +246,15 @@ onMounted(loadData)
   height: 100vh;
   display: flex;
   flex-direction: column;
-  padding: 20px;
-  overflow: hidden;
 }
 
 .page-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 20px;
+  margin-bottom: 0;
+  padding: 12px 20px;
+  border-bottom: 1px solid $border-color;
   flex-shrink: 0;
 
   h2 {
@@ -264,6 +268,12 @@ onMounted(loadData)
 .header-actions {
   display: flex;
   gap: 8px;
+}
+
+.vercel-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
 }
 
 .error-banner {
@@ -316,6 +326,14 @@ onMounted(loadData)
   align-items: center;
   gap: 6px;
   margin-bottom: 6px;
+}
+
+.project-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid $border-color;
 }
 
 .project-icon { font-size: 16px; }

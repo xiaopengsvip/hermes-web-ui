@@ -37,14 +37,6 @@ const hasAttachments = computed(() => (props.message.attachments?.length ?? 0) >
     <template v-else>
       <div class="msg-body">
         <img v-if="message.role === 'assistant'" src="/assets/logo.png" alt="Hermes" class="msg-avatar" />
-        <div v-if="message.role === 'user'" class="msg-user-header">
-          <div class="user-avatar-placeholder">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
-            </svg>
-          </div>
-          <span class="user-name-label">You</span>
-        </div>
         <div class="msg-content" :class="message.role">
           <div class="message-bubble" :class="{ system: isSystem }">
             <div v-if="hasAttachments" class="msg-attachments">
@@ -73,6 +65,10 @@ const hasAttachments = computed(() => (props.message.attachments?.length ?? 0) >
             </div>
           </div>
           <div class="message-time">{{ timeStr }}</div>
+        </div>
+        <div v-if="message.role === 'user'" class="msg-user-meta">
+          <img src="/everettlogo.jpg" alt="You" class="msg-avatar user-avatar" />
+          <span class="user-name-label">You</span>
         </div>
       </div>
     </template>
@@ -216,31 +212,29 @@ const hasAttachments = computed(() => (props.message.attachments?.length ?? 0) >
   padding: 0 4px;
 }
 
-.msg-user-header {
+.msg-user-meta {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   flex-shrink: 0;
-  margin-bottom: 4px;
+  min-width: 40px;
 }
 
-.user-avatar-placeholder {
-  width: 24px;
-  height: 24px;
+.user-avatar {
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
-  background: rgba($accent-primary, 0.15);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: $accent-primary;
-  flex-shrink: 0;
+  object-fit: cover;
+  border: 1px solid rgba($accent-primary, 0.25);
 }
 
 .user-name-label {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   color: $text-secondary;
   letter-spacing: 0.3px;
+  line-height: 1;
 }
 
 .tool-line {

@@ -40,7 +40,9 @@
     "services": "Services",
     "version": "Version",
     "disconnected": "Disconnected",
-    "connected": "Connected"
+    "connected": "Connected",
+    "cloudflare": "Cloudflare",
+    "terminal": "Terminal"
   },
   "chat": {
     "title": "Chat",
@@ -186,6 +188,9 @@
     "noMaterials": "No materials",
     "searchPlaceholder": "Search materials...",
     "filterByType": "Filter by type",
+    "filterBySource": "Filter by source",
+    "filterByCategory": "Filter by category",
+    "filterBySession": "Filter by session",
     "sortBy": "Sort by",
     "sortOptions": {
       "name": "Name",
@@ -215,8 +220,16 @@
     },
     "source": {
       "title": "Source",
+      "all": "All sources",
       "chat": "Chat",
       "upload": "Upload"
+    },
+    "categories": {
+      "all": "All categories"
+    },
+    "sessions": {
+      "all": "All sessions",
+      "related": "Related sessions"
     },
     "smartReuse": {
       "title": "Smart Reuse",

@@ -210,7 +210,7 @@ const displayUser = computed(() => (data.value?.user || '').replace(/§/g, '\n\n
 
 .memory-content {
   flex: 1;
-  overflow: hidden;
+  overflow-y: auto;
   padding: 20px;
   display: flex;
   flex-direction: column;

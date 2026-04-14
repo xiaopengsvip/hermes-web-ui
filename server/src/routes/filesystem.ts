@@ -15,6 +15,7 @@ interface CredentialPoolEntry {
 
 interface AuthJson {
   credential_pool?: Record<string, CredentialPoolEntry[]>
+  providers?: Record<string, any>
 }
 
 const authPath = resolve(homedir(), '.hermes', 'auth.json')
@@ -44,11 +45,65 @@ async function fetchProviderModels(baseUrl: string, apiKey: string): Promise<str
       console.error(`[available-models] ${baseUrl} returned unexpected format`)
       return []
     }
-    return data.data.map(m => m.id).sort()
+    return data.data.map(m => m.id).filter(id => !id.startsWith('hermes')).sort()
   } catch (err: any) {
     console.error(`[available-models] ${baseUrl} failed: ${err.message}`)
     return []
   }
+}
+
+// Known models per provider (fallback when API doesn't list them)
+const KNOWN_MODELS: Record<string, string[]> = {
+  nous: [
+    'xiaomi/mimo-v2-pro',
+    'deepseek-ai/DeepSeek-R1',
+    'deepseek-ai/DeepSeek-V3',
+    'Qwen/Qwen3-235B-A22B',
+    'Qwen/Qwen3-30B-A3B',
+    'google/gemma-3-27b-it',
+    'meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8',
+    'meta-llama/Llama-4-Scout-17B-16E-Instruct',
+    'anthropic/claude-sonnet-4',
+    'anthropic/claude-opus-4.6',
+    'openai/gpt-4o',
+    'openai/gpt-4o-mini',
+    'openai/o3-mini',
+    'google/gemini-2.5-pro',
+    'deepseek/deepseek-r1',
+    'deepseek/deepseek-v3',
+    'Qwen/Qwen3-235B-A22B',
+    'mistralai/Mistral-Large-Instruct-2411',
+    'amazon/Nova-Pro-v1:0',
+    'ai21/jamba-large-1.7',
+    'aion-labs/aion-1.0',
+    'aion-labs/aion-2.0',
+  ],
+  openrouter: [
+    'anthropic/claude-sonnet-4',
+    'anthropic/claude-opus-4.6',
+    'openai/gpt-4o',
+    'openai/gpt-4o-mini',
+    'openai/o3-mini',
+    'google/gemini-2.5-pro',
+    'google/gemini-2.5-flash',
+    'deepseek/deepseek-r1',
+    'deepseek/deepseek-v3',
+    'meta-llama/llama-4-maverick',
+    'qwen/qwen-2.5-72b-instruct',
+  ],
+  openai: [
+    'gpt-4o',
+    'gpt-4o-mini',
+    'o1',
+    'o1-mini',
+    'o3-mini',
+  ],
+  anthropic: [
+    'claude-sonnet-4-20250514',
+    'claude-opus-4-20250701',
+    'claude-3-5-sonnet-20241022',
+    'claude-3-5-haiku-20241022',
+  ],
 }
 
 export const fsRoutes = new Router()
@@ -361,7 +416,10 @@ fsRoutes.get('/api/available-models', async (ctx) => {
     for (const [providerKey, entries] of Object.entries(pool)) {
       if (!Array.isArray(entries) || entries.length === 0) continue
       const entry = entries.find(e => e.last_status !== 'exhausted') || entries[0]
-      if (!entry?.base_url || !entry?.access_token) continue
+      if (!entry?.base_url) continue
+      // Support both access_token and agent_key
+      const token = entry.access_token || (entry as any).agent_key || ''
+      if (!token) continue
       const baseUrl = entry.base_url.replace(/\/+$/, '')
       if (seenUrls.has(baseUrl)) continue
       seenUrls.add(baseUrl)
@@ -369,7 +427,26 @@ fsRoutes.get('/api/available-models', async (ctx) => {
         key: providerKey,
         label: providerKey.replace(/^custom:/, '') || entry.label || baseUrl,
         base_url: baseUrl,
-        token: entry.access_token,
+        token,
+      })
+    }
+
+    // Also check top-level providers in auth.json
+    const authProviders = auth?.providers || {}
+    for (const [providerKey, info] of Object.entries(authProviders)) {
+      if (endpoints.find(e => e.key === providerKey)) continue
+      const providerInfo = info as any
+      const baseUrl = providerInfo.inference_base_url || ''
+      const token = providerInfo.agent_key || ''
+      if (!baseUrl || !token) continue
+      const cleanUrl = baseUrl.replace(/\/+$/, '')
+      if (seenUrls.has(cleanUrl)) continue
+      seenUrls.add(cleanUrl)
+      endpoints.push({
+        key: providerKey,
+        label: providerKey,
+        base_url: cleanUrl,
+        token,
       })
     }
 
@@ -391,8 +468,23 @@ fsRoutes.get('/api/available-models', async (ctx) => {
       }
     }
 
-    // Fallback: if no providers returned models, fall back to config.yaml parsing
+    // Fallback: if no providers returned models, use KNOWN_MODELS
     if (groups.length === 0) {
+      for (const [providerKey, models] of Object.entries(KNOWN_MODELS)) {
+        if (models.length > 0) {
+          groups.push({
+            provider: providerKey,
+            label: providerKey.charAt(0).toUpperCase() + providerKey.slice(1),
+            base_url: '',
+            models,
+          })
+        }
+      }
+      if (groups.length > 0) {
+        ctx.body = { default: currentDefault, groups }
+        return
+      }
+      // Last resort: fall back to config.yaml parsing
       const fallback = buildModelGroups(yaml)
       ctx.body = fallback
       return

@@ -40,7 +40,9 @@
     "services": "服务",
     "version": "版本",
     "disconnected": "未连接",
-    "connected": "已连接"
+    "connected": "已连接",
+    "cloudflare": "Cloudflare",
+    "terminal": "终端"
   },
   "chat": {
     "title": "聊天",
@@ -186,6 +188,9 @@
     "noMaterials": "暂无素材",
     "searchPlaceholder": "搜索素材...",
     "filterByType": "按类型筛选",
+    "filterBySource": "按来源筛选",
+    "filterByCategory": "按分类筛选",
+    "filterBySession": "按会话筛选",
     "sortBy": "排序方式",
     "sortOptions": {
       "name": "名称",
@@ -215,8 +220,16 @@
     },
     "source": {
       "title": "来源",
+      "all": "全部来源",
       "chat": "聊天",
       "upload": "上传"
+    },
+    "categories": {
+      "all": "全部分类"
+    },
+    "sessions": {
+      "all": "全部会话",
+      "related": "关联会话"
     },
     "smartReuse": {
       "title": "智能复用",

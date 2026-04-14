@@ -54,6 +54,16 @@ const router = createRouter({
       component: () => import('@/views/VercelView.vue'),
     },
     {
+      path: '/cloudflare',
+      name: 'cloudflare',
+      component: () => import('@/views/CloudflareView.vue'),
+    },
+    {
+      path: '/terminal',
+      name: 'terminal',
+      component: () => import('@/views/TerminalView.vue'),
+    },
+    {
       path: '/services',
       name: 'services',
       component: () => import('@/views/ServicesView.vue'),

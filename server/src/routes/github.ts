@@ -6,6 +6,16 @@ import * as github from '../services/github'
 
 export const githubRoutes = new Router()
 
+function githubErrorStatus(message: string): number {
+  if (!message) return 500
+  if (message.includes('No GitHub token')) return 401
+  if (message.includes('Bad credentials')) return 401
+  if (message.includes('GitHub API 401')) return 401
+  if (message.includes('GitHub API 403')) return 403
+  if (message.includes('GitHub API 404')) return 404
+  return 500
+}
+
 // GET /api/github/token-status — check if token is available
 githubRoutes.get('/api/github/token-status', async (ctx) => {
   const token = await github.getToken()
@@ -37,7 +47,7 @@ githubRoutes.post('/api/github/token', async (ctx) => {
     await writeFile(authPath, JSON.stringify(auth, null, 2), 'utf-8')
     ctx.body = { success: true }
   } catch (err: any) {
-    ctx.status = 500
+    ctx.status = githubErrorStatus(err.message)
     ctx.body = { error: err.message }
   }
 })
@@ -48,7 +58,7 @@ githubRoutes.get('/api/github/user', async (ctx) => {
     const user = await github.getAuthenticatedUser()
     ctx.body = user
   } catch (err: any) {
-    ctx.status = err.message?.includes('No GitHub token') ? 401 : 500
+    ctx.status = githubErrorStatus(err.message)
     ctx.body = { error: err.message }
   }
 })
@@ -62,7 +72,7 @@ githubRoutes.get('/api/github/repos', async (ctx) => {
     const repos = await github.listRepos({ sort, per_page, page })
     ctx.body = { repos }
   } catch (err: any) {
-    ctx.status = err.message?.includes('No GitHub token') ? 401 : 500
+    ctx.status = githubErrorStatus(err.message)
     ctx.body = { error: err.message }
   }
 })
@@ -73,7 +83,7 @@ githubRoutes.get('/api/github/repos/:owner/:repo', async (ctx) => {
     const repo = await github.getRepo(ctx.params.owner, ctx.params.repo)
     ctx.body = repo
   } catch (err: any) {
-    ctx.status = 500
+    ctx.status = githubErrorStatus(err.message)
     ctx.body = { error: err.message }
   }
 })
@@ -84,7 +94,7 @@ githubRoutes.get('/api/github/repos/:owner/:repo/branches', async (ctx) => {
     const branches = await github.listBranches(ctx.params.owner, ctx.params.repo)
     ctx.body = { branches }
   } catch (err: any) {
-    ctx.status = 500
+    ctx.status = githubErrorStatus(err.message)
     ctx.body = { error: err.message }
   }
 })
@@ -96,7 +106,7 @@ githubRoutes.get('/api/github/repos/:owner/:repo/commits', async (ctx) => {
     const commits = await github.listCommits(ctx.params.owner, ctx.params.repo, per_page)
     ctx.body = { commits }
   } catch (err: any) {
-    ctx.status = 500
+    ctx.status = githubErrorStatus(err.message)
     ctx.body = { error: err.message }
   }
 })
@@ -113,7 +123,7 @@ githubRoutes.post('/api/github/repos', async (ctx) => {
     })
     ctx.body = repo
   } catch (err: any) {
-    ctx.status = 500
+    ctx.status = githubErrorStatus(err.message)
     ctx.body = { error: err.message }
   }
 })
@@ -124,7 +134,7 @@ githubRoutes.delete('/api/github/repos/:owner/:repo', async (ctx) => {
     await github.deleteRepo(ctx.params.owner, ctx.params.repo)
     ctx.body = { ok: true }
   } catch (err: any) {
-    ctx.status = 500
+    ctx.status = githubErrorStatus(err.message)
     ctx.body = { error: err.message }
   }
 })

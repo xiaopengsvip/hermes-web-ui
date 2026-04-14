@@ -1,23 +1,126 @@
 <script setup lang="ts">
-import { ref, computed, nextTick } from 'vue'
-import { NButton, NTooltip, NPopconfirm, NDropdown, NInput, NModal, useMessage } from 'naive-ui'
+import { ref, computed } from 'vue'
+import { NButton, NTooltip, NPopconfirm, NInput, NModal, useMessage } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 import MessageList from './MessageList.vue'
 import ChatInput from './ChatInput.vue'
 import { useChatStore } from '@/stores/chat'
+import { useTerminalStore } from '@/stores/terminal'
 import { useAppStore } from '@/stores/app'
 import { renameSession } from '@/api/sessions'
+import { useRouter } from 'vue-router'
 
 const { t } = useI18n()
 const chatStore = useChatStore()
+const terminalStore = useTerminalStore()
 const appStore = useAppStore()
 const message = useMessage()
+const router = useRouter()
 
 const showSessions = ref(true)
+const expandedGroups = ref<Set<string>>(new Set(['today'])) // 默认展开今天
 
-const sortedSessions = computed(() => {
-  return [...chatStore.sessions].sort((a, b) => b.createdAt - a.createdAt)
+// 合并所有会话（聊天+终端）
+interface UnifiedSession {
+  id: string
+  title: string
+  createdAt: number
+  updatedAt: number
+  type: 'chat' | 'terminal'
+  messageCount?: number
+  commandCount?: number
+  model?: string
+}
+
+const allSessions = computed<UnifiedSession[]>(() => {
+  const chatSessions: UnifiedSession[] = chatStore.sessions.map(s => ({
+    id: s.id,
+    title: s.title,
+    createdAt: s.createdAt,
+    updatedAt: s.updatedAt,
+    type: 'chat' as const,
+    messageCount: s.messages.length || s.messageCount,
+    model: s.model,
+  }))
+
+  const terminalSessions: UnifiedSession[] = terminalStore.sessions.map(s => ({
+    id: s.id,
+    title: s.title,
+    createdAt: s.createdAt,
+    updatedAt: s.updatedAt,
+    type: 'terminal' as const,
+    commandCount: s.commands.length,
+  }))
+
+  return [...chatSessions, ...terminalSessions].sort((a, b) => b.updatedAt - a.updatedAt)
 })
+
+// 按日期分组
+const groupedSessions = computed(() => {
+  const groups: Record<string, UnifiedSession[]> = {}
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+  const yesterday = today - 86400000
+  const weekAgo = today - 7 * 86400000
+
+  for (const session of allSessions.value) {
+    const sessionDate = new Date(session.createdAt)
+    const sessionDay = new Date(sessionDate.getFullYear(), sessionDate.getMonth(), sessionDate.getDate()).getTime()
+
+    let groupKey: string
+    if (sessionDay >= today) {
+      groupKey = 'today'
+    } else if (sessionDay >= yesterday) {
+      groupKey = 'yesterday'
+    } else if (sessionDay >= weekAgo) {
+      groupKey = 'thisWeek'
+    } else {
+      groupKey = sessionDate.toLocaleDateString('zh-CN', { month: 'long', day: 'numeric' })
+    }
+
+    if (!groups[groupKey]) groups[groupKey] = []
+    groups[groupKey].push(session)
+  }
+
+  return groups
+})
+
+function toggleGroup(groupKey: string) {
+  if (expandedGroups.value.has(groupKey)) {
+    expandedGroups.value.delete(groupKey)
+  } else {
+    expandedGroups.value.add(groupKey)
+  }
+}
+
+function isGroupExpanded(groupKey: string): boolean {
+  return expandedGroups.value.has(groupKey)
+}
+
+function getGroupLabel(groupKey: string): string {
+  switch (groupKey) {
+    case 'today': return '今天'
+    case 'yesterday': return '昨天'
+    case 'thisWeek': return '本周'
+    default: return groupKey
+  }
+}
+
+function handleSessionClick(session: UnifiedSession) {
+  if (session.type === 'chat') {
+    chatStore.switchSession(session.id)
+  } else {
+    terminalStore.switchSession(session.id)
+    router.push({ name: 'terminal' })
+  }
+}
+
+function isSessionActive(session: UnifiedSession): boolean {
+  if (session.type === 'chat') {
+    return session.id === chatStore.activeSessionId
+  }
+  return session.id === terminalStore.activeSessionId
+}
 
 const activeSessionLabel = computed(() =>
   chatStore.activeSession?.id || 'New Chat',
@@ -38,8 +141,13 @@ function copySessionId() {
   }
 }
 
-function handleDeleteSession(id: string) {
-  chatStore.deleteSession(id)
+function handleDeleteSession(id: string, type: 'chat' | 'terminal') {
+  if (type === 'chat') {
+    chatStore.deleteSession(id)
+  } else {
+    terminalStore.deleteSession(id)
+    terminalStore.saveSessions()
+  }
   message.success('Session deleted')
 }
 
@@ -55,25 +163,6 @@ function formatTime(ts: number) {
 const showRenameModal = ref(false)
 const renameTarget = ref<{ id: string; title: string } | null>(null)
 const renameInput = ref('')
-const renameInputRef = ref<InstanceType<typeof NInput> | null>(null)
-
-const sessionMenuOptions = [
-  { label: 'Rename', key: 'rename' },
-  { label: 'Copy ID', key: 'copyId' },
-]
-
-function handleSessionMenuSelect(key: string, sessionId: string) {
-  const session = chatStore.sessions.find(s => s.id === sessionId)
-  if (key === 'rename' && session) {
-    renameTarget.value = { id: session.id, title: session.title }
-    renameInput.value = session.title
-    showRenameModal.value = true
-    nextTick(() => renameInputRef.value?.focus())
-  } else if (key === 'copyId') {
-    navigator.clipboard.writeText(sessionId)
-    message.success('Copied')
-  }
-}
 
 async function handleRenameConfirm() {
   if (!renameTarget.value || !renameInput.value.trim()) return
@@ -102,44 +191,59 @@ async function handleRenameConfirm() {
         </NButton>
       </div>
       <div v-if="showSessions" class="session-items">
-        <div v-if="chatStore.isLoadingSessions && sortedSessions.length === 0" class="session-loading">{{ t('chat.loadingSessions') }}</div>
-        <div v-else-if="sortedSessions.length === 0" class="session-empty">{{ t('chat.noSessions') }}</div>
-        <button
-          v-for="s in sortedSessions"
-          :key="s.id"
-          class="session-item"
-          :class="{ active: s.id === chatStore.activeSessionId }"
-          @click="chatStore.switchSession(s.id)"
-          @contextmenu.prevent="handleSessionMenuSelect('rename', s.id)"
-        >
-          <div class="session-item-content">
-            <span class="session-item-title">{{ s.title }}</span>
-            <span class="session-item-meta">
-              <span v-if="s.model" class="session-item-model">{{ s.model }}</span>
-              <span class="session-item-time">{{ formatTime(s.createdAt) }}</span>
+        <div v-if="chatStore.isLoadingSessions && allSessions.length === 0" class="session-loading">{{ t('chat.loadingSessions') }}</div>
+        <div v-else-if="allSessions.length === 0" class="session-empty">{{ t('chat.noSessions') }}</div>
+
+        <!-- 按日期分组 -->
+        <div v-for="(sessions, groupKey) in groupedSessions" :key="groupKey" class="session-group">
+          <div class="group-header" @click="toggleGroup(groupKey)">
+            <span class="group-arrow" :class="{ expanded: isGroupExpanded(groupKey) }">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="9 18 15 12 9 6"/>
+              </svg>
             </span>
+            <span class="group-label">{{ getGroupLabel(groupKey) }}</span>
+            <span class="group-count">{{ sessions.length }}</span>
           </div>
-          <NDropdown
-            :options="sessionMenuOptions"
-            trigger="click"
-            @select="(key: string) => handleSessionMenuSelect(key, s.id)"
-          >
-            <button class="session-item-menu" @click.stop>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
-            </button>
-          </NDropdown>
-          <NPopconfirm
-            v-if="s.id !== chatStore.activeSessionId || sortedSessions.length > 1"
-            @positive-click="handleDeleteSession(s.id)"
-          >
-            <template #trigger>
-              <button class="session-item-delete" @click.stop>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-              </button>
-            </template>
-            {{ t('chat.deleteSessionConfirm') }}
-          </NPopconfirm>
-        </button>
+
+          <div v-show="isGroupExpanded(groupKey)" class="group-sessions">
+            <div
+              v-for="s in sessions"
+              :key="s.id"
+              class="session-item"
+              :class="{ active: isSessionActive(s), 'session-terminal': s.type === 'terminal' }"
+              @click="handleSessionClick(s)"
+            >
+              <div class="session-type-icon">
+                <svg v-if="s.type === 'terminal'" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/>
+                </svg>
+                <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
+              </div>
+              <div class="session-item-content">
+                <span class="session-item-title">{{ s.title }}</span>
+                <span class="session-item-meta">
+                  <span v-if="s.type === 'terminal'" class="session-item-count">{{ s.commandCount }} 命令</span>
+                  <span v-else-if="s.model" class="session-item-model">{{ s.model }}</span>
+                  <span v-else-if="s.messageCount" class="session-item-count">{{ s.messageCount }} 条消息</span>
+                  <span class="session-item-time">{{ formatTime(s.updatedAt) }}</span>
+                </span>
+              </div>
+              <NPopconfirm
+                @positive-click="handleDeleteSession(s.id, s.type)"
+              >
+                <template #trigger>
+                  <button class="session-item-delete" @click.stop>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                </template>
+                {{ s.type === 'terminal' ? '删除此终端会话?' : t('chat.deleteSessionConfirm') }}
+              </NPopconfirm>
+            </div>
+          </div>
+        </div>
       </div>
     </aside>
 
@@ -190,12 +294,11 @@ async function handleRenameConfirm() {
       negative-text="Cancel"
       @positive-click="handleRenameConfirm"
     >
-      <NInput
-        ref="renameInputRef"
-        v-model:value="renameInput"
-        placeholder="Session title"
-        @keyup.enter="handleRenameConfirm"
-      />
+        <NInput
+          v-model:value="renameInput"
+          :placeholder="t('chat.renamePlaceholder')"
+          @keyup.enter="handleRenameConfirm"
+        />
     </NModal>
   </div>
 </template>
@@ -247,6 +350,82 @@ async function handleRenameConfirm() {
   padding: 0 6px 12px;
 }
 
+// Session Groups
+.session-group {
+  margin-bottom: 8px;
+}
+
+.group-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  cursor: pointer;
+  user-select: none;
+  border-radius: $radius-sm;
+  transition: background $transition-fast;
+
+  &:hover {
+    background: rgba($accent-primary, 0.04);
+  }
+}
+
+.group-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  color: $text-muted;
+  transition: transform $transition-fast;
+
+  &.expanded {
+    transform: rotate(90deg);
+  }
+}
+
+.group-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: $text-muted;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex: 1;
+}
+
+.group-count {
+  font-size: 10px;
+  color: $text-muted;
+  background: $bg-secondary;
+  padding: 1px 6px;
+  border-radius: 8px;
+}
+
+.group-sessions {
+  margin-left: 8px;
+  border-left: 2px solid $border-color;
+  padding-left: 4px;
+}
+
+.session-type-icon {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: $text-muted;
+
+  .session-terminal & {
+    color: $accent-primary;
+  }
+}
+
+.session-item-count {
+  font-size: 10px;
+  color: $text-muted;
+}
+
 .session-loading,
 .session-empty {
   padding: 16px 10px;
@@ -258,7 +437,7 @@ async function handleRenameConfirm() {
 .session-item {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 6px;
   width: 100%;
   padding: 8px 10px;
   border: none;
@@ -269,6 +448,7 @@ async function handleRenameConfirm() {
   color: $text-secondary;
   transition: all $transition-fast;
   margin-bottom: 2px;
+  position: relative;
 
   &:hover {
     background: rgba($accent-primary, 0.06);
@@ -281,14 +461,37 @@ async function handleRenameConfirm() {
   }
 
   &.active {
-    background: rgba($accent-primary, 0.1);
+    background: rgba($accent-primary, 0.12);
     color: $text-primary;
     font-weight: 500;
+    border-left: 3px solid $accent-primary;
+    padding-left: 7px;
+
+    &::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 4px;
+      bottom: 4px;
+      width: 3px;
+      background: $accent-primary;
+      border-radius: 0 2px 2px 0;
+    }
+
+    .session-item-title {
+      color: $accent-primary;
+    }
+
+    .session-item-model {
+      background: rgba($accent-primary, 0.15);
+      color: $accent-primary;
+    }
   }
 }
 
 .session-item-content {
   flex: 1;
+  min-width: 0;
   overflow: hidden;
 }
 

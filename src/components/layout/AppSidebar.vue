@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
@@ -11,19 +11,38 @@ const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const appStore = useAppStore()
+const collapsed = ref(false)
 
 const selectedKey = computed(() => route.name as string)
 
 function handleNav(key: string) {
   router.push({ name: key })
 }
+
+function toggleCollapse() {
+  collapsed.value = !collapsed.value
+}
+
+defineExpose({ collapsed })
 </script>
 
 <template>
-  <aside class="sidebar">
-    <div class="sidebar-logo" @click="router.push('/')">
-      <img src="/assets/logo.png" alt="Hermes" class="logo-img" />
-      <span class="logo-text">{{ t('sidebar.logo') }}</span>
+  <aside class="sidebar" :class="{ collapsed }">
+    <div class="sidebar-header">
+      <div class="sidebar-logo" @click="router.push('/')">
+        <img src="/assets/logo.png" alt="Hermes" class="logo-img" />
+        <span v-if="!collapsed" class="logo-text">{{ t('sidebar.logo') }}</span>
+      </div>
+      <button class="collapse-btn" @click="toggleCollapse" :title="collapsed ? 'Expand' : 'Collapse'">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <template v-if="collapsed">
+            <polyline points="9 18 15 12 9 6" />
+          </template>
+          <template v-else>
+            <polyline points="15 18 9 12 15 6" />
+          </template>
+        </svg>
+      </button>
     </div>
 
     <nav class="sidebar-nav">
@@ -50,6 +69,18 @@ function handleNav(key: string) {
           <line x1="3" y1="10" x2="21" y2="10" />
         </svg>
         <span>{{ t('sidebar.jobs') }}</span>
+      </button>
+
+      <button
+        class="nav-item"
+        :class="{ active: selectedKey === 'terminal' }"
+        @click="handleNav('terminal')"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="4 17 10 11 4 5" />
+          <line x1="12" y1="19" x2="20" y2="19" />
+        </svg>
+        <span>{{ t('sidebar.terminal') }}</span>
       </button>
 
       <button
@@ -158,6 +189,19 @@ function handleNav(key: string) {
 
       <button
         class="nav-item"
+        :class="{ active: selectedKey === 'cloudflare' }"
+        @click="handleNav('cloudflare')"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/>
+          <path d="M8 12l2-4 2 4-2 4-2-4z"/>
+          <path d="M14 8l2 4-2 4"/>
+        </svg>
+        <span>{{ t('sidebar.cloudflare') }}</span>
+      </button>
+
+      <button
+        class="nav-item"
         :class="{ active: selectedKey === 'services' }"
         @click="handleNav('services')"
       >
@@ -179,20 +223,20 @@ function handleNav(key: string) {
       </button>
     </nav>
 
-    <ModelSelector />
+    <ModelSelector v-if="!collapsed" />
 
     <div class="sidebar-footer">
       <div class="status-row">
         <div class="status-indicator" :class="{ connected: appStore.connected, disconnected: !appStore.connected }">
           <span class="status-dot"></span>
-          <span class="status-text">{{ appStore.connected ? t('sidebar.connected') : t('sidebar.disconnected') }}</span>
+          <span v-if="!collapsed" class="status-text">{{ appStore.connected ? t('sidebar.connected') : t('sidebar.disconnected') }}</span>
         </div>
       </div>
-      <div class="switchers">
+      <div v-if="!collapsed" class="switchers">
         <LanguageSwitcher />
         <ThemeSwitcher />
       </div>
-      <div class="version-info">{{ t('sidebar.logo') }} {{ appStore.serverVersion || 'v0.1.0' }}</div>
+      <div v-if="!collapsed" class="version-info">{{ t('sidebar.logo') }} {{ appStore.serverVersion || 'v0.1.0' }}</div>
     </div>
   </aside>
 </template>
@@ -213,6 +257,57 @@ function handleNav(key: string) {
   padding: 20px 12px;
   flex-shrink: 0;
   transition: all $transition-normal;
+
+  &.collapsed {
+    width: 60px;
+    padding: 20px 8px;
+
+    .sidebar-logo {
+      justify-content: center;
+      padding: 4px 0 20px;
+    }
+
+    .nav-item {
+      justify-content: center;
+      padding: 10px;
+    }
+
+    .status-row {
+      justify-content: center;
+      padding: 8px 0;
+    }
+
+    .collapse-btn {
+      margin: 0;
+    }
+  }
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0;
+}
+
+.collapse-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: none;
+  color: var(--theme-text-secondary, $text-secondary);
+  cursor: pointer;
+  border-radius: $radius-sm;
+  transition: all $transition-fast;
+  flex-shrink: 0;
+
+  &:hover {
+    background: var(--theme-hover, rgba(var(--theme-primary-rgb, 102, 126, 234), 0.06));
+    color: var(--theme-text, $text-primary);
+  }
 }
 
 .logo-img {

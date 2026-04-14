@@ -2,23 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { NButton, NInput, NSelect, NSpin, NCard, NStatistic, NGrid, NGridItem, NTag, NTooltip, NEmpty, NUpload, NIcon, NModal } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
-
-interface Material {
-  id: string
-  name: string
-  type: 'image' | 'document' | 'video' | 'audio' | 'code' | 'other'
-  size: number
-  uploadedAt: number
-  lastModified: number
-  url: string
-  tags: string[]
-  description?: string
-  usedIn: string[]
-  similarity?: number
-  source: 'upload' | 'chat'
-  chatSessionId?: string
-  chatMessageId?: string
-}
+import { fetchMaterials, deleteMaterial, fetchMaterialText, uploadMaterial, type Material, type MaterialCategory, type MaterialSessionRef } from '@/api/materials'
 
 interface MaterialStats {
   totalFiles: number
@@ -33,140 +17,49 @@ interface MaterialStats {
 
 const { t } = useI18n()
 
-const materials = ref<Material[]>([])
+const materials = ref<(Material & { similarity?: number })[]>([])
+const categories = ref<MaterialCategory[]>([])
+const chatSessions = ref<MaterialSessionRef[]>([])
 const loading = ref(false)
 const uploading = ref(false)
 const searchQuery = ref('')
 const selectedType = ref('all')
+const selectedSource = ref('all')
+const selectedCategory = ref('all')
+const selectedSessionId = ref('all')
 const sortBy = ref('date')
 const showUpload = ref(false)
-const selectedMaterial = ref<Material | null>(null)
+const selectedMaterial = ref<(Material & { similarity?: number }) | null>(null)
 const previewVisible = ref(false)
+const previewText = ref('')
+const previewTextLoading = ref(false)
 
-// Mock data for demonstration
-const mockMaterials: Material[] = [
-  {
-    id: '1',
-    name: '项目介绍.pptx',
-    type: 'document',
-    size: 2048576,
-    uploadedAt: Date.now() - 86400000 * 2,
-    lastModified: Date.now() - 86400000,
-    url: '/materials/项目介绍.pptx',
-    tags: ['演示文稿', '项目'],
-    description: 'Hermes Agent 项目介绍演示文稿',
-    usedIn: ['聊天会话', '定时任务'],
-    similarity: 0.85,
-    source: 'upload'
-  },
-  {
-    id: '2',
-    name: '系统架构图.png',
-    type: 'image',
-    size: 1024000,
-    uploadedAt: Date.now() - 86400000 * 5,
-    lastModified: Date.now() - 86400000 * 5,
-    url: '/materials/系统架构图.png',
-    tags: ['架构', '设计'],
-    description: 'Hermes Agent 系统架构图',
-    usedIn: ['文档', '演示'],
-    similarity: 0.72,
-    source: 'upload'
-  },
-  {
-    id: '3',
-    name: 'API文档.md',
-    type: 'document',
-    size: 512000,
-    uploadedAt: Date.now() - 86400000 * 10,
-    lastModified: Date.now() - 86400000 * 8,
-    url: '/materials/API文档.md',
-    tags: ['API', '文档'],
-    description: 'Hermes Agent API 接口文档',
-    usedIn: ['开发', '测试'],
-    similarity: 0.93,
-    source: 'upload'
-  },
-  {
-    id: '4',
-    name: '演示视频.mp4',
-    type: 'video',
-    size: 52428800,
-    uploadedAt: Date.now() - 86400000 * 15,
-    lastModified: Date.now() - 86400000 * 15,
-    url: '/materials/演示视频.mp4',
-    tags: ['演示', '视频'],
-    description: 'Hermes Agent 功能演示视频',
-    usedIn: ['宣传', '培训'],
-    similarity: 0.68,
-    source: 'upload'
-  },
-  {
-    id: '5',
-    name: '背景音乐.mp3',
-    type: 'audio',
-    size: 3145728,
-    uploadedAt: Date.now() - 86400000 * 20,
-    lastModified: Date.now() - 86400000 * 20,
-    url: '/materials/背景音乐.mp3',
-    tags: ['音乐', '背景'],
-    description: '应用背景音乐',
-    usedIn: ['视频', '演示'],
-    similarity: 0.45,
-    source: 'upload'
-  },
-  {
-    id: '6',
-    name: '配置文件.json',
-    type: 'code',
-    size: 102400,
-    uploadedAt: Date.now() - 86400000 * 1,
-    lastModified: Date.now() - 86400000 * 1,
-    url: '/materials/配置文件.json',
-    tags: ['配置', 'JSON'],
-    description: '系统配置文件',
-    usedIn: ['部署', '配置'],
-    similarity: 0.88,
-    source: 'upload'
-  }
-]
-
-// Computed properties
 const filteredMaterials = computed(() => {
   let result = materials.value
-
-  // Filter by search query
   if (searchQuery.value) {
     const q = searchQuery.value.toLowerCase()
-    result = result.filter(m =>
+    result = result.filter((m) =>
       m.name.toLowerCase().includes(q) ||
       m.description?.toLowerCase().includes(q) ||
-      m.tags.some(tag => tag.toLowerCase().includes(q))
+      m.tags.some((tag) => tag.toLowerCase().includes(q))
     )
   }
-
-  // Filter by type
-  if (selectedType.value !== 'all') {
-    result = result.filter(m => m.type === selectedType.value)
+  if (selectedType.value !== 'all') result = result.filter((m) => m.type === selectedType.value)
+  if (selectedSource.value !== 'all') result = result.filter((m) => m.source === selectedSource.value)
+  if (selectedCategory.value !== 'all') result = result.filter((m) => m.category === selectedCategory.value)
+  if (selectedSessionId.value !== 'all') {
+    result = result.filter((m) => (m.chatSessions || []).some((s) => s.id === selectedSessionId.value))
   }
 
-  // Sort
-  result = [...result].sort((a, b) => {
+  return [...result].sort((a, b) => {
     switch (sortBy.value) {
-      case 'name':
-        return a.name.localeCompare(b.name)
-      case 'date':
-        return b.uploadedAt - a.uploadedAt
-      case 'size':
-        return b.size - a.size
-      case 'type':
-        return a.type.localeCompare(b.type)
-      default:
-        return 0
+      case 'name': return a.name.localeCompare(b.name)
+      case 'date': return b.uploadedAt - a.uploadedAt
+      case 'size': return b.size - a.size
+      case 'type': return a.type.localeCompare(b.type)
+      default: return 0
     }
   })
-
-  return result
 })
 
 const materialStats = computed<MaterialStats>(() => {
@@ -174,33 +67,26 @@ const materialStats = computed<MaterialStats>(() => {
     totalFiles: materials.value.length,
     totalSize: materials.value.reduce((sum, m) => sum + m.size, 0),
     byType: {},
-    recentUploads: [...materials.value]
-      .sort((a, b) => b.uploadedAt - a.uploadedAt)
-      .slice(0, 5),
+    recentUploads: [...materials.value].sort((a, b) => b.uploadedAt - a.uploadedAt).slice(0, 5),
     storageUsed: materials.value.reduce((sum, m) => sum + m.size, 0),
-    storageLimit: 1073741824, // 1GB
-    fromChat: materials.value.filter(m => m.source === 'chat').length,
-    fromUpload: materials.value.filter(m => m.source === 'upload').length
+    storageLimit: 10 * 1024 * 1024 * 1024,
+    fromChat: materials.value.filter((m) => m.source === 'chat').length,
+    fromUpload: materials.value.filter((m) => m.source === 'upload').length,
   }
-
-  // Calculate statistics by type
-  materials.value.forEach(m => {
-    if (!stats.byType[m.type]) {
-      stats.byType[m.type] = { count: 0, size: 0 }
-    }
+  for (const m of materials.value) {
+    if (!stats.byType[m.type]) stats.byType[m.type] = { count: 0, size: 0 }
     stats.byType[m.type].count++
     stats.byType[m.type].size += m.size
-  })
-
+  }
   return stats
 })
 
-const smartReuseSuggestions = computed(() => {
-  return materials.value
-    .filter(m => m.similarity && m.similarity > 0.7)
+const smartReuseSuggestions = computed(() =>
+  materials.value
+    .filter((m) => (m.similarity || 0) >= 0.7)
     .sort((a, b) => (b.similarity || 0) - (a.similarity || 0))
     .slice(0, 5)
-})
+)
 
 const typeOptions = computed(() => [
   { label: t('materials.fileTypes.all'), value: 'all' },
@@ -209,22 +95,37 @@ const typeOptions = computed(() => [
   { label: t('materials.fileTypes.video'), value: 'video' },
   { label: t('materials.fileTypes.audio'), value: 'audio' },
   { label: t('materials.fileTypes.code'), value: 'code' },
-  { label: t('materials.fileTypes.other'), value: 'other' }
+  { label: t('materials.fileTypes.other'), value: 'other' },
+])
+
+const sourceOptions = computed(() => [
+  { label: t('materials.source.all'), value: 'all' },
+  { label: t('materials.source.chat'), value: 'chat' },
+  { label: t('materials.source.upload'), value: 'upload' },
+])
+
+const categoryOptions = computed(() => [
+  { label: t('materials.categories.all'), value: 'all' },
+  ...categories.value.map((c) => ({ label: `${c.name} (${c.count})`, value: c.name })),
+])
+
+const sessionOptions = computed(() => [
+  { label: t('materials.sessions.all'), value: 'all' },
+  ...chatSessions.value.map((s) => ({ label: `${s.title} (${s.id.slice(0, 8)})`, value: s.id })),
 ])
 
 const sortOptions = computed(() => [
   { label: t('materials.sortOptions.date'), value: 'date' },
   { label: t('materials.sortOptions.name'), value: 'name' },
   { label: t('materials.sortOptions.size'), value: 'size' },
-  { label: t('materials.sortOptions.type'), value: 'type' }
+  { label: t('materials.sortOptions.type'), value: 'type' },
 ])
 
-// Helper functions
 function formatSize(bytes: number): string {
-  if (bytes < 1024) return bytes + ' B'
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
-  if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
-  return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' GB'
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`
 }
 
 function formatDate(timestamp: number): string {
@@ -253,27 +154,33 @@ function getTypeColor(type: string): 'default' | 'primary' | 'info' | 'success' 
   }
 }
 
-// Event handlers
+async function loadMaterials() {
+  loading.value = true
+  try {
+    const res = await fetchMaterials()
+    categories.value = res.categories || []
+    chatSessions.value = res.chatSessions || []
+    materials.value = (res.materials || []).map((m) => ({
+      ...m,
+      similarity: m.source === 'chat' ? 0.92 : 0.78,
+    }))
+  } catch (error) {
+    console.error('加载素材失败:', error)
+    materials.value = []
+    categories.value = []
+    chatSessions.value = []
+  } finally {
+    loading.value = false
+  }
+}
+
 async function handleUpload(data: { file: { file: File | null } }) {
   if (!data.file.file) return
   uploading.value = true
   try {
-    // Simulate upload
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    const newMaterial: Material = {
-      id: Date.now().toString(),
-      name: data.file.file!.name,
-      type: getFileType(data.file.file!.name),
-      size: data.file.file!.size,
-      uploadedAt: Date.now(),
-      lastModified: Date.now(),
-      url: URL.createObjectURL(data.file.file!),
-      tags: [],
-      usedIn: [],
-      source: 'upload'
-    }
-    materials.value.unshift(newMaterial)
-    console.log('上传成功:', data.file.file!.name)
+    await uploadMaterial(data.file.file)
+    await loadMaterials()
+    showUpload.value = false
   } catch (error) {
     console.error('上传失败:', error)
   } finally {
@@ -281,39 +188,44 @@ async function handleUpload(data: { file: { file: File | null } }) {
   }
 }
 
-function getFileType(filename: string): Material['type'] {
-  const ext = filename.split('.').pop()?.toLowerCase() || ''
-  if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext)) return 'image'
-  if (['pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx', 'txt', 'md'].includes(ext)) return 'document'
-  if (['mp4', 'avi', 'mov', 'wmv', 'flv'].includes(ext)) return 'video'
-  if (['mp3', 'wav', 'ogg', 'flac'].includes(ext)) return 'audio'
-  if (['js', 'ts', 'py', 'java', 'cpp', 'c', 'h', 'json', 'xml', 'html', 'css'].includes(ext)) return 'code'
-  return 'other'
-}
-
-function handleDelete(material: Material) {
-  if (confirm(t('materials.messages.deleteConfirm'))) {
-    materials.value = materials.value.filter(m => m.id !== material.id)
-    console.log(t('materials.messages.deleteSuccess'))
+async function handleDelete(material: Material) {
+  if (!confirm(t('materials.messages.deleteConfirm'))) return
+  try {
+    await deleteMaterial(material.id)
+    materials.value = materials.value.filter((m) => m.id !== material.id)
+  } catch (error) {
+    console.error(t('materials.messages.deleteFailed'), error)
   }
 }
 
 function handleCopyLink(material: Material) {
   navigator.clipboard.writeText(window.location.origin + material.url)
-  console.log(t('materials.messages.copySuccess'))
 }
 
-function handleView(material: Material) {
+function sessionLabel(session: MaterialSessionRef): string {
+  return `${session.title} (${session.id.slice(0, 8)})`
+}
+
+async function handleView(material: Material) {
   selectedMaterial.value = material
   previewVisible.value = true
+  previewText.value = ''
+
+  if (material.previewKind === 'text') {
+    previewTextLoading.value = true
+    try {
+      const res = await fetchMaterialText(material.id, 50000)
+      previewText.value = res.text || ''
+    } catch (error) {
+      previewText.value = `(preview load failed) ${String((error as any)?.message || error)}`
+    } finally {
+      previewTextLoading.value = false
+    }
+  }
 }
 
-// Lifecycle
 onMounted(() => {
-  loading.value = true
-  // Load mock data
-  materials.value = [...mockMaterials]
-  loading.value = false
+  loadMaterials()
 })
 </script>
 
@@ -337,12 +249,36 @@ onMounted(() => {
           :placeholder="t('materials.filterByType')"
         />
         <NSelect
+          v-model:value="selectedSource"
+          :options="sourceOptions"
+          size="small"
+          style="width: 120px"
+          :placeholder="t('materials.filterBySource')"
+        />
+        <NSelect
+          v-model:value="selectedCategory"
+          :options="categoryOptions"
+          size="small"
+          style="width: 170px"
+          :placeholder="t('materials.filterByCategory')"
+        />
+        <NSelect
+          v-model:value="selectedSessionId"
+          :options="sessionOptions"
+          size="small"
+          style="width: 220px"
+          :placeholder="t('materials.filterBySession')"
+        />
+        <NSelect
           v-model:value="sortBy"
           :options="sortOptions"
           size="small"
           style="width: 120px"
           :placeholder="t('materials.sortBy')"
         />
+        <NButton @click="loadMaterials">
+          刷新
+        </NButton>
         <NButton type="primary" @click="showUpload = true">
           {{ t('materials.upload') }}
         </NButton>
@@ -462,8 +398,31 @@ onMounted(() => {
                   {{ material.description }}
                 </div>
                 <div class="material-tags">
+                  <NTag size="tiny" class="tag category-tag">
+                    {{ material.category }}
+                  </NTag>
                   <NTag v-for="tag in material.tags" :key="tag" size="tiny" class="tag">
                     {{ tag }}
+                  </NTag>
+                </div>
+                <div v-if="material.chatSessions && material.chatSessions.length" class="material-sessions">
+                  <span class="sessions-label">{{ t('materials.sessions.related') }}:</span>
+                  <NTag
+                    v-for="sess in material.chatSessions.slice(0, 2)"
+                    :key="sess.id"
+                    size="tiny"
+                    type="info"
+                    class="tag"
+                  >
+                    {{ sessionLabel(sess) }}
+                  </NTag>
+                  <NTag
+                    v-if="material.chatSessions.length > 2"
+                    size="tiny"
+                    type="default"
+                    class="tag"
+                  >
+                    +{{ material.chatSessions.length - 2 }}
                   </NTag>
                 </div>
               </div>
@@ -572,6 +531,13 @@ onMounted(() => {
               class="preview-audio"
             />
           </template>
+          <template v-else-if="selectedMaterial.previewKind === 'text'">
+            <div class="preview-text-wrap">
+              <NSpin :show="previewTextLoading">
+                <pre class="preview-text">{{ previewText || '(empty file)' }}</pre>
+              </NSpin>
+            </div>
+          </template>
           <template v-else>
             <div class="preview-placeholder">
               <NIcon size="64">
@@ -658,6 +624,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-wrap: wrap;
 }
 
 .search-input {
@@ -824,6 +791,24 @@ onMounted(() => {
   margin-right: 4px;
 }
 
+.category-tag {
+  font-weight: 600;
+}
+
+.material-sessions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.sessions-label {
+  font-size: 12px;
+  color: $text-muted;
+  margin-right: 4px;
+}
+
 .material-actions {
   display: flex;
   justify-content: flex-end;
@@ -865,6 +850,29 @@ onMounted(() => {
 .preview-audio {
   width: 100%;
   max-width: 500px;
+}
+
+.preview-text-wrap {
+  width: 100%;
+  height: 100%;
+  min-height: 300px;
+  padding: 12px;
+}
+
+.preview-text {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  max-height: 420px;
+  overflow: auto;
+  background: rgba(0, 0, 0, 0.24);
+  border-radius: 8px;
+  padding: 12px;
+  font-family: $font-code;
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .preview-placeholder {

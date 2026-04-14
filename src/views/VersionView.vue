@@ -100,8 +100,9 @@ onMounted(load)
 
     <div v-if="error" class="error-banner">{{ error }}</div>
 
-    <NSpin :show="loading && !info" style="min-height: 200px">
-      <div v-if="info" class="content">
+    <div class="version-content">
+      <NSpin :show="loading && !info" style="min-height: 200px">
+        <div v-if="info" class="content">
 
         <!-- Version Cards -->
         <NGrid :cols="4" :x-gap="12" :y-gap="12" class="stats-grid">
@@ -257,6 +258,7 @@ onMounted(load)
 
       </div>
     </NSpin>
+    </div>
   </div>
 </template>
 
@@ -267,15 +269,15 @@ onMounted(load)
   height: 100vh;
   display: flex;
   flex-direction: column;
-  padding: 20px;
-  overflow: hidden;
 }
 
 .page-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 20px;
+  margin-bottom: 0;
+  padding: 12px 20px;
+  border-bottom: 1px solid $border-color;
   flex-shrink: 0;
 
   h2 {
@@ -289,6 +291,12 @@ onMounted(load)
     display: flex;
     gap: 8px;
   }
+}
+
+.version-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
 }
 
 .error-banner {

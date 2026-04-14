@@ -73,12 +73,36 @@ export async function getToken(): Promise<string | null> {
   return null
 }
 
+async function getUsernameHint(): Promise<string | null> {
+  if (process.env.GITHUB_USERNAME) return process.env.GITHUB_USERNAME
+
+  try {
+    const authPath = resolve(homedir(), '.hermes', 'auth.json')
+    const raw = await readFile(authPath, 'utf-8')
+    const auth = JSON.parse(raw)
+    if (typeof auth.github_username === 'string' && auth.github_username.trim()) {
+      return auth.github_username.trim()
+    }
+  } catch { /* ignore */ }
+
+  // Try to infer from existing git remotes in hermes-agent repo
+  try {
+    const repoDir = resolve(homedir(), '.hermes', 'hermes-agent')
+    const { stdout } = await execFileAsync('git', ['-C', repoDir, 'remote', '-v'], { timeout: 5000 })
+    const lines = stdout.split('\n')
+    for (const line of lines) {
+      const m = line.match(/github\.com[:/]([^/\s]+)\//)
+      if (m && m[1]) return m[1]
+    }
+  } catch { /* ignore */ }
+
+  return null
+}
+
 async function ghApi(path: string, options: { method?: string; body?: any } = {}): Promise<any> {
   const token = await getToken()
-  if (!token) throw new Error('No GitHub token found. Set GITHUB_TOKEN or run "gh auth login".')
 
-  const headers: Record<string, string> = {
-    'Authorization': `Bearer ${token}`,
+  const baseHeaders: Record<string, string> = {
     'Accept': 'application/vnd.github+json',
     'X-GitHub-Api-Version': '2022-11-28',
   }
@@ -86,14 +110,25 @@ async function ghApi(path: string, options: { method?: string; body?: any } = {}
   const url = `https://api.github.com${path}`
   const init: RequestInit = {
     method: options.method || 'GET',
-    headers,
+    headers: token ? { ...baseHeaders, 'Authorization': `Bearer ${token}` } : baseHeaders,
   }
 
   if (options.body) {
     init.body = JSON.stringify(options.body)
   }
 
-  const res = await fetch(url, init)
+  let res = await fetch(url, init)
+
+  // If provided token is stale/invalid, retry once without Authorization
+  // so public GitHub data remains available instead of hard-failing.
+  if (res.status === 401 && token) {
+    const retryInit: RequestInit = {
+      method: options.method || 'GET',
+      headers: baseHeaders,
+      body: init.body,
+    }
+    res = await fetch(url, retryInit)
+  }
 
   if (res.status === 204) return null
   if (!res.ok) {
@@ -113,7 +148,24 @@ export async function listRepos(options: { sort?: string; per_page?: number; pag
     page: String(options.page || 1),
     affiliation: 'owner',
   })
-  return ghApi(`/user/repos?${params}`)
+
+  try {
+    return await ghApi(`/user/repos?${params}`)
+  } catch (err: any) {
+    const msg = String(err?.message || '')
+    if (!msg.includes('GitHub API 401')) throw err
+
+    const username = await getUsernameHint()
+    if (!username) throw err
+
+    const publicParams = new URLSearchParams({
+      sort: options.sort || 'updated',
+      per_page: String(options.per_page || 30),
+      page: String(options.page || 1),
+      type: 'owner',
+    })
+    return ghApi(`/users/${encodeURIComponent(username)}/repos?${publicParams}`)
+  }
 }
 
 /**
@@ -170,5 +222,19 @@ export async function deleteRepo(owner: string, repo: string): Promise<void> {
  * Get authenticated user info
  */
 export async function getAuthenticatedUser(): Promise<{ login: string; name: string; avatar_url: string }> {
-  return ghApi('/user')
+  try {
+    return await ghApi('/user')
+  } catch (err: any) {
+    const msg = String(err?.message || '')
+    if (!msg.includes('GitHub API 401')) throw err
+
+    const username = await getUsernameHint()
+    if (!username) throw err
+
+    return {
+      login: username,
+      name: username,
+      avatar_url: `https://github.com/${encodeURIComponent(username)}.png`,
+    }
+  }
 }

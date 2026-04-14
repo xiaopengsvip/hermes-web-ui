@@ -39,6 +39,7 @@ const showDetailModal = ref(false)
 const selectedRepo = ref<GitHubRepo | null>(null)
 const commits = ref<GitHubCommit[]>([])
 const loadingCommits = ref(false)
+const defaultProjectAvatar = '/everettlogo.jpg'
 
 const filteredRepos = computed(() => {
   let result = repos.value
@@ -259,7 +260,8 @@ onMounted(async () => {
         </div>
       </header>
 
-      <div v-if="error" class="error-banner">{{ error }}</div>
+      <div class="github-content">
+        <div v-if="error" class="error-banner">{{ error }}</div>
 
       <NSpin :show="loading" style="min-height: 200px">
         <NEmpty v-if="!loading && filteredRepos.length === 0" description="No repositories" />
@@ -271,6 +273,7 @@ onMounted(async () => {
             @click="showDetails(repo)"
           >
             <div class="repo-header">
+              <img :src="defaultProjectAvatar" alt="project avatar" class="repo-avatar" />
               <div class="repo-name">
                 <svg v-if="repo.private" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="lock-icon">
                   <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
@@ -369,6 +372,7 @@ onMounted(async () => {
           </NSpin>
         </div>
       </NModal>
+      </div>
     </template>
 
     <!-- Loading state -->
@@ -383,8 +387,6 @@ onMounted(async () => {
   height: 100vh;
   display: flex;
   flex-direction: column;
-  padding: 20px;
-  overflow: hidden;
 }
 
 // Setup Screen
@@ -445,7 +447,9 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 20px;
+  margin-bottom: 0;
+  padding: 12px 20px;
+  border-bottom: 1px solid $border-color;
   flex-shrink: 0;
 
   h2 {
@@ -454,6 +458,12 @@ onMounted(async () => {
     margin: 0;
     color: $text-primary;
   }
+}
+
+.github-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
 }
 
 .header-left {
@@ -519,8 +529,17 @@ onMounted(async () => {
 .repo-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 8px;
   margin-bottom: 6px;
+}
+
+.repo-avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid $border-color;
+  flex-shrink: 0;
 }
 
 .repo-name {
@@ -535,6 +554,7 @@ onMounted(async () => {
 }
 
 .delete-btn {
+  margin-left: auto;
   opacity: 0;
   background: none;
   border: none;

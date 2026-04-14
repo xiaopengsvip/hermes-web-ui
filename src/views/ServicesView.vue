@@ -9,6 +9,7 @@ import {
   fetchActiveSessions, shutdownWebUI, restartWebUI,
   type SystemStatus, type ActiveSession
 } from '@/api/system'
+import { fetchLogs } from '@/api/logs'
 
 useI18n()
 const message = useMessage()
@@ -16,6 +17,13 @@ const message = useMessage()
 const status = ref<SystemStatus | null>(null)
 const activeSessions = ref<ActiveSession[]>([])
 const loading = ref(true)
+const logsLoading = ref(false)
+const serviceLogs = ref<Record<string, string[]>>({
+  agent: [],
+  gateway: [],
+  errors: [],
+})
+const logTargets = ['agent', 'gateway', 'errors'] as const
 const error = ref('')
 const actionLoading = ref('')
 let pollTimer: ReturnType<typeof setInterval> | null = null
@@ -38,6 +46,31 @@ async function loadActiveSessions() {
     activeSessions.value = data.sessions
   } catch {
     // ignore
+  }
+}
+
+async function loadServiceLogs() {
+  logsLoading.value = true
+  try {
+    const results: Array<[string, string[]]> = await Promise.all(
+      logTargets.map(async (name): Promise<[string, string[]]> => {
+        try {
+          const entries = await fetchLogs(name, { lines: 30 })
+          const lines = entries.length
+            ? entries.map((e) => `[${e.level}] ${e.timestamp} ${e.message}`)
+            : ['(no logs)']
+          return [name, lines]
+        } catch (err: any) {
+          return [name, [`(load failed) ${err?.message || 'unknown error'}`]]
+        }
+      })
+    )
+
+    const merged: Record<string, string[]> = { ...serviceLogs.value }
+    for (const [name, lines] of results) merged[name] = lines
+    serviceLogs.value = merged
+  } finally {
+    logsLoading.value = false
   }
 }
 
@@ -157,14 +190,17 @@ function refresh() {
   loading.value = true
   loadStatus()
   loadActiveSessions()
+  loadServiceLogs()
 }
 
 onMounted(() => {
   loadStatus()
   loadActiveSessions()
+  loadServiceLogs()
   pollTimer = setInterval(() => {
     loadStatus()
     loadActiveSessions()
+    loadServiceLogs()
   }, 15000)
 })
 
@@ -182,10 +218,11 @@ onUnmounted(() => {
       </div>
     </header>
 
-    <div v-if="error" class="error-banner">{{ error }}</div>
+    <div class="services-body">
+      <div v-if="error" class="error-banner">{{ error }}</div>
 
-    <NSpin :show="loading && !status" style="min-height: 200px">
-      <div v-if="status" class="content">
+      <NSpin class="status-spin" :show="loading && !status">
+        <div v-if="status" class="content">
         <!-- Stats -->
         <NGrid :cols="4" :x-gap="12" :y-gap="12" class="stats-grid">
           <NGridItem>
@@ -273,7 +310,7 @@ onUnmounted(() => {
 
         <!-- Services -->
         <section class="section">
-          <h3>Services</h3>
+          <h3>Services ({{ status.services.length }})</h3>
           <div class="service-list">
             <div v-for="svc in status.services" :key="svc.name" class="service-card">
               <div class="service-icon">{{ getServiceIcon(svc.type) }}</div>
@@ -286,6 +323,20 @@ onUnmounted(() => {
                 <span v-if="svc.pid" class="service-pid">PID {{ svc.pid }}</span>
                 <span v-if="svc.uptime" class="service-uptime">{{ svc.uptime }}</span>
               </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Service Logs -->
+        <section class="section">
+          <div class="section-title-row">
+            <h3>Service Logs</h3>
+            <span class="logs-hint" v-if="logsLoading">Refreshing...</span>
+          </div>
+          <div class="logs-grid">
+            <div v-for="name in logTargets" :key="name" class="log-card">
+              <div class="log-card-title">{{ name }}</div>
+              <pre class="log-pre">{{ (serviceLogs[name] || []).join('\n') }}</pre>
             </div>
           </div>
         </section>
@@ -307,8 +358,9 @@ onUnmounted(() => {
             </div>
           </div>
         </section>
-      </div>
-    </NSpin>
+        </div>
+      </NSpin>
+    </div>
   </div>
 </template>
 
@@ -316,18 +368,27 @@ onUnmounted(() => {
 @use '@/styles/variables' as *;
 
 .services-view {
-  height: 100vh;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.services-body {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   padding: 20px;
-  overflow: hidden;
 }
 
 .page-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 20px;
+  margin-bottom: 0;
+  padding: 12px 20px;
+  border-bottom: 1px solid $border-color;
   flex-shrink: 0;
 
   h2 {
@@ -343,8 +404,21 @@ onUnmounted(() => {
   background: rgba($error, 0.1);
   color: $error;
   border-radius: $radius-sm;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
   font-size: 13px;
+}
+
+.status-spin {
+  flex: 1;
+  min-height: 0;
+}
+
+.status-spin :deep(.n-spin-body),
+.status-spin :deep(.n-spin-content) {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
 }
 
 .content {
@@ -353,6 +427,8 @@ onUnmounted(() => {
   gap: 20px;
   overflow-y: auto;
   flex: 1;
+  min-height: 0;
+  padding: 0;
 }
 
 .stats-grid {
@@ -366,6 +442,53 @@ onUnmounted(() => {
   margin: 0 0 12px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+}
+
+.section-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.logs-hint {
+  font-size: 12px;
+  color: $text-muted;
+}
+
+.logs-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.log-card {
+  background: $bg-secondary;
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
+  padding: 10px;
+  min-height: 180px;
+  display: flex;
+  flex-direction: column;
+}
+
+.log-card-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: $text-secondary;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+
+.log-pre {
+  margin: 0;
+  flex: 1;
+  overflow: auto;
+  font-family: $font-code;
+  font-size: 11px;
+  line-height: 1.35;
+  color: $text-primary;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .action-bar {
@@ -467,5 +590,11 @@ onUnmounted(() => {
   background: rgba($accent-primary, 0.1);
   padding: 0 5px;
   border-radius: 3px;
+}
+
+@media (max-width: 1200px) {
+  .logs-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
