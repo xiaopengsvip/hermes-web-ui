@@ -1,9 +1,15 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { useMessage } from 'naive-ui'
+import { useChatStore } from '@/stores/chat'
 import type { Message } from '@/stores/chat'
 import MarkdownRenderer from './MarkdownRenderer.vue'
 
 const props = defineProps<{ message: Message }>()
+const { t } = useI18n()
+const toast = useMessage()
+const chatStore = useChatStore()
 
 const isSystem = computed(() => props.message.role === 'system')
 
@@ -17,12 +23,24 @@ function isImage(type: string): boolean {
 }
 
 function formatSize(bytes: number): string {
-  if (bytes < 1024) return bytes + ' B'
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
-  return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
+  if (bytes < 1024) return t('chat.size.byte', { value: bytes })
+  if (bytes < 1024 * 1024) return t('chat.size.kb', { value: (bytes / 1024).toFixed(1) })
+  return t('chat.size.mb', { value: (bytes / (1024 * 1024)).toFixed(1) })
 }
 
 const hasAttachments = computed(() => (props.message.attachments?.length ?? 0) > 0)
+const canResend = computed(() => props.message.role === 'user' && !chatStore.isStreaming)
+
+async function copyMessage() {
+  if (!props.message.content) return
+  await navigator.clipboard.writeText(props.message.content)
+  toast.success(t('common.copied'))
+}
+
+async function resendMessage() {
+  if (!canResend.value) return
+  await chatStore.resendMessage(props.message.id)
+}
 </script>
 
 <template>
@@ -63,12 +81,16 @@ const hasAttachments = computed(() => (props.message.attachments?.length ?? 0) >
             <div v-if="message.isStreaming && !message.content" class="streaming-dots">
               <span></span><span></span><span></span>
             </div>
+            <div v-if="message.content && (message.role === 'assistant' || message.role === 'user')" class="msg-actions">
+              <button class="msg-action-btn" @click="copyMessage">{{ t('common.copy') }}</button>
+              <button v-if="message.role === 'user'" class="msg-action-btn" :disabled="!canResend" @click="resendMessage">{{ t('chat.resend') }}</button>
+            </div>
           </div>
           <div class="message-time">{{ timeStr }}</div>
         </div>
         <div v-if="message.role === 'user'" class="msg-user-meta">
-          <img src="/everettlogo.jpg" alt="You" class="msg-avatar user-avatar" />
-          <span class="user-name-label">You</span>
+          <img src="/everettlogo.jpg" :alt="t('chat.youLabel')" class="msg-avatar user-avatar" />
+          <span class="user-name-label">{{ t('chat.youLabel') }}</span>
         </div>
       </div>
     </template>
@@ -202,6 +224,32 @@ const hasAttachments = computed(() => (props.message.attachments?.length ?? 0) >
     color: $text-muted;
     font-size: 11px;
     flex-shrink: 0;
+  }
+}
+
+.msg-actions {
+  margin-top: 8px;
+  display: flex;
+  gap: 6px;
+}
+
+.msg-action-btn {
+  border: 1px solid rgba($border-color, 0.9);
+  background: rgba($bg-secondary, 0.6);
+  color: $text-secondary;
+  font-size: 11px;
+  border-radius: 999px;
+  padding: 2px 8px;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    border-color: rgba($accent-primary, 0.55);
+    color: $accent-primary;
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
 }
 

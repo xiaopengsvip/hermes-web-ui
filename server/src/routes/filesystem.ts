@@ -1,5 +1,7 @@
 import Router from '@koa/router'
 import { readdir, readFile, stat, writeFile, mkdir, copyFile } from 'fs/promises'
+import { execFile } from 'child_process'
+import { promisify } from 'util'
 import { join, resolve } from 'path'
 import { homedir } from 'os'
 
@@ -19,6 +21,29 @@ interface AuthJson {
 }
 
 const authPath = resolve(homedir(), '.hermes', 'auth.json')
+const execFileAsync = promisify(execFile)
+
+interface AuthStreamEvent {
+  id: string
+  timestamp: string
+  type: 'switch' | 'snapshot' | 'error' | 'info'
+  message: string
+  provider?: string
+  payload?: Record<string, any>
+}
+
+const authEventStream: AuthStreamEvent[] = []
+
+function appendAuthEvent(event: Omit<AuthStreamEvent, 'id' | 'timestamp'>): void {
+  authEventStream.unshift({
+    id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+    timestamp: new Date().toISOString(),
+    ...event,
+  })
+  if (authEventStream.length > 200) {
+    authEventStream.splice(200)
+  }
+}
 
 async function loadAuthJson(): Promise<AuthJson | null> {
   try {
@@ -494,6 +519,122 @@ fsRoutes.get('/api/available-models', async (ctx) => {
   } catch (err: any) {
     ctx.status = 500
     ctx.body = { error: err.message }
+  }
+})
+
+// GET /api/auth/credentials — list credential pool entries for account switching
+fsRoutes.get('/api/auth/credentials', async (ctx) => {
+  try {
+    const auth = await loadAuthJson()
+    const pool = auth?.credential_pool || {}
+
+    const providers = Object.entries(pool)
+      .filter(([, entries]) => Array.isArray(entries) && entries.length > 0)
+      .map(([provider, entries]) => {
+        const normalized = [...entries]
+          .sort((a: any, b: any) => (Number(a.priority ?? 0) - Number(b.priority ?? 0)))
+          .map((entry: any, idx: number) => ({
+            index: idx + 1,
+            id: entry.id || '',
+            label: entry.label || `account-${idx + 1}`,
+            auth_type: entry.auth_type || 'unknown',
+            source: entry.source || 'unknown',
+            priority: Number(entry.priority ?? idx),
+            status: entry.last_status || 'ok',
+            meta: {
+              last_error_code: entry.last_error_code ?? null,
+              last_error_message: entry.last_error_message ?? null,
+              last_error_reset_at: entry.last_error_reset_at ?? null,
+              last_status_at: entry.last_status_at ?? null,
+              expires_at: entry.expires_at ?? null,
+              last_refresh: entry.last_refresh ?? null,
+              base_url: entry.base_url ?? null,
+            },
+          }))
+
+        return {
+          provider,
+          activeIndex: 1,
+          entries: normalized,
+        }
+      })
+
+    appendAuthEvent({
+      type: 'snapshot',
+      message: `Fetched auth credentials (${providers.length} providers)`,
+      payload: {
+        providers: providers.map((p: any) => ({ provider: p.provider, entries: p.entries.length })),
+      },
+    })
+
+    ctx.body = { providers }
+  } catch (err: any) {
+    appendAuthEvent({
+      type: 'error',
+      message: 'Failed to load auth credentials',
+      payload: { error: err?.message || 'unknown error' },
+    })
+    ctx.status = 500
+    ctx.body = { error: err.message }
+  }
+})
+
+// GET /api/auth/stream — latest auth switch/snapshot metadata events
+fsRoutes.get('/api/auth/stream', async (ctx) => {
+  const limitRaw = Number(ctx.query.limit || 30)
+  const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(200, Math.floor(limitRaw))) : 30
+  ctx.body = { events: authEventStream.slice(0, limit) }
+})
+
+// POST /api/auth/switch — switch active credential by index/id/label
+fsRoutes.post('/api/auth/switch', async (ctx) => {
+  const body = (ctx.request.body || {}) as { provider?: string; target?: string | number }
+  const provider = String(body.provider || '').trim()
+  const target = body.target
+
+  if (!provider || target === undefined || target === null || String(target).trim() === '') {
+    ctx.status = 400
+    ctx.body = { error: 'Missing provider or target' }
+    return
+  }
+
+  try {
+    const { stdout, stderr } = await execFileAsync('hermes', ['auth', 'use', provider, String(target)], {
+      timeout: 15000,
+    })
+    const output = (stdout || stderr || '').trim()
+    appendAuthEvent({
+      type: 'switch',
+      provider,
+      message: `Switched credential for ${provider} -> ${String(target)}`,
+      payload: {
+        provider,
+        target: String(target),
+        output,
+      },
+    })
+    ctx.body = {
+      success: true,
+      output,
+    }
+  } catch (err: any) {
+    appendAuthEvent({
+      type: 'error',
+      provider,
+      message: `Switch failed for ${provider}`,
+      payload: {
+        provider,
+        target: String(target),
+        error: err?.message || 'Switch failed',
+        output: (err?.stdout || err?.stderr || '').toString().trim(),
+      },
+    })
+    ctx.status = 500
+    ctx.body = {
+      success: false,
+      error: err?.message || 'Switch failed',
+      output: (err?.stdout || err?.stderr || '').toString().trim(),
+    }
   }
 })
 

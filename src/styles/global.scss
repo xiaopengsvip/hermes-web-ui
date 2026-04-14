@@ -1,6 +1,20 @@
 @use 'liquid-glass' as *;
 @use 'variables' as *;
 
+:root {
+  --ui-density-gap: 1;
+  --ui-density-padding: 1;
+  --ui-motion-fast: 150ms;
+  --ui-motion-normal: 260ms;
+  --ui-motion-slow: 360ms;
+
+  // 全站顶部区统一 token
+  --layout-header-min-height: 56px;
+  --layout-header-padding-y: 12px;
+  --layout-header-padding-x: 16px;
+  --layout-header-radius: 14px;
+}
+
 *,
 *::before,
 *::after {
@@ -77,5 +91,22 @@ a {
 .theme-transition *,
 .theme-transition *::before,
 .theme-transition *::after {
-  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease !important;
+  transition: background-color var(--ui-motion-normal) ease,
+    color var(--ui-motion-normal) ease,
+    border-color var(--ui-motion-normal) ease,
+    box-shadow var(--ui-motion-normal) ease !important;
+}
+
+body[data-density='compact'] .app-main {
+  font-size: 13px;
+}
+
+body[data-density='compact'] .app-main :is(.n-card, .panel-card, .session-item, .nav-item) {
+  border-radius: 10px;
+}
+
+body[data-motion='low'] .app-main :is(button, a, .n-card, .n-button, .n-base-selection, .nav-item, .session-item),
+body[data-motion='medium'] .app-main :is(button, a, .n-card, .n-button, .n-base-selection, .nav-item, .session-item),
+body[data-motion='high'] .app-main :is(button, a, .n-card, .n-button, .n-base-selection, .nav-item, .session-item) {
+  transition-duration: var(--ui-motion-normal) !important;
 }

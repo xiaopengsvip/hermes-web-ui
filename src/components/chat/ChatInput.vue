@@ -1,12 +1,15 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { NButton, NTooltip } from 'naive-ui'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { NButton, NTooltip, useMessage } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 import type { Attachment } from '@/stores/chat'
 import { useChatStore } from '@/stores/chat'
+import { useAppStore } from '@/stores/app'
 
 const { t } = useI18n()
+const toast = useMessage()
 const chatStore = useChatStore()
+const appStore = useAppStore()
 const inputText = ref('')
 const textareaRef = ref<HTMLTextAreaElement>()
 const fileInputRef = ref<HTMLInputElement>()
@@ -14,6 +17,12 @@ const attachments = ref<Attachment[]>([])
 const isDragging = ref(false)
 const dragCounter = ref(0)
 const isComposing = ref(false)
+const isPreparing = ref(false)
+const inputError = ref<string | null>(null)
+
+const MAX_FILES = 8
+const MAX_FILE_SIZE = 20 * 1024 * 1024
+const MAX_TOTAL_SIZE = 50 * 1024 * 1024
 
 // Voice recording state
 const isRecording = ref(false)
@@ -22,31 +31,75 @@ const voiceError = ref<string | null>(null)
 let mediaRecorder: MediaRecorder | null = null
 let audioChunks: Blob[] = []
 
-const canSend = computed(() => inputText.value.trim() || attachments.value.length > 0)
+const totalAttachmentSize = computed(() => attachments.value.reduce((sum, a) => sum + a.size, 0))
+const canSend = computed(() => (inputText.value.trim() || attachments.value.length > 0) && !isPreparing.value)
+const draftKey = computed(() => `chat:draft:${chatStore.activeSessionId || 'new'}`)
 
 // Check voice support on mount
 onMounted(() => {
   isVoiceSupported.value = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)
+  inputText.value = localStorage.getItem(draftKey.value) || ''
+  requestAnimationFrame(() => {
+    if (textareaRef.value) {
+      textareaRef.value.style.height = 'auto'
+      textareaRef.value.style.height = Math.min(textareaRef.value.scrollHeight, 180) + 'px'
+    }
+  })
 })
+
+watch(draftKey, (nextKey) => {
+  inputText.value = localStorage.getItem(nextKey) || ''
+  requestAnimationFrame(() => {
+    if (textareaRef.value) {
+      textareaRef.value.style.height = 'auto'
+      textareaRef.value.style.height = Math.min(textareaRef.value.scrollHeight, 180) + 'px'
+    }
+  })
+})
+
+watch(inputText, (value) => {
+  if (value.trim()) {
+    localStorage.setItem(draftKey.value, value)
+  } else {
+    localStorage.removeItem(draftKey.value)
+  }
+})
+
+function revokeAttachmentUrls(list: Attachment[]) {
+  for (const item of list) {
+    try {
+      URL.revokeObjectURL(item.url)
+    } catch {
+      // ignore
+    }
+  }
+}
+
+function clearAttachments() {
+  revokeAttachmentUrls(attachments.value)
+  attachments.value = []
+}
 
 // Clean up on unmount
 onUnmounted(() => {
   if (mediaRecorder && mediaRecorder.state !== 'inactive') {
     mediaRecorder.stop()
   }
+  clearAttachments()
 })
 
 // --- Voice recording ---
 async function startRecording() {
   if (!isVoiceSupported.value) {
-    voiceError.value = '语音录制不受支持'
+    voiceError.value = t('chat.voiceNotSupported')
     return
   }
 
   try {
     voiceError.value = null
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-    mediaRecorder = new MediaRecorder(stream)
+    const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : undefined
+    mediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream)
     audioChunks = []
 
     mediaRecorder.ondataavailable = (event) => {
@@ -54,11 +107,12 @@ async function startRecording() {
     }
 
     mediaRecorder.onstop = () => {
-      const audioBlob = new Blob(audioChunks, { type: 'audio/wav' })
+      const pickedType = mediaRecorder?.mimeType || 'audio/webm'
+      const ext = pickedType.includes('wav') ? 'wav' : 'webm'
+      const audioBlob = new Blob(audioChunks, { type: pickedType })
       const audioUrl = URL.createObjectURL(audioBlob)
-      const audioFile = new File([audioBlob], `voice-${Date.now()}.wav`, { type: 'audio/wav' })
+      const audioFile = new File([audioBlob], `voice-${Date.now()}.${ext}`, { type: pickedType })
 
-      // Add as attachment
       const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8)
       attachments.value.push({
         id,
@@ -66,18 +120,17 @@ async function startRecording() {
         type: audioFile.type,
         size: audioFile.size,
         url: audioUrl,
-        file: audioFile
+        file: audioFile,
       })
 
-      // Stop all tracks
       stream.getTracks().forEach(track => track.stop())
     }
 
     mediaRecorder.start()
     isRecording.value = true
   } catch (error: any) {
-    voiceError.value = error.message || '无法启动语音录制'
-    console.error('语音录制错误:', error)
+    voiceError.value = error.message || t('chat.voiceStartFailed')
+    console.error(t('chat.voiceRecordErrorLog'), error)
   }
 }
 
@@ -89,17 +142,36 @@ function stopRecording() {
 }
 
 function toggleRecording() {
-  if (isRecording.value) {
-    stopRecording()
-  } else {
-    startRecording()
-  }
+  if (isRecording.value) stopRecording()
+  else startRecording()
 }
 
 // --- File attachment helpers ---
-
 function addFile(file: File) {
-  if (attachments.value.find(a => a.name === file.name)) return
+  inputError.value = null
+
+  if (attachments.value.length >= MAX_FILES) {
+    inputError.value = t('chat.maxFilesExceeded', { max: MAX_FILES })
+    toast.warning(inputError.value)
+    return
+  }
+
+  if (file.size > MAX_FILE_SIZE) {
+    inputError.value = t('chat.fileTooLarge', { size: formatSize(MAX_FILE_SIZE) })
+    toast.warning(inputError.value)
+    return
+  }
+
+  if (totalAttachmentSize.value + file.size > MAX_TOTAL_SIZE) {
+    inputError.value = t('chat.totalSizeExceeded', { size: formatSize(MAX_TOTAL_SIZE) })
+    toast.warning(inputError.value)
+    return
+  }
+
+  if (attachments.value.find(a => a.name === file.name && a.size === file.size)) {
+    return
+  }
+
   const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8)
   const url = URL.createObjectURL(file)
   attachments.value.push({
@@ -124,7 +196,6 @@ function handleFileChange(e: Event) {
 }
 
 // --- Paste image ---
-
 function handlePaste(e: ClipboardEvent) {
   const items = Array.from(e.clipboardData?.items || [])
   const imageItems = items.filter(i => i.type.startsWith('image/'))
@@ -140,7 +211,6 @@ function handlePaste(e: ClipboardEvent) {
 }
 
 // --- Drag and drop ---
-
 function handleDragOver(e: DragEvent) {
   e.preventDefault()
 }
@@ -171,18 +241,77 @@ function handleDrop(e: DragEvent) {
   textareaRef.value?.focus()
 }
 
+async function executeSlashCommand(raw: string): Promise<boolean> {
+  if (!raw.startsWith('/')) return false
+
+  const [cmd, ...rest] = raw.slice(1).trim().split(/\s+/)
+  const arg = rest.join(' ').trim()
+
+  switch ((cmd || '').toLowerCase()) {
+    case 'new':
+      chatStore.newChat()
+      inputText.value = ''
+      localStorage.removeItem(draftKey.value)
+      toast.success(t('chat.command.newDone'))
+      return true
+    case 'clear':
+      chatStore.clearCurrentSessionMessages()
+      inputText.value = ''
+      clearAttachments()
+      localStorage.removeItem(draftKey.value)
+      toast.success(t('chat.command.clearDone'))
+      return true
+    case 'model': {
+      if (!arg) {
+        toast.info(t('chat.command.modelCurrent', { model: appStore.selectedModel || '--' }))
+        return true
+      }
+      const allModels = appStore.modelGroups.flatMap(g => g.models)
+      const exact = allModels.find(m => m.toLowerCase() === arg.toLowerCase())
+      const fuzzy = exact || allModels.find(m => m.toLowerCase().includes(arg.toLowerCase()))
+      if (!fuzzy) {
+        toast.warning(t('chat.command.modelNotFound', { keyword: arg }))
+        return true
+      }
+      await appStore.switchModel(fuzzy)
+      await chatStore.switchSessionModel(fuzzy)
+      toast.success(t('chat.command.modelSwitched', { model: fuzzy }))
+      return true
+    }
+    default:
+      toast.warning(t('chat.command.unknown', { command: cmd }))
+      return true
+  }
+}
+
 // --- Send ---
-
-function handleSend() {
+async function handleSend() {
   const text = inputText.value.trim()
-  if (!text && attachments.value.length === 0) return
+  if ((!text && attachments.value.length === 0) || isPreparing.value || chatStore.isStreaming) return
 
-  chatStore.sendMessage(text, attachments.value.length > 0 ? attachments.value : undefined)
-  inputText.value = ''
-  attachments.value = []
+  if (attachments.value.length === 0 && text.startsWith('/')) {
+    const consumed = await executeSlashCommand(text)
+    if (consumed) return
+  }
 
-  if (textareaRef.value) {
-    textareaRef.value.style.height = 'auto'
+  isPreparing.value = true
+  inputError.value = null
+  try {
+    const sendingAttachments = [...attachments.value]
+    await chatStore.sendMessage(text, sendingAttachments.length > 0 ? sendingAttachments : undefined)
+    inputText.value = ''
+    localStorage.removeItem(draftKey.value)
+    clearAttachments()
+
+    if (textareaRef.value) {
+      textareaRef.value.style.height = 'auto'
+    }
+  } catch (err: any) {
+    const msg = err?.message || t('chat.sendFailed')
+    inputError.value = msg
+    toast.error(msg)
+  } finally {
+    isPreparing.value = false
   }
 }
 
@@ -211,7 +340,7 @@ function handleKeydown(e: KeyboardEvent) {
 function handleInput(e: Event) {
   const el = e.target as HTMLTextAreaElement
   el.style.height = 'auto'
-  el.style.height = Math.min(el.scrollHeight, 100) + 'px'
+  el.style.height = Math.min(el.scrollHeight, 180) + 'px'
 }
 
 function removeAttachment(id: string) {
@@ -223,9 +352,9 @@ function removeAttachment(id: string) {
 }
 
 function formatSize(bytes: number): string {
-  if (bytes < 1024) return bytes + ' B'
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
-  return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
+  if (bytes < 1024) return t('chat.size.byte', { value: bytes })
+  if (bytes < 1024 * 1024) return t('chat.size.kb', { value: (bytes / 1024).toFixed(1) })
+  return t('chat.size.mb', { value: (bytes / (1024 * 1024)).toFixed(1) })
 }
 
 function isImage(type: string): boolean {
@@ -235,6 +364,11 @@ function isImage(type: string): boolean {
 
 <template>
   <div class="chat-input-area">
+    <div v-if="inputError || voiceError" class="input-errors">
+      <div v-if="inputError" class="error-chip">{{ inputError }}</div>
+      <div v-if="voiceError" class="error-chip">{{ voiceError }}</div>
+    </div>
+
     <!-- Attachment previews -->
     <div v-if="attachments.length > 0" class="attachment-previews">
       <div
@@ -267,6 +401,7 @@ function isImage(type: string): boolean {
       @dragleave="handleDragLeave"
       @drop="handleDrop"
     >
+      <div v-if="isDragging" class="drop-overlay">{{ t('chat.dropHint') }}</div>
       <input
         ref="fileInputRef"
         type="file"
@@ -297,6 +432,7 @@ function isImage(type: string): boolean {
           </template>
           {{ t('chat.attachFiles') }}
         </NTooltip>
+
         <NTooltip v-if="isVoiceSupported" trigger="hover">
           <template #trigger>
             <NButton
@@ -321,26 +457,34 @@ function isImage(type: string): boolean {
           </template>
           {{ isRecording ? t('chat.stopRecording') : t('chat.startRecording') }}
         </NTooltip>
+
         <NButton
           v-if="chatStore.isStreaming"
           size="small"
           type="error"
           @click="chatStore.stopStreaming()"
         >
-          Stop
+          {{ t('chat.stop') }}
         </NButton>
+
         <NButton
           size="small"
           type="primary"
           :disabled="!canSend || chatStore.isStreaming"
+          :loading="isPreparing"
           @click="handleSend"
         >
           <template #icon>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
           </template>
-          Send
+          {{ t('chat.send') }}
         </NButton>
       </div>
+    </div>
+
+    <div class="input-hint-row">
+      <span>{{ t('chat.inputHint') }}</span>
+      <span>{{ t('chat.attachmentUsage', { count: attachments.length, size: formatSize(totalAttachmentSize) }) }}</span>
     </div>
   </div>
 </template>
@@ -350,8 +494,26 @@ function isImage(type: string): boolean {
 
 .chat-input-area {
   padding: 12px 20px 16px;
-  border-top: 1px solid $border-color;
+  border-top: 1px solid rgba($border-color, 0.9);
+  background: linear-gradient(180deg, rgba($bg-primary, 0.84), rgba($bg-primary, 0.95));
+  backdrop-filter: blur(10px);
   flex-shrink: 0;
+}
+
+.input-errors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.error-chip {
+  font-size: 12px;
+  color: $error;
+  background: rgba($error, 0.08);
+  border: 1px solid rgba($error, 0.3);
+  border-radius: 999px;
+  padding: 4px 10px;
 }
 
 .attachment-previews {
@@ -432,6 +594,7 @@ function isImage(type: string): boolean {
 }
 
 .input-wrapper {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -446,6 +609,21 @@ function isImage(type: string): boolean {
   }
 }
 
+.drop-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba($accent-primary, 0.08);
+  color: $accent-primary;
+  font-size: 12px;
+  font-weight: 600;
+  pointer-events: none;
+  z-index: 2;
+  border-radius: inherit;
+}
+
 .input-textarea {
   flex: 1;
   background: none;
@@ -456,8 +634,8 @@ function isImage(type: string): boolean {
   font-size: 14px;
   line-height: 1.5;
   resize: none;
-  max-height: 100px;
-  min-height: 20px;
+  max-height: 180px;
+  min-height: 22px;
   overflow-y: auto;
 
   &::placeholder {
@@ -470,6 +648,15 @@ function isImage(type: string): boolean {
   gap: 6px;
   flex-shrink: 0;
   align-items: center;
+}
+
+.input-hint-row {
+  margin-top: 8px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 11px;
+  color: $text-muted;
 }
 
 // Drag-over state

@@ -22,19 +22,24 @@
     "copy": "Copy",
     "copied": "Copied",
     "copyFailed": "Copy failed",
-    "selectPlaceholder": "Select..."
+    "selectPlaceholder": "Select...",
+    "yes": "Yes",
+    "no": "No"
   },
   "sidebar": {
     "logo": "Hermes",
     "chat": "Chat",
     "jobs": "Jobs",
     "materials": "Materials",
+    "projectCenter": "Project Center",
     "skills": "Skills",
     "memory": "Memory",
     "logs": "Logs",
+    "insights": "Insights",
     "audit": "Audit",
     "reports": "Reports",
     "settings": "Settings",
+    "authSwitch": "Login / Switch Account",
     "github": "GitHub",
     "vercel": "Vercel",
     "services": "Services",
@@ -42,7 +47,19 @@
     "disconnected": "Disconnected",
     "connected": "Connected",
     "cloudflare": "Cloudflare",
-    "terminal": "Terminal"
+    "terminal": "Terminal",
+    "expand": "Expand",
+    "collapse": "Collapse"
+  },
+  "theme": {
+    "title": "Theme Settings",
+    "subtitle": "Choose your preferred theme style",
+    "liquid-glass": "Liquid Glass",
+    "pure-ink": "Pure Ink",
+    "ocean-blue": "Ocean Blue",
+    "forest-green": "Forest Green",
+    "sunset-orange": "Sunset Orange",
+    "midnight-purple": "Midnight Purple"
   },
   "chat": {
     "title": "Chat",
@@ -50,6 +67,7 @@
     "sessions": "Sessions",
     "loadingSessions": "Loading sessions...",
     "noSessions": "No sessions",
+    "clickFilterToShow": "Select a filter above to show sessions",
     "startConversation": "Start a conversation with Hermes Agent",
     "inputPlaceholder": "Type a message...",
     "send": "Send",
@@ -66,7 +84,99 @@
     "thinking": "Thinking...",
     "toolRunning": "Tool running...",
     "toolDone": "Tool completed",
-    "toolError": "Tool error"
+    "toolError": "Tool error",
+    "searchSessions": "Search sessions (title/ID)",
+    "all": "All",
+    "chatOnly": "Chat",
+    "terminalOnly": "Terminal",
+    "totalSessions": "Total",
+    "messagesCount": "msgs",
+    "commandsCount": "cmds",
+    "lastUpdated": "Updated",
+    "groupToday": "Today",
+    "groupYesterday": "Yesterday",
+    "groupThisWeek": "This Week",
+    "copySessionId": "Copy Session ID",
+    "renameSession": "Rename Session",
+    "renamePlaceholder": "Enter new session name",
+    "stop": "Stop",
+    "voiceNotSupported": "Voice recording is not supported",
+    "voiceStartFailed": "Failed to start voice recording",
+    "voiceRecordErrorLog": "Voice recording error:",
+    "inputHint": "Enter to send · Shift+Enter for newline",
+    "attachmentUsage": "{count} files · {size}",
+    "dropHint": "Drop files to attach",
+    "jumpToLatest": "Jump to latest",
+    "youLabel": "You",
+    "sendFailed": "Failed to send message",
+    "maxFilesExceeded": "Maximum {max} files allowed",
+    "fileTooLarge": "File is too large (max {size})",
+    "totalSizeExceeded": "Total attachments exceed limit ({size})",
+    "size": {
+      "byte": "{value} B",
+      "kb": "{value} KB",
+      "mb": "{value} MB"
+    },
+    "resend": "Resend",
+    "regenerate": "Regenerate",
+    "toolCalls": "tools",
+    "lastLatency": "Latency",
+    "modeSwitchTitle": "Mode",
+    "modeChatDescription": "Chat conversations and context sessions",
+    "modeTerminalDescription": "Terminal commands and output sessions",
+    "showTerminal": "Open Terminal Panel",
+    "hideTerminal": "Hide Terminal Panel",
+    "command": {
+      "newDone": "Started a new chat",
+      "clearDone": "Cleared current chat",
+      "modelCurrent": "Current model: {model}",
+      "modelNotFound": "No model matched: {keyword}",
+      "modelSwitched": "Switched model to {model}",
+      "unknown": "Unknown command: /{command}"
+    }
+  },
+  "projectCenter": {
+    "title": "Super Project Center",
+    "subtitle": "A unified control board across Chat, Materials, GitHub, Vercel, and Cloudflare",
+    "createSchedule": "Create Schedule",
+    "openAudit": "Open Dynamic Audit",
+    "commandCenter": "Auto Capability Chat Dispatch",
+    "commandPlaceholder": "Example: build a website-dev plan for allapple.top-new and auto-execute deploy/domain setup.",
+    "runAuto": "Run Automatically",
+    "running": "Running...",
+    "enterChat": "Open Chat Session",
+    "activityStream": "Live Activity Stream",
+    "activityEmpty": "No activity yet. Send an auto command to start.",
+    "commandCompleted": "Task has been sent to chat session and is executing continuously.",
+    "commandFailed": "Failed to submit automation task",
+    "dispatchCenter": "Unified Dispatch Center",
+    "autoPipeline": "Automation Pipeline",
+    "suggestionsTitle": "Dynamic Improvement Suggestions",
+    "enter": "Enter",
+    "quick": {
+      "websiteDev": "Website Dev",
+      "planDesign": "Plan Design",
+      "deployFix": "Deploy & Fix",
+      "domainBinding": "Domain Binding"
+    },
+    "quickPrompt": {
+      "websiteDev": "Act as website delivery lead: define goals, split tasks, generate and execute code steps directly.",
+      "planDesign": "Generate an executable project plan with milestones, tasks, and acceptance criteria.",
+      "deployFix": "Investigate and fix deployment issues, then auto-build, release, and verify.",
+      "domainBinding": "Coordinate Cloudflare and Vercel for domain binding and verify DNS/certificate status."
+    },
+    "workflow": {
+      "websiteDev": "Website delivery: from requirements to auto-generated code",
+      "planDesign": "Plan design: auto-split milestones and deliverables",
+      "autoDeploy": "Auto deploy: trigger Vercel release after push",
+      "domainOps": "Domain ops: Cloudflare DNS and project domain binding",
+      "autoDebug": "Auto debugging: feed failure logs back into fix suggestions"
+    },
+    "suggestion": {
+      "one": "Template high-frequency project configs to reduce repetitive setup time.",
+      "two": "Enable pre-release automatic checks (build/env/domain conflicts).",
+      "three": "Run continuous project-level audits and focus on highest-failure automation steps."
+    }
   },
   "jobs": {
     "title": "Jobs",
@@ -100,15 +210,45 @@
       "jobTriggered": "Job triggered",
       "jobDeleted": "Job deleted",
       "jobCreated": "Job created",
-      "jobUpdated": "Job updated"
+      "jobUpdated": "Job updated",
+      "failedLoadJob": "Failed to load job"
     },
     "presets": {
       "everyMinute": "Every minute",
       "every5Minutes": "Every 5 minutes",
       "everyHour": "Every hour",
       "midnight": "Every day at 00:00",
-      "morning": "Every day at 09:00"
-    }
+      "morning": "Every day at 09:00",
+      "everyMondayMorning": "Every Monday at 09:00",
+      "everyMonthFirstMorning": "Every month on day 1 at 09:00"
+    },
+    "target": {
+      "origin": "Origin",
+      "local": "Local"
+    },
+    "validation": {
+      "nameRequired": "Name is required",
+      "scheduleRequired": "Schedule is required"
+    },
+    "placeholder": {
+      "jobName": "Job name",
+      "scheduleExample": "e.g. 0 9 * * *",
+      "selectPreset": "Select a preset...",
+      "prompt": "The prompt to execute",
+      "repeatCount": "Leave empty for infinite"
+    },
+    "scheduleCron": "Schedule (Cron Expression)",
+    "quickPresets": "Quick Presets",
+    "deliverTarget": "Deliver Target",
+    "repeatCountOptional": "Repeat Count (optional)"
+  },
+  "insights": {
+    "cockpitTitle": "Operations Cockpit",
+    "securityHealth": "Security Health",
+    "automationRate": "Automation Rate",
+    "errorPressure": "Error Pressure",
+    "activeSignals": "Active Signals",
+    "trend7d": "7-Day Trend"
   },
   "audit": {
     "title": "Audit Logs",
@@ -159,7 +299,8 @@
       "title": "Report Statistics",
       "totalReports": "Total reports",
       "generatedToday": "Generated today",
-      "averageScore": "Average score"
+      "averageScore": "Average score",
+      "topMetrics": "Top metrics"
     },
     "sections": {
       "overview": "Overview",
@@ -175,10 +316,14 @@
       "tasksCompleted": "Tasks completed",
       "skillsUsed": "Skills used",
       "errors": "Errors"
-    }
+    },
+    "type": "Type",
+    "recentReports": "Recent Reports",
+    "score": "score"
   },
   "materials": {
     "title": "Materials",
+    "subtitle": "Manage uploads and chat artifacts in one place, with session grouping, fast filtering, and quick chat navigation",
     "upload": "Upload",
     "uploading": "Uploading...",
     "uploadSuccess": "Upload successful",
@@ -229,7 +374,12 @@
     },
     "sessions": {
       "all": "All sessions",
-      "related": "Related sessions"
+      "related": "Related sessions",
+      "classificationTitle": "Classify by session",
+      "foldViewTitle": "Session fold view",
+      "useAsFilter": "Use as filter",
+      "openChat": "Open chat",
+      "noSessionGroups": "No collapsible session groups"
     },
     "smartReuse": {
       "title": "Smart Reuse",
@@ -272,7 +422,10 @@
       "copyFailed": "Copy failed",
       "renameSuccess": "Renamed successfully",
       "renameFailed": "Rename failed"
-    }
+    },
+    "filterResultCount": "Filtered results: {count}",
+    "sessionGroupCount": "Session groups: {count}",
+    "smartSuggestionCount": "Smart suggestions: {count}"
   },
   "skills": {
     "title": "Skills",
@@ -313,7 +466,11 @@
     "noProfile": "No profile yet.",
     "saveFailed": "Save failed",
     "loadFailed": "Load failed",
-    "saved": "Saved"
+    "saved": "Saved",
+    "placeholder": {
+      "notes": "Write your notes...",
+      "profile": "Write your profile..."
+    }
   },
   "logs": {
     "title": "Logs",
@@ -336,6 +493,11 @@
     "currentModel": "Current Model",
     "availableModels": "Available Models",
     "modelsSource": "Models are discovered from ~/.hermes/auth.json credential pool",
+    "modelsCount": "{count} models",
+    "showMore": "Show more (+{count})",
+    "showLess": "Show less",
+    "expandAll": "Expand all",
+    "collapseAll": "Collapse all",
     "chatSettings": "Chat Settings",
     "streamResponses": "Stream Responses",
     "sessionPersistence": "Session Persistence",
@@ -345,26 +507,246 @@
     "connectionFailed": "Connection failed",
     "provider": "Provider",
     "models": "Models",
-    "baseUrl": "Base URL"
+    "baseUrl": "Base URL",
+    "authManager": "Account Management",
+    "authProvider": "Provider",
+    "authProviderPlaceholder": "Select a provider",
+    "authSwitchButton": "Switch",
+    "authCurrent": "Current",
+    "authRank": "Priority",
+    "authNoAccounts": "No switchable accounts found",
+    "authCurrentStatus": "Current Status",
+    "authStreamTitle": "Live Stream (switch logs / raw metadata)",
+    "authStreamEmpty": "No stream events yet",
+    "refresh": "Refresh",
+    "authLoadFailed": "Failed to load accounts",
+    "authSwitchSuccess": "Account switched",
+    "authSwitchFailed": "Failed to switch account"
   },
   "modelSelector": {
     "title": "Model",
     "selectModel": "Select Model",
     "noModels": "No models available"
   },
-  "theme": {
-    "title": "Theme Settings",
-    "subtitle": "Choose your preferred theme style",
-    "liquid-glass": "Liquid Glass",
-    "pure-ink": "Pure Ink",
-    "ocean-blue": "Ocean Blue",
-    "forest-green": "Forest Green",
-    "sunset-orange": "Sunset Orange",
-    "midnight-purple": "Midnight Purple"
-  },
   "markdown": {
     "copy": "Copy",
     "copied": "Copied"
+  },
+  "services": {
+    "gatewayControl": "Gateway Control",
+    "webuiControl": "Web UI Control",
+    "gatewayStatus": "Gateway: {status}",
+    "webuiRunning": "Web UI: running",
+    "servicesCount": "Services ({count})",
+    "serviceLogs": "Service Logs",
+    "refreshing": "Refreshing...",
+    "expandLogs": "Expand logs",
+    "collapseLogs": "Collapse logs",
+    "activeSessionsCount": "Active Sessions ({count})",
+    "noActiveSessions": "No active sessions",
+    "msgCount": "{count} msgs",
+    "toolCount": "{count} tools",
+    "pidLabel": "PID {pid}",
+    "stats": {
+      "hermesVersion": "Hermes Version",
+      "activeSessions": "Active Sessions",
+      "childProcesses": "Child Processes",
+      "uptime": "Uptime"
+    },
+    "actions": {
+      "startGateway": "Start Gateway",
+      "restart": "Restart",
+      "stop": "Stop",
+      "restartWebui": "Restart Web UI",
+      "stopWebui": "Stop Web UI"
+    },
+    "messages": {
+      "fetchStatusFailed": "Failed to fetch status",
+      "wakeFailed": "Wake failed",
+      "restartFailed": "Restart failed",
+      "stopFailed": "Stop failed",
+      "gatewayStarted": "Hermes gateway started",
+      "gatewayRestarted": "Gateway restarted",
+      "gatewayStopped": "Gateway stopped",
+      "webuiRestarting": "Web UI restarting...",
+      "webuiShuttingDown": "Web UI shutting down...",
+      "stopGatewayConfirm": "Stop the gateway? Active sessions will be interrupted.",
+      "stopWebuiConfirm": "Stop the Web UI server? You will need to restart it manually.",
+      "noLogs": "(no logs)",
+      "loadLogsFailed": "(load failed)",
+      "unknownError": "unknown error"
+    },
+    "logTarget": {
+      "agent": "Agent",
+      "gateway": "Gateway",
+      "errors": "Errors"
+    },
+    "time": {
+      "minutesAgo": "{value}m ago",
+      "hoursAgo": "{value}h ago",
+      "daysAgo": "{value}d ago",
+      "durationSeconds": "{value}s",
+      "durationMinutesSeconds": "{minutes}m {seconds}s",
+      "durationHoursMinutes": "{hours}h {minutes}m"
+    }
+  },
+  "cloudflare": {
+    "tabs": {
+      "zones": "Zones",
+      "dns": "DNS",
+      "workers": "Workers"
+    },
+    "actions": {
+      "purgeCache": "Purge Cache",
+      "addRecord": "Add Record"
+    },
+    "fields": {
+      "plan": "Plan",
+      "freePlan": "Free",
+      "ns": "NS",
+      "type": "Type",
+      "name": "Name",
+      "content": "Content",
+      "proxied": "Proxied",
+      "ttl": "TTL",
+      "auto": "Auto",
+      "ttlSeconds": "{value}s"
+    },
+    "empty": {
+      "noZones": "No zones found or token not configured",
+      "selectZoneForDns": "Select a zone to manage DNS records",
+      "noDnsRecords": "No DNS records",
+      "noWorkers": "No workers found"
+    },
+    "modal": {
+      "addDnsRecord": "Add DNS Record"
+    },
+    "placeholder": {
+      "nameExample": "e.g. www or subdomain",
+      "contentExample": "e.g. 192.168.1.1"
+    },
+    "messages": {
+      "loadFailed": "Failed to load Cloudflare data",
+      "recordCreated": "DNS record created",
+      "recordDeleted": "DNS record deleted",
+      "cachePurged": "Cache purged",
+      "createFailed": "Create failed",
+      "deleteFailed": "Delete failed",
+      "purgeFailed": "Purge failed",
+      "deleteRecordConfirm": "Delete DNS record \"{name}\"?"
+    },
+    "units": {
+      "byte": "{value} B",
+      "kb": "{value} KB",
+      "mb": "{value} MB"
+    }
+  },
+  "vercel": {
+    "projectsCount": "Projects ({count})",
+    "recentDeployments": "Recent Deployments",
+    "domains": "Domains",
+    "deployments": "Deployments",
+    "verified": "verified",
+    "unverified": "unverified",
+    "updatedAgo": "Updated {time}",
+    "actions": {
+      "redeploy": "Redeploy",
+      "deleteProject": "Delete Project"
+    },
+    "messages": {
+      "loadFailed": "Failed to load Vercel data",
+      "redeployTriggered": "Redeployment triggered",
+      "redeployFailed": "Redeploy failed",
+      "projectDeleted": "Project deleted",
+      "deleteFailed": "Delete failed",
+      "deleteProjectConfirm": "Delete project \"{name}\"?"
+    },
+    "empty": {
+      "noProjects": "No Vercel projects or token not configured",
+      "noDeployments": "No deployments"
+    },
+    "time": {
+      "minutesAgo": "{value}m ago",
+      "hoursAgo": "{value}h ago",
+      "daysAgo": "{value}d ago"
+    },
+    "projectAvatarAlt": "project avatar"
+  },
+  "github": {
+    "connectTitle": "Connect GitHub",
+    "connectDesc": "Enter your GitHub Personal Access Token to manage repositories.",
+    "tokenHelp": "Generate at: GitHub Settings → Developer settings → Personal access tokens",
+    "recentCommits": "Recent Commits",
+    "actions": {
+      "saveToken": "Save Token",
+      "newRepo": "New Repo",
+      "openInGithub": "Open in GitHub →"
+    },
+    "fields": {
+      "name": "Name",
+      "description": "Description",
+      "privateRepo": "Private repository",
+      "branch": "Branch",
+      "issues": "Issues",
+      "updated": "Updated"
+    },
+    "placeholder": {
+      "token": "ghp_xx...xxxx",
+      "searchRepos": "Search repos...",
+      "repoName": "repository-name",
+      "repoDesc": "Optional description"
+    },
+    "messages": {
+      "loadFailed": "Failed to load GitHub data",
+      "tokenSaved": "Token saved successfully",
+      "saveTokenFailed": "Failed to save token",
+      "repoCreated": "Repository created",
+      "repoDeleted": "Repository deleted",
+      "createFailed": "Create failed",
+      "deleteFailed": "Delete failed",
+      "deleteConfirm": "Delete {name}?"
+    },
+    "empty": {
+      "noRepos": "No repositories",
+      "noCommits": "No commits"
+    },
+    "modal": {
+      "createRepo": "Create Repository"
+    },
+    "time": {
+      "minutesAgo": "{value}m ago",
+      "hoursAgo": "{value}h ago",
+      "daysAgo": "{value}d ago"
+    },
+    "repoAvatarAlt": "project avatar"
+  },
+  "terminal": {
+    "renameSession": "Rename Session",
+    "clearHistory": "Clear History",
+    "commands": "commands",
+    "confirmDeleteSession": "Delete this terminal session?",
+    "noSessions": "No terminal sessions",
+    "welcomeTitle": "Terminal command session",
+    "welcomeHintEnter": "Enter a command and press Enter to execute",
+    "welcomeHintHistory": "Use ↑/↓ to browse command history",
+    "copyOutput": "Copy output",
+    "promptUser": "xiao2027",
+    "promptHost": "hermes",
+    "placeholder": {
+      "command": "Enter command...",
+      "sessionName": "Session name"
+    },
+    "messages": {
+      "newSessionCreated": "New terminal session created",
+      "historyCleared": "History cleared",
+      "renamed": "Renamed",
+      "sessionDeleted": "Session deleted",
+      "outputCopied": "Output copied"
+    },
+    "time": {
+      "milliseconds": "{value}ms",
+      "seconds": "{value}s"
+    }
   },
   "version": {
     "title": "Version Info",

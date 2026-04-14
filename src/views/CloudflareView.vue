@@ -11,7 +11,7 @@ import {
   type CloudflareZone, type CloudflareDnsRecord, type CloudflareWorker
 } from '@/api/cloudflare'
 
-const { t: _t } = useI18n()
+const { t } = useI18n()
 const message = useMessage()
 
 const zones = ref<CloudflareZone[]>([])
@@ -61,7 +61,7 @@ async function loadData() {
       await loadDnsRecords(z[0].id)
     }
   } catch (err: any) {
-    error.value = err.message || 'Failed to load Cloudflare data'
+    error.value = err.message || t('cloudflare.messages.loadFailed')
   } finally {
     loading.value = false
   }
@@ -94,13 +94,13 @@ async function handleCreateDns() {
     })
     if (record) {
       dnsRecords.value.push(record)
-      message.success('DNS record created')
+      message.success(t('cloudflare.messages.recordCreated'))
       showCreateDns.value = false
       newDnsName.value = ''
       newDnsContent.value = ''
     }
   } catch (err: any) {
-    message.error(err.message || 'Create failed')
+    message.error(err.message || t('cloudflare.messages.createFailed'))
   } finally {
     creatingDns.value = false
   }
@@ -111,9 +111,9 @@ async function handleDeleteDns(record: CloudflareDnsRecord) {
   const ok = await deleteDnsRecord(selectedZone.value.id, record.id)
   if (ok) {
     dnsRecords.value = dnsRecords.value.filter(r => r.id !== record.id)
-    message.success('DNS record deleted')
+    message.success(t('cloudflare.messages.recordDeleted'))
   } else {
-    message.error('Delete failed')
+    message.error(t('cloudflare.messages.deleteFailed'))
   }
 }
 
@@ -121,9 +121,9 @@ async function handlePurgeCache() {
   if (!selectedZone.value) return
   const ok = await purgeCache(selectedZone.value.id)
   if (ok) {
-    message.success('Cache purged')
+    message.success(t('cloudflare.messages.cachePurged'))
   } else {
-    message.error('Purge failed')
+    message.error(t('cloudflare.messages.purgeFailed'))
   }
 }
 
@@ -141,9 +141,11 @@ function formatDate(dateStr: string): string {
 }
 
 function formatSize(bytes: number): string {
-  if (bytes < 1024) return bytes + ' B'
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
-  return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
+  if (bytes < 1024) return t('cloudflare.units.byte', { value: bytes })
+  if (bytes < 1024 * 1024) {
+    return t('cloudflare.units.kb', { value: (bytes / 1024).toFixed(1) })
+  }
+  return t('cloudflare.units.mb', { value: (bytes / (1024 * 1024)).toFixed(1) })
 }
 
 onMounted(loadData)
@@ -153,7 +155,7 @@ onMounted(loadData)
   <div class="cloudflare-view">
     <header class="page-header">
       <div class="header-left">
-        <h2>Cloudflare</h2>
+        <h2>{{ t('sidebar.cloudflare') }}</h2>
         <div v-if="selectedZone" class="zone-badge">
           <NTag :type="getStatusType(selectedZone.status)" size="tiny">{{ selectedZone.status }}</NTag>
           <span class="zone-name">{{ selectedZone.name }}</span>
@@ -164,26 +166,26 @@ onMounted(loadData)
           class="tab-btn"
           :class="{ active: activeTab === 'zones' }"
           @click="activeTab = 'zones'"
-        >Zones</button>
+                >{{ t('cloudflare.tabs.zones') }}</button>
         <button
           class="tab-btn"
           :class="{ active: activeTab === 'dns' }"
           @click="activeTab = 'dns'"
-        >DNS</button>
+        >{{ t('cloudflare.tabs.dns') }}</button>
         <button
           class="tab-btn"
           :class="{ active: activeTab === 'workers' }"
           @click="activeTab = 'workers'"
-        >Workers</button>
+        >{{ t('cloudflare.tabs.workers') }}</button>
       </div>
       <div class="header-actions">
         <NButton v-if="selectedZone && activeTab === 'dns'" size="small" @click="handlePurgeCache">
-          Purge Cache
+          {{ t('cloudflare.actions.purgeCache') }}
         </NButton>
         <NButton v-if="activeTab === 'dns' && selectedZone" size="small" type="primary" @click="showCreateDns = true">
-          Add Record
+          {{ t('cloudflare.actions.addRecord') }}
         </NButton>
-        <NButton size="small" @click="loadData" :loading="loading">Refresh</NButton>
+        <NButton size="small" @click="loadData" :loading="loading">{{ t('common.refresh') }}</NButton>
       </div>
     </header>
 
@@ -193,7 +195,7 @@ onMounted(loadData)
       <!-- Zones Tab -->
       <div v-if="activeTab === 'zones'" class="tab-content">
         <NSpin :show="loading && zones.length === 0" style="min-height: 200px">
-          <NEmpty v-if="!loading && zones.length === 0" description="No zones found or token not configured" />
+          <NEmpty v-if="!loading && zones.length === 0" :description="t('cloudflare.empty.noZones')" />
           <div v-else class="zone-grid">
             <div
               v-for="zone in filteredZones"
@@ -208,11 +210,11 @@ onMounted(loadData)
               </div>
               <div class="zone-card-meta">
                 <span class="meta-item">
-                  <span class="meta-label">Plan</span>
-                  <span class="meta-value">{{ zone.plan?.name || 'Free' }}</span>
+                  <span class="meta-label">{{ t('cloudflare.fields.plan') }}</span>
+                  <span class="meta-value">{{ zone.plan?.name || t('cloudflare.fields.freePlan') }}</span>
                 </span>
                 <span class="meta-item">
-                  <span class="meta-label">NS</span>
+                  <span class="meta-label">{{ t('cloudflare.fields.ns') }}</span>
                   <span class="meta-value">{{ zone.name_servers?.[0] || '—' }}</span>
                 </span>
               </div>
@@ -227,17 +229,17 @@ onMounted(loadData)
       <!-- DNS Tab -->
       <div v-if="activeTab === 'dns'" class="tab-content">
         <div v-if="!selectedZone" class="empty-state">
-          <NEmpty description="Select a zone to manage DNS records" />
+          <NEmpty :description="t('cloudflare.empty.selectZoneForDns')" />
         </div>
         <NSpin v-else :show="loadingDns" style="min-height: 200px">
-          <NEmpty v-if="!loadingDns && dnsRecords.length === 0" description="No DNS records" />
+          <NEmpty v-if="!loadingDns && dnsRecords.length === 0" :description="t('cloudflare.empty.noDnsRecords')" />
           <div v-else class="dns-table">
             <div class="dns-header-row">
-              <span class="dns-col-type">Type</span>
-              <span class="dns-col-name">Name</span>
-              <span class="dns-col-content">Content</span>
-              <span class="dns-col-proxied">Proxied</span>
-              <span class="dns-col-ttl">TTL</span>
+              <span class="dns-col-type">{{ t('cloudflare.fields.type') }}</span>
+              <span class="dns-col-name">{{ t('cloudflare.fields.name') }}</span>
+              <span class="dns-col-content">{{ t('cloudflare.fields.content') }}</span>
+              <span class="dns-col-proxied">{{ t('cloudflare.fields.proxied') }}</span>
+              <span class="dns-col-ttl">{{ t('cloudflare.fields.ttl') }}</span>
               <span class="dns-col-actions"></span>
             </div>
             <div v-for="record in dnsRecords" :key="record.id" class="dns-row">
@@ -249,7 +251,7 @@ onMounted(loadData)
               <span class="dns-col-proxied">
                 <span class="proxy-dot" :class="{ active: record.proxied }"></span>
               </span>
-              <span class="dns-col-ttl">{{ record.ttl === 1 ? 'Auto' : record.ttl + 's' }}</span>
+              <span class="dns-col-ttl">{{ record.ttl === 1 ? t('cloudflare.fields.auto') : t('cloudflare.fields.ttlSeconds', { value: record.ttl }) }}</span>
               <span class="dns-col-actions">
                 <NPopconfirm @positive-click="handleDeleteDns(record)">
                   <template #trigger>
@@ -257,7 +259,7 @@ onMounted(loadData)
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                     </button>
                   </template>
-                  Delete DNS record "{{ record.name }}"?
+                  {{ t('cloudflare.messages.deleteRecordConfirm', { name: record.name }) }}
                 </NPopconfirm>
               </span>
             </div>
@@ -268,7 +270,7 @@ onMounted(loadData)
       <!-- Workers Tab -->
       <div v-if="activeTab === 'workers'" class="tab-content">
         <NSpin :show="loading && workers.length === 0" style="min-height: 200px">
-          <NEmpty v-if="!loading && workers.length === 0" description="No workers found" />
+          <NEmpty v-if="!loading && workers.length === 0" :description="t('cloudflare.empty.noWorkers')" />
           <div v-else class="worker-grid">
             <div v-for="worker in workers" :key="worker.id" class="worker-card">
               <div class="worker-name">{{ worker.name }}</div>
@@ -286,30 +288,30 @@ onMounted(loadData)
     <NModal
       v-model:show="showCreateDns"
       preset="dialog"
-      title="Add DNS Record"
-      positive-text="Create"
-      negative-text="Cancel"
+      :title="t('cloudflare.modal.addDnsRecord')"
+      :positive-text="t('common.create')"
+      :negative-text="t('common.cancel')"
       :positive-button-props="{ loading: creatingDns, disabled: !newDnsName.trim() || !newDnsContent.trim() }"
       @positive-click="handleCreateDns"
     >
       <div class="dns-form">
         <div class="form-row">
-          <label>Type</label>
+          <label>{{ t('cloudflare.fields.type') }}</label>
           <NSelect v-model:value="newDnsType" :options="dnsTypeOptions" style="width: 100px" />
         </div>
         <div class="form-row">
-          <label>Name</label>
-          <NInput v-model:value="newDnsName" placeholder="e.g. www or subdomain" />
+          <label>{{ t('cloudflare.fields.name') }}</label>
+          <NInput v-model:value="newDnsName" :placeholder="t('cloudflare.placeholder.nameExample')" />
         </div>
         <div class="form-row">
-          <label>Content</label>
-          <NInput v-model:value="newDnsContent" placeholder="e.g. 192.168.1.1" />
+          <label>{{ t('cloudflare.fields.content') }}</label>
+          <NInput v-model:value="newDnsContent" :placeholder="t('cloudflare.placeholder.contentExample')" />
         </div>
         <div class="form-row">
-          <label>Proxied</label>
+          <label>{{ t('cloudflare.fields.proxied') }}</label>
           <button class="proxy-toggle" :class="{ active: newDnsProxied }" @click="newDnsProxied = !newDnsProxied">
             <span class="proxy-dot" :class="{ active: newDnsProxied }"></span>
-            {{ newDnsProxied ? 'Yes' : 'No' }}
+            {{ newDnsProxied ? t('common.yes') : t('common.no') }}
           </button>
         </div>
       </div>

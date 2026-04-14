@@ -253,14 +253,23 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  function syncActiveMessages() {
+    if (activeSession.value) {
+      activeSession.value.messages = [...messages.value]
+      activeSession.value.updatedAt = Date.now()
+    }
+  }
+
   function addMessage(msg: Message) {
     messages.value.push(msg)
+    syncActiveMessages()
   }
 
   function updateMessage(id: string, update: Partial<Message>) {
     const idx = messages.value.findIndex(m => m.id === id)
     if (idx !== -1) {
       messages.value[idx] = { ...messages.value[idx], ...update }
+      syncActiveMessages()
     }
   }
 
@@ -478,6 +487,39 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  function clearCurrentSessionMessages() {
+    if (!activeSession.value || isStreaming.value) return
+    messages.value = []
+    activeSession.value.messages = []
+    activeSession.value.updatedAt = Date.now()
+  }
+
+  async function resendMessage(messageId: string) {
+    const target = messages.value.find(m => m.id === messageId && m.role === 'user')
+    if (!target || isStreaming.value) return
+    const text = target.content || ''
+    await sendMessage(text)
+  }
+
+  async function regenerateLastResponse() {
+    if (isStreaming.value) return
+    const userIndexes = messages.value
+      .map((m, i) => ({ m, i }))
+      .filter(({ m }) => m.role === 'user')
+      .map(({ i }) => i)
+
+    if (userIndexes.length === 0) return
+
+    const lastUserIndex = userIndexes[userIndexes.length - 1]
+    const lastUser = messages.value[lastUserIndex]
+    if (!lastUser) return
+
+    messages.value = messages.value.slice(0, lastUserIndex + 1)
+    syncActiveMessages()
+
+    await sendMessage(lastUser.content)
+  }
+
   function stopStreaming() {
     abortController.value?.abort()
     isStreaming.value = false
@@ -504,6 +546,9 @@ export const useChatStore = defineStore('chat', () => {
     switchSessionModel,
     deleteSession,
     sendMessage,
+    resendMessage,
+    regenerateLastResponse,
+    clearCurrentSessionMessages,
     stopStreaming,
     loadSessions,
     updateSessionTitle,

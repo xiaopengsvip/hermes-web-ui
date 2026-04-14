@@ -47,7 +47,7 @@ async function handleSave() {
     editContent.value = ''
     message.success(t('memory.saved'))
   } catch (err: any) {
-    message.error(`Save failed: ${err.message}`)
+    message.error(`${t('memory.saveFailed')}: ${err.message}`)
   } finally {
     saving.value = false
   }
@@ -125,7 +125,7 @@ const displayUser = computed(() => (data.value?.user || '').replace(/§/g, '\n\n
               <textarea
                 v-model="editContent"
                 class="edit-textarea"
-                placeholder="Write your notes..."
+                :placeholder="t('memory.placeholder.notes')"
                 spellcheck="false"
               ></textarea>
               <div class="edit-actions">
@@ -170,7 +170,7 @@ const displayUser = computed(() => (data.value?.user || '').replace(/§/g, '\n\n
               <textarea
                 v-model="editContent"
                 class="edit-textarea"
-                placeholder="Write your profile..."
+                :placeholder="t('memory.placeholder.profile')"
                 spellcheck="false"
               ></textarea>
               <div class="edit-actions">

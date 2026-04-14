@@ -11,13 +11,14 @@ import {
 } from '@/api/system'
 import { fetchLogs } from '@/api/logs'
 
-useI18n()
+const { t } = useI18n()
 const message = useMessage()
 
 const status = ref<SystemStatus | null>(null)
 const activeSessions = ref<ActiveSession[]>([])
 const loading = ref(true)
 const logsLoading = ref(false)
+const logsCollapsed = ref(false)
 const serviceLogs = ref<Record<string, string[]>>({
   agent: [],
   gateway: [],
@@ -34,7 +35,7 @@ async function loadStatus() {
     status.value = data
     error.value = ''
   } catch (err: any) {
-    error.value = err.message || 'Failed to fetch status'
+    error.value = err.message || t('services.messages.fetchStatusFailed')
   } finally {
     loading.value = false
   }
@@ -58,10 +59,10 @@ async function loadServiceLogs() {
           const entries = await fetchLogs(name, { lines: 30 })
           const lines = entries.length
             ? entries.map((e) => `[${e.level}] ${e.timestamp} ${e.message}`)
-            : ['(no logs)']
+            : [t('services.messages.noLogs')]
           return [name, lines]
         } catch (err: any) {
-          return [name, [`(load failed) ${err?.message || 'unknown error'}`]]
+          return [name, [`${t('services.messages.loadLogsFailed')} ${err?.message || t('services.messages.unknownError')}`]]
         }
       })
     )
@@ -79,13 +80,13 @@ async function handleWake() {
   try {
     const res = await wakeHermes('gateway')
     if (res.success) {
-      message.success('Hermes gateway started')
+      message.success(t('services.messages.gatewayStarted'))
     } else {
-      message.error(res.error || 'Wake failed')
+      message.error(res.error || t('services.messages.wakeFailed'))
     }
     await loadStatus()
   } catch (err: any) {
-    message.error(err.message || 'Wake failed')
+    message.error(err.message || t('services.messages.wakeFailed'))
   } finally {
     actionLoading.value = ''
   }
@@ -96,13 +97,13 @@ async function handleRestart() {
   try {
     const res = await restartGateway()
     if (res.success) {
-      message.success('Gateway restarted')
+      message.success(t('services.messages.gatewayRestarted'))
     } else {
-      message.error(res.error || 'Restart failed')
+      message.error(res.error || t('services.messages.restartFailed'))
     }
     await loadStatus()
   } catch (err: any) {
-    message.error(err.message || 'Restart failed')
+    message.error(err.message || t('services.messages.restartFailed'))
   } finally {
     actionLoading.value = ''
   }
@@ -113,13 +114,13 @@ async function handleStop() {
   try {
     const res = await stopGateway()
     if (res.success) {
-      message.success('Gateway stopped')
+      message.success(t('services.messages.gatewayStopped'))
     } else {
-      message.error(res.error || 'Stop failed')
+      message.error(res.error || t('services.messages.stopFailed'))
     }
     await loadStatus()
   } catch (err: any) {
-    message.error(err.message || 'Stop failed')
+    message.error(err.message || t('services.messages.stopFailed'))
   } finally {
     actionLoading.value = ''
   }
@@ -130,7 +131,7 @@ async function handleWebUIRestart() {
   try {
     await restartWebUI()
     // Server will exit with code 42, wrapper script restarts it
-    message.success('Web UI restarting...')
+    message.success(t('services.messages.webuiRestarting'))
     setTimeout(() => window.location.reload(), 3000)
   } catch {
     // Connection lost is expected during restart
@@ -144,7 +145,7 @@ async function handleWebUIShutdown() {
   actionLoading.value = 'webui-shutdown'
   try {
     await shutdownWebUI()
-    message.success('Web UI shutting down...')
+    message.success(t('services.messages.webuiShuttingDown'))
   } catch {
     // Connection lost is expected
   }
@@ -170,20 +171,25 @@ function getServiceIcon(type: string): string {
 }
 
 function formatUptime(seconds: number): string {
-  if (seconds < 60) return `${seconds}s`
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${seconds % 60}s`
+  if (seconds < 60) return t('services.time.durationSeconds', { value: seconds })
+  if (seconds < 3600) {
+    return t('services.time.durationMinutesSeconds', {
+      minutes: Math.floor(seconds / 60),
+      seconds: seconds % 60,
+    })
+  }
   const h = Math.floor(seconds / 3600)
   const m = Math.floor((seconds % 3600) / 60)
-  return `${h}h ${m}m`
+  return t('services.time.durationHoursMinutes', { hours: h, minutes: m })
 }
 
 function formatSessionTime(ts: number): string {
   const diff = Date.now() - ts * 1000
   const mins = Math.floor(diff / 60000)
-  if (mins < 60) return `${mins}m ago`
+  if (mins < 60) return t('services.time.minutesAgo', { value: mins })
   const hours = Math.floor(mins / 60)
-  if (hours < 24) return `${hours}h ago`
-  return `${Math.floor(hours / 24)}d ago`
+  if (hours < 24) return t('services.time.hoursAgo', { value: hours })
+  return t('services.time.daysAgo', { value: Math.floor(hours / 24) })
 }
 
 function refresh() {
@@ -212,44 +218,45 @@ onUnmounted(() => {
 <template>
   <div class="services-view">
     <header class="page-header">
-      <h2>Services</h2>
+      <h2>{{ t('sidebar.services') }}</h2>
       <div class="header-actions">
-        <NButton size="small" @click="refresh" :loading="loading">Refresh</NButton>
+        <NButton size="small" @click="refresh" :loading="loading">{{ t('common.refresh') }}</NButton>
       </div>
     </header>
 
     <div class="services-body">
-      <div v-if="error" class="error-banner">{{ error }}</div>
+      <div class="services-scroll">
+        <div v-if="error" class="error-banner">{{ error }}</div>
 
-      <NSpin class="status-spin" :show="loading && !status">
-        <div v-if="status" class="content">
+        <NSpin class="status-spin" :show="loading && !status">
+          <div v-if="status" class="content">
         <!-- Stats -->
         <NGrid :cols="4" :x-gap="12" :y-gap="12" class="stats-grid">
           <NGridItem>
             <NCard size="small">
-              <NStatistic label="Hermes Version" :value="status.hermes_version || '—'" />
+              <NStatistic :label="t('services.stats.hermesVersion')" :value="status.hermes_version || '—'" />
             </NCard>
           </NGridItem>
           <NGridItem>
             <NCard size="small">
-              <NStatistic label="Active Sessions" :value="status.active_sessions" />
+              <NStatistic :label="t('services.stats.activeSessions')" :value="status.active_sessions" />
             </NCard>
           </NGridItem>
           <NGridItem>
             <NCard size="small">
-              <NStatistic label="Child Processes" :value="status.active_children" />
+              <NStatistic :label="t('services.stats.childProcesses')" :value="status.active_children" />
             </NCard>
           </NGridItem>
           <NGridItem>
             <NCard size="small">
-              <NStatistic label="Uptime" :value="formatUptime(status.uptime)" />
+              <NStatistic :label="t('services.stats.uptime')" :value="formatUptime(status.uptime)" />
             </NCard>
           </NGridItem>
         </NGrid>
 
         <!-- Gateway Actions -->
         <section class="section">
-          <h3>Gateway Control</h3>
+          <h3>{{ t('services.gatewayControl') }}</h3>
           <div class="action-bar">
             <NButton
               v-if="status.gateway_status !== 'running'"
@@ -258,7 +265,7 @@ onUnmounted(() => {
               :loading="actionLoading === 'wake'"
               @click="handleWake"
             >
-              ▶ Start Gateway
+              ▶ {{ t('services.actions.startGateway') }}
             </NButton>
             <NButton
               v-if="status.gateway_status === 'running'"
@@ -266,7 +273,7 @@ onUnmounted(() => {
               :loading="actionLoading === 'restart'"
               @click="handleRestart"
             >
-              ↻ Restart
+              ↻ {{ t('services.actions.restart') }}
             </NButton>
             <NPopconfirm
               v-if="status.gateway_status === 'running'"
@@ -274,43 +281,43 @@ onUnmounted(() => {
             >
               <template #trigger>
                 <NButton size="small" type="error" :loading="actionLoading === 'stop'">
-                  ■ Stop
+                  ■ {{ t('services.actions.stop') }}
                 </NButton>
               </template>
-              Stop the gateway? Active sessions will be interrupted.
+              {{ t('services.messages.stopGatewayConfirm') }}
             </NPopconfirm>
             <NTag :type="getStatusType(status.gateway_status)" size="small">
-              Gateway: {{ status.gateway_status }}
+              {{ t('services.gatewayStatus', { status: status.gateway_status }) }}
             </NTag>
           </div>
         </section>
 
         <!-- Web UI Control -->
         <section class="section">
-          <h3>Web UI Control</h3>
+          <h3>{{ t('services.webuiControl') }}</h3>
           <div class="action-bar">
             <NButton
               size="small"
               :loading="actionLoading === 'webui-restart'"
               @click="handleWebUIRestart"
             >
-              ↻ Restart Web UI
+              ↻ {{ t('services.actions.restartWebui') }}
             </NButton>
             <NPopconfirm @positive-click="handleWebUIShutdown">
               <template #trigger>
                 <NButton size="small" type="error" :loading="actionLoading === 'webui-shutdown'">
-                  ■ Stop Web UI
+                  ■ {{ t('services.actions.stopWebui') }}
                 </NButton>
               </template>
-              Stop the Web UI server? You will need to restart it manually.
+              {{ t('services.messages.stopWebuiConfirm') }}
             </NPopconfirm>
-            <NTag type="success" size="small">Web UI: running</NTag>
+            <NTag type="success" size="small">{{ t('services.webuiRunning') }}</NTag>
           </div>
         </section>
 
         <!-- Services -->
         <section class="section">
-          <h3>Services ({{ status.services.length }})</h3>
+          <h3>{{ t('services.servicesCount', { count: status.services.length }) }}</h3>
           <div class="service-list">
             <div v-for="svc in status.services" :key="svc.name" class="service-card">
               <div class="service-icon">{{ getServiceIcon(svc.type) }}</div>
@@ -320,7 +327,7 @@ onUnmounted(() => {
               </div>
               <div class="service-right">
                 <NTag :type="getStatusType(svc.status)" size="small">{{ svc.status }}</NTag>
-                <span v-if="svc.pid" class="service-pid">PID {{ svc.pid }}</span>
+                <span v-if="svc.pid" class="service-pid">{{ t('services.pidLabel', { pid: svc.pid }) }}</span>
                 <span v-if="svc.uptime" class="service-uptime">{{ svc.uptime }}</span>
               </div>
             </div>
@@ -330,29 +337,36 @@ onUnmounted(() => {
         <!-- Service Logs -->
         <section class="section">
           <div class="section-title-row">
-            <h3>Service Logs</h3>
-            <span class="logs-hint" v-if="logsLoading">Refreshing...</span>
+            <h3>{{ t('services.serviceLogs') }}</h3>
+            <div class="section-actions">
+              <span class="logs-hint" v-if="logsLoading">{{ t('services.refreshing') }}</span>
+              <NButton size="tiny" tertiary @click="logsCollapsed = !logsCollapsed">
+                {{ logsCollapsed ? t('services.expandLogs') : t('services.collapseLogs') }}
+              </NButton>
+            </div>
           </div>
-          <div class="logs-grid">
-            <div v-for="name in logTargets" :key="name" class="log-card">
-              <div class="log-card-title">{{ name }}</div>
-              <pre class="log-pre">{{ (serviceLogs[name] || []).join('\n') }}</pre>
+          <div v-show="!logsCollapsed" class="logs-panel-scroll">
+            <div class="logs-grid">
+              <div v-for="name in logTargets" :key="name" class="log-card">
+                <div class="log-card-title">{{ t(`services.logTarget.${name}`) }}</div>
+                <pre class="log-pre">{{ (serviceLogs[name] || []).join('\n') }}</pre>
+              </div>
             </div>
           </div>
         </section>
 
         <!-- Active Sessions -->
         <section class="section">
-          <h3>Active Sessions ({{ activeSessions.length }})</h3>
-          <NEmpty v-if="activeSessions.length === 0" description="No active sessions" />
+          <h3>{{ t('services.activeSessionsCount', { count: activeSessions.length }) }}</h3>
+          <NEmpty v-if="activeSessions.length === 0" :description="t('services.noActiveSessions')" />
           <div v-else class="session-list">
             <div v-for="sess in activeSessions" :key="sess.id" class="session-item">
               <div class="session-id">{{ sess.id.slice(0, 24) }}{{ sess.id.length > 24 ? '...' : '' }}</div>
               <div class="session-meta">
                 <NTag size="tiny">{{ sess.source }}</NTag>
                 <span v-if="sess.model" class="session-model">{{ sess.model }}</span>
-                <span>{{ sess.message_count }} msgs</span>
-                <span>{{ sess.tool_call_count }} tools</span>
+                <span>{{ t('services.msgCount', { count: sess.message_count }) }}</span>
+                <span>{{ t('services.toolCount', { count: sess.tool_call_count }) }}</span>
                 <span>{{ formatSessionTime(sess.started_at) }}</span>
               </div>
             </div>
@@ -362,6 +376,7 @@ onUnmounted(() => {
       </NSpin>
     </div>
   </div>
+</div>
 </template>
 
 <style scoped lang="scss">
@@ -379,7 +394,16 @@ onUnmounted(() => {
   min-height: 0;
   display: flex;
   flex-direction: column;
+  padding: 0;
+}
+
+.services-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   padding: 20px;
+  display: flex;
+  flex-direction: column;
 }
 
 .page-header {
@@ -425,7 +449,6 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 20px;
-  overflow-y: auto;
   flex: 1;
   min-height: 0;
   padding: 0;
@@ -450,6 +473,12 @@ onUnmounted(() => {
   justify-content: space-between;
 }
 
+.section-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .logs-hint {
   font-size: 12px;
   color: $text-muted;
@@ -461,12 +490,19 @@ onUnmounted(() => {
   gap: 10px;
 }
 
+.logs-panel-scroll {
+  max-height: 420px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
 .log-card {
   background: $bg-secondary;
   border: 1px solid $border-color;
   border-radius: $radius-sm;
   padding: 10px;
-  min-height: 180px;
+  min-height: 200px;
+  max-height: 260px;
   display: flex;
   flex-direction: column;
 }

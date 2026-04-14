@@ -19,6 +19,11 @@ const router = createRouter({
       component: () => import('@/views/MaterialsView.vue'),
     },
     {
+      path: '/project-center',
+      name: 'projectCenter',
+      component: () => import('@/views/ProjectCenterView.vue'),
+    },
+    {
       path: '/skills',
       name: 'skills',
       component: () => import('@/views/SkillsView.vue'),
@@ -29,14 +34,17 @@ const router = createRouter({
       component: () => import('@/views/MemoryView.vue'),
     },
     {
+      path: '/insights',
+      name: 'insights',
+      component: () => import('@/views/InsightsView.vue'),
+    },
+    {
       path: '/audit',
-      name: 'audit',
-      component: () => import('@/views/AuditView.vue'),
+      redirect: { name: 'insights', query: { tab: 'audit' } },
     },
     {
       path: '/reports',
-      name: 'reports',
-      component: () => import('@/views/ReportsView.vue'),
+      redirect: { name: 'insights', query: { tab: 'reports' } },
     },
     {
       path: '/logs',
@@ -60,8 +68,7 @@ const router = createRouter({
     },
     {
       path: '/terminal',
-      name: 'terminal',
-      component: () => import('@/views/TerminalView.vue'),
+      redirect: { name: 'chat', query: { panel: 'terminal' } },
     },
     {
       path: '/services',

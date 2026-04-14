@@ -10,7 +10,7 @@ import {
   type VercelProject, type VercelDeployment, type VercelDomain
 } from '@/api/vercel'
 
-useI18n()
+const { t } = useI18n()
 const message = useMessage()
 
 const projects = ref<VercelProject[]>([])
@@ -37,7 +37,7 @@ async function loadData() {
     projects.value = projRes.projects
     deployments.value = depRes.deployments
   } catch (err: any) {
-    error.value = err.message || 'Failed to load Vercel data'
+    error.value = err.message || t('vercel.messages.loadFailed')
   } finally {
     loading.value = false
   }
@@ -66,21 +66,21 @@ async function showDetails(project: VercelProject) {
 async function handleRedeploy(project: VercelProject) {
   try {
     await redeployVercelProject(project.id)
-    message.success('Redeployment triggered')
+    message.success(t('vercel.messages.redeployTriggered'))
     await loadData()
   } catch (err: any) {
-    message.error(err.message || 'Redeploy failed')
+    message.error(err.message || t('vercel.messages.redeployFailed'))
   }
 }
 
 async function handleDelete(project: VercelProject) {
   try {
     await deleteVercelProject(project.id)
-    message.success('Project deleted')
+    message.success(t('vercel.messages.projectDeleted'))
     showDetailModal.value = false
     await loadData()
   } catch (err: any) {
-    message.error(err.message || 'Delete failed')
+    message.error(err.message || t('vercel.messages.deleteFailed'))
   }
 }
 
@@ -92,11 +92,11 @@ function formatDate(ts: number): string {
 function formatRelativeTime(ts: number): string {
   const diff = Date.now() - ts
   const mins = Math.floor(diff / 60000)
-  if (mins < 60) return `${mins}m ago`
+  if (mins < 60) return t('vercel.time.minutesAgo', { value: mins })
   const hours = Math.floor(mins / 60)
-  if (hours < 24) return `${hours}h ago`
+  if (hours < 24) return t('vercel.time.hoursAgo', { value: hours })
   const days = Math.floor(hours / 24)
-  return `${days}d ago`
+  return t('vercel.time.daysAgo', { value: days })
 }
 
 function getStateColor(state: string): 'success' | 'warning' | 'error' | 'info' | 'default' {
@@ -124,9 +124,9 @@ onMounted(loadData)
 <template>
   <div class="vercel-view">
     <header class="page-header">
-      <h2>Vercel</h2>
+      <h2>{{ t('sidebar.vercel') }}</h2>
       <div class="header-actions">
-        <NButton size="small" @click="loadData" :loading="loading">Refresh</NButton>
+        <NButton size="small" @click="loadData" :loading="loading">{{ t('common.refresh') }}</NButton>
       </div>
     </header>
 
@@ -134,11 +134,11 @@ onMounted(loadData)
       <div v-if="error" class="error-banner">{{ error }}</div>
 
     <NSpin :show="loading" style="min-height: 200px">
-      <NEmpty v-if="!loading && projects.length === 0" description="No Vercel projects or token not configured" />
+      <NEmpty v-if="!loading && projects.length === 0" :description="t('vercel.empty.noProjects')" />
       <div v-else class="content-grid">
         <!-- Projects -->
         <section class="section">
-          <h3>Projects ({{ projects.length }})</h3>
+          <h3>{{ t('vercel.projectsCount', { count: projects.length }) }}</h3>
           <div class="project-list">
             <div
               v-for="project in projects"
@@ -147,13 +147,13 @@ onMounted(loadData)
               @click="showDetails(project)"
             >
               <div class="project-header">
-                <img :src="defaultProjectAvatar" alt="project avatar" class="project-avatar" />
+                <img :src="defaultProjectAvatar" :alt="t('vercel.projectAvatarAlt')" class="project-avatar" />
                 <span class="project-icon">{{ getFrameworkIcon(project.framework) }}</span>
                 <span class="project-name">{{ project.name }}</span>
                 <span v-if="project.framework" class="project-framework">{{ project.framework }}</span>
               </div>
               <div class="project-meta">
-                <span>Updated {{ formatRelativeTime(project.updatedAt) }}</span>
+                <span>{{ t('vercel.updatedAgo', { time: formatRelativeTime(project.updatedAt) }) }}</span>
                 <span v-if="project.link" class="project-repo">
                   {{ project.link.org }}/{{ project.link.repo }}
                 </span>
@@ -164,7 +164,7 @@ onMounted(loadData)
 
         <!-- Recent Deployments -->
         <section class="section">
-          <h3>Recent Deployments</h3>
+          <h3>{{ t('vercel.recentDeployments') }}</h3>
           <div class="deploy-list">
             <div v-for="dep in deployments" :key="dep.uid" class="deploy-item">
               <div class="deploy-left">
@@ -194,30 +194,30 @@ onMounted(loadData)
       <div v-if="selectedProject" class="project-detail">
         <div class="detail-actions">
           <NButton size="small" type="primary" @click="handleRedeploy(selectedProject)">
-            Redeploy
+            {{ t('vercel.actions.redeploy') }}
           </NButton>
           <NPopconfirm @positive-click="handleDelete(selectedProject)">
             <template #trigger>
-              <NButton size="small" type="error">Delete Project</NButton>
+              <NButton size="small" type="error">{{ t('vercel.actions.deleteProject') }}</NButton>
             </template>
-            Delete project "{{ selectedProject.name }}"?
+            {{ t('vercel.messages.deleteProjectConfirm', { name: selectedProject.name }) }}
           </NPopconfirm>
         </div>
 
         <div v-if="projectDomains.length > 0">
-          <h4>Domains</h4>
+          <h4>{{ t('vercel.domains') }}</h4>
           <div class="domain-list">
             <div v-for="domain in projectDomains" :key="domain.name" class="domain-item">
               <a :href="`https://${domain.name}`" target="_blank">{{ domain.name }}</a>
-              <NTag v-if="domain.verified" size="tiny" type="success">verified</NTag>
-              <NTag v-else size="tiny" type="warning">unverified</NTag>
+              <NTag v-if="domain.verified" size="tiny" type="success">{{ t('vercel.verified') }}</NTag>
+              <NTag v-else size="tiny" type="warning">{{ t('vercel.unverified') }}</NTag>
             </div>
           </div>
         </div>
 
-        <h4>Deployments</h4>
+        <h4>{{ t('vercel.deployments') }}</h4>
         <NSpin :show="loadingDeployments">
-          <NEmpty v-if="!loadingDeployments && projectDeployments.length === 0" description="No deployments" />
+          <NEmpty v-if="!loadingDeployments && projectDeployments.length === 0" :description="t('vercel.empty.noDeployments')" />
           <div v-else class="deploy-detail-list">
             <div v-for="dep in projectDeployments" :key="dep.uid" class="deploy-detail-item">
               <div class="deploy-detail-header">

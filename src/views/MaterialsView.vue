@@ -2,6 +2,8 @@
 import { ref, computed, onMounted } from 'vue'
 import { NButton, NInput, NSelect, NSpin, NCard, NStatistic, NGrid, NGridItem, NTag, NTooltip, NEmpty, NUpload, NIcon, NModal } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
+import { useChatStore } from '@/stores/chat'
 import { fetchMaterials, deleteMaterial, fetchMaterialText, uploadMaterial, type Material, type MaterialCategory, type MaterialSessionRef } from '@/api/materials'
 
 interface MaterialStats {
@@ -16,6 +18,8 @@ interface MaterialStats {
 }
 
 const { t } = useI18n()
+const router = useRouter()
+const chatStore = useChatStore()
 
 const materials = ref<(Material & { similarity?: number })[]>([])
 const categories = ref<MaterialCategory[]>([])
@@ -87,6 +91,30 @@ const smartReuseSuggestions = computed(() =>
     .sort((a, b) => (b.similarity || 0) - (a.similarity || 0))
     .slice(0, 5)
 )
+
+const chatMaterialCount = computed(() => materials.value.filter((m) => m.source === 'chat').length)
+
+const sessionClassifications = computed(() => {
+  const base = new Map<string, { id: string; title: string; count: number; size: number }>()
+
+  for (const s of chatSessions.value) {
+    base.set(s.id, { id: s.id, title: s.title, count: 0, size: 0 })
+  }
+
+  for (const m of materials.value) {
+    if (!m.chatSessions || m.chatSessions.length === 0) continue
+    for (const s of m.chatSessions) {
+      const row = base.get(s.id) || { id: s.id, title: s.title, count: 0, size: 0 }
+      row.count += 1
+      row.size += m.size
+      base.set(s.id, row)
+    }
+  }
+
+  return [...base.values()]
+    .filter((x) => x.count > 0)
+    .sort((a, b) => b.count - a.count)
+})
 
 const typeOptions = computed(() => [
   { label: t('materials.fileTypes.all'), value: 'all' },
@@ -206,6 +234,25 @@ function sessionLabel(session: MaterialSessionRef): string {
   return `${session.title} (${session.id.slice(0, 8)})`
 }
 
+async function openSession(sessionId: string) {
+  try {
+    await chatStore.loadSessions()
+    await chatStore.switchSession(sessionId)
+    await router.push({ name: 'chat' })
+  } catch (error) {
+    console.error('打开会话失败:', error)
+    window.location.hash = '/'
+  }
+}
+
+function applySessionClassification(sessionId: string | 'all') {
+  selectedSessionId.value = sessionId
+}
+
+function sessionMaterialsForGroup(sessionId: string): Material[] {
+  return filteredMaterials.value.filter((m) => (m.chatSessions || []).some((s) => s.id === sessionId))
+}
+
 async function handleView(material: Material) {
   selectedMaterial.value = material
   previewVisible.value = true
@@ -232,7 +279,10 @@ onMounted(() => {
 <template>
   <div class="materials-view">
     <header class="materials-header">
-      <h2 class="header-title">{{ t('materials.title') }}</h2>
+      <div class="header-title-wrap">
+        <h2 class="header-title">{{ t('materials.title') }}</h2>
+        <p class="header-subtitle">{{ t('materials.subtitle') }}</p>
+      </div>
       <div class="header-actions">
         <NInput
           v-model:value="searchQuery"
@@ -277,7 +327,7 @@ onMounted(() => {
           :placeholder="t('materials.sortBy')"
         />
         <NButton @click="loadMaterials">
-          刷新
+          {{ t('common.refresh') }}
         </NButton>
         <NButton type="primary" @click="showUpload = true">
           {{ t('materials.upload') }}
@@ -286,9 +336,14 @@ onMounted(() => {
     </header>
 
     <div class="materials-content">
+      <div class="quick-pills">
+        <NTag size="small" type="info">{{ t('materials.filterResultCount', { count: filteredMaterials.length }) }}</NTag>
+        <NTag size="small" type="success">{{ t('materials.sessionGroupCount', { count: sessionClassifications.length }) }}</NTag>
+        <NTag size="small" type="warning">{{ t('materials.smartSuggestionCount', { count: smartReuseSuggestions.length }) }}</NTag>
+      </div>
       <NSpin :show="loading">
         <!-- Statistics Section -->
-        <div class="statistics-section">
+        <div class="statistics-section panel-card">
           <h3 class="section-title">{{ t('materials.statistics.title') }}</h3>
           <NGrid :x-gap="12" :y-gap="12" :cols="6">
             <NGridItem>
@@ -324,8 +379,77 @@ onMounted(() => {
           </NGrid>
         </div>
 
+        <!-- Session Tools (compact) -->
+        <div class="session-tools-section panel-card">
+          <div class="session-tools-head">
+            <h3 class="section-title compact-title">{{ t('materials.sessions.classificationTitle') }}</h3>
+            <NTag size="small" type="info">{{ sessionClassifications.length }} 组</NTag>
+          </div>
+
+          <div class="session-classification-list compact-list">
+            <NButton
+              size="tiny"
+              :type="selectedSessionId === 'all' ? 'primary' : 'default'"
+              @click="applySessionClassification('all')"
+            >
+              {{ t('materials.sessions.all') }} ({{ chatMaterialCount }})
+            </NButton>
+            <NButton
+              v-for="row in sessionClassifications.slice(0, 8)"
+              :key="row.id"
+              size="tiny"
+              quaternary
+              :type="selectedSessionId === row.id ? 'primary' : 'info'"
+              @click="applySessionClassification(row.id)"
+            >
+              {{ row.title }} ({{ row.count }})
+            </NButton>
+          </div>
+
+          <details class="session-fold-toggle" v-if="sessionClassifications.length">
+            <summary class="session-fold-summary">
+              {{ t('materials.sessions.foldViewTitle') }}
+            </summary>
+            <div class="session-fold-list compact-fold-list">
+              <details
+                v-for="row in sessionClassifications"
+                :key="row.id"
+                class="session-fold-item glass-card"
+                :open="selectedSessionId !== 'all' && selectedSessionId === row.id"
+              >
+                <summary class="session-fold-summary inner-summary">
+                  <span class="session-fold-title">{{ row.title }}</span>
+                  <span class="session-fold-count">{{ row.count }}</span>
+                </summary>
+                <div class="session-fold-actions">
+                  <NButton size="tiny" quaternary type="primary" @click="applySessionClassification(row.id)">
+                    {{ t('materials.sessions.useAsFilter') }}
+                  </NButton>
+                  <NButton size="tiny" quaternary type="info" @click="openSession(row.id)">
+                    {{ t('materials.sessions.openChat') }}
+                  </NButton>
+                </div>
+                <div class="session-fold-materials">
+                  <NButton
+                    v-for="m in sessionMaterialsForGroup(row.id).slice(0, 8)"
+                    :key="`${row.id}-${m.id}`"
+                    size="tiny"
+                    quaternary
+                    @click="handleView(m)"
+                  >
+                    {{ m.name }}
+                  </NButton>
+                  <span v-if="sessionMaterialsForGroup(row.id).length > 8" class="session-fold-more">
+                    +{{ sessionMaterialsForGroup(row.id).length - 8 }}
+                  </span>
+                </div>
+              </details>
+            </div>
+          </details>
+        </div>
+
         <!-- Smart Reuse Section -->
-        <div class="smart-reuse-section">
+        <div class="smart-reuse-section panel-card">
           <h3 class="section-title">{{ t('materials.smartReuse.title') }}</h3>
           <p class="section-description">{{ t('materials.smartReuse.description') }}</p>
           <div v-if="smartReuseSuggestions.length > 0" class="suggestions-grid">
@@ -364,7 +488,7 @@ onMounted(() => {
         </div>
 
         <!-- Materials Grid -->
-        <div class="materials-grid-section">
+        <div class="materials-grid-section panel-card">
           <h3 class="section-title">{{ t('materials.title') }}</h3>
           <div v-if="filteredMaterials.length > 0" class="materials-grid">
             <NCard
@@ -407,22 +531,24 @@ onMounted(() => {
                 </div>
                 <div v-if="material.chatSessions && material.chatSessions.length" class="material-sessions">
                   <span class="sessions-label">{{ t('materials.sessions.related') }}:</span>
-                  <NTag
-                    v-for="sess in material.chatSessions.slice(0, 2)"
+                  <NButton
+                    v-for="sess in material.chatSessions.slice(0, 3)"
                     :key="sess.id"
                     size="tiny"
+                    quaternary
                     type="info"
-                    class="tag"
+                    class="session-link-btn"
+                    @click="openSession(sess.id)"
                   >
                     {{ sessionLabel(sess) }}
-                  </NTag>
+                  </NButton>
                   <NTag
-                    v-if="material.chatSessions.length > 2"
+                    v-if="material.chatSessions.length > 3"
                     size="tiny"
                     type="default"
                     class="tag"
                   >
-                    +{{ material.chatSessions.length - 2 }}
+                    +{{ material.chatSessions.length - 3 }}
                   </NTag>
                 </div>
               </div>
@@ -582,6 +708,22 @@ onMounted(() => {
               </NTag>
             </span>
           </div>
+          <div v-if="selectedMaterial.chatSessions && selectedMaterial.chatSessions.length" class="info-row info-row-sessions">
+            <span class="info-label">{{ t('materials.sessions.related') }}:</span>
+            <span class="info-value sessions-inline">
+              <NButton
+                v-for="sess in selectedMaterial.chatSessions"
+                :key="sess.id"
+                size="tiny"
+                quaternary
+                type="info"
+                class="session-link-btn"
+                @click="openSession(sess.id)"
+              >
+                {{ sessionLabel(sess) }}
+              </NButton>
+            </span>
+          </div>
         </div>
 
         <!-- Actions -->
@@ -602,39 +744,77 @@ onMounted(() => {
   height: 100vh;
   display: flex;
   flex-direction: column;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(93, 135, 255, 0.16), transparent 40%),
+    radial-gradient(circle at 100% 0%, rgba(73, 201, 159, 0.12), transparent 35%),
+    $bg-primary;
 }
 
 .materials-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  padding: 12px 20px;
-  border-bottom: 1px solid $border-color;
+  padding: 14px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   flex-shrink: 0;
   gap: 12px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  backdrop-filter: blur(10px);
+  background: rgba(11, 16, 28, 0.72);
+}
+
+.header-title-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .header-title {
-  font-size: 16px;
-  font-weight: 600;
+  font-size: 18px;
+  font-weight: 700;
   color: $text-primary;
+  letter-spacing: 0.2px;
+}
+
+.header-subtitle {
+  margin: 0;
+  font-size: 12px;
+  color: $text-muted;
 }
 
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .search-input {
-  width: 200px;
+  width: 260px;
 }
 
 .materials-content {
   flex: 1;
   overflow-y: auto;
-  padding: 20px;
+  padding: 16px 18px 28px;
+}
+
+.quick-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.panel-card {
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 14px;
+  padding: 12px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
 }
 
 .section-title {
@@ -651,11 +831,101 @@ onMounted(() => {
 }
 
 .statistics-section {
-  margin-bottom: 24px;
+  margin-bottom: 16px;
+}
+
+.session-tools-section {
+  margin-bottom: 14px;
+}
+
+.session-tools-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.compact-title {
+  margin-bottom: 0;
+}
+
+.session-classification-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.compact-list {
+  max-height: 66px;
+  overflow: hidden;
+}
+
+.session-fold-toggle {
+  margin-top: 8px;
+}
+
+.session-fold-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.compact-fold-list {
+  margin-top: 8px;
+}
+
+.session-fold-item {
+  padding: 6px 8px;
+  border-radius: 10px;
+}
+
+.session-fold-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  list-style: none;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.inner-summary {
+  font-size: 12px;
+}
+
+.session-fold-summary::-webkit-details-marker {
+  display: none;
+}
+
+.session-fold-title {
+  color: $text-primary;
+}
+
+.session-fold-count {
+  color: $text-muted;
+  font-size: 11px;
+}
+
+.session-fold-actions {
+  margin-top: 6px;
+  display: flex;
+  gap: 6px;
+}
+
+.session-fold-materials {
+  margin-top: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.session-fold-more {
+  font-size: 11px;
+  color: $text-muted;
 }
 
 .smart-reuse-section {
-  margin-bottom: 24px;
+  margin-bottom: 16px;
 }
 
 .suggestions-grid {
@@ -740,17 +1010,19 @@ onMounted(() => {
 
 .materials-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 14px;
 }
 
 .material-card {
   cursor: pointer;
   transition: all $transition-normal;
+  border: 1px solid rgba(255, 255, 255, 0.08);
 
   &:hover {
-    transform: translateY(-2px);
-    box-shadow: $shadow-glass, $shadow-glow;
+    transform: translateY(-3px);
+    box-shadow: 0 14px 28px rgba(0, 0, 0, 0.24);
+    border-color: rgba(92, 139, 255, 0.45);
   }
 }
 
@@ -809,10 +1081,19 @@ onMounted(() => {
   margin-right: 4px;
 }
 
+.session-link-btn {
+  padding: 0 6px;
+  height: 20px;
+  border-radius: 10px;
+  font-size: 11px;
+}
+
 .material-actions {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+  padding-top: 10px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.12);
 }
 
 .preview-body {
@@ -832,9 +1113,10 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.04);
   border-radius: $radius-md;
   overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .preview-image {
@@ -906,10 +1188,57 @@ onMounted(() => {
   color: $text-primary;
 }
 
+.info-row-sessions {
+  align-items: flex-start;
+}
+
+.sessions-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 .preview-actions {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
   margin-top: 20px;
+}
+
+@media (max-width: 1200px) {
+  .materials-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .header-actions {
+    justify-content: flex-start;
+  }
+
+  .search-input {
+    width: 100%;
+    min-width: 220px;
+  }
+}
+
+@media (max-width: 768px) {
+  .materials-content {
+    padding: 12px;
+  }
+
+  .materials-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .suggestions-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .session-fold-actions,
+  .material-actions,
+  .preview-actions {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
 }
 </style>

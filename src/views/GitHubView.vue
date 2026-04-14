@@ -11,7 +11,7 @@ import {
   type GitHubRepo, type GitHubUser, type GitHubCommit
 } from '@/api/github'
 
-useI18n()
+const { t } = useI18n()
 const message = useMessage()
 
 const repos = ref<GitHubRepo[]>([])
@@ -70,15 +70,15 @@ async function handleSaveToken() {
   try {
     const res = await saveGitHubToken(setupToken.value.trim())
     if (res.success || !res.error) {
-      message.success('Token saved successfully')
+      message.success(t('github.messages.tokenSaved'))
       tokenConfigured.value = true
       setupToken.value = ''
       await loadData()
     } else {
-      message.error(res.error || 'Failed to save token')
+      message.error(res.error || t('github.messages.saveTokenFailed'))
     }
   } catch (err: any) {
-    message.error(err.message || 'Failed to save token')
+    message.error(err.message || t('github.messages.saveTokenFailed'))
   } finally {
     savingToken.value = false
   }
@@ -95,7 +95,7 @@ async function loadData() {
     user.value = userRes
     repos.value = reposRes.repos
   } catch (err: any) {
-    const msg = err.message || 'Failed to load GitHub data'
+    const msg = err.message || t('github.messages.loadFailed')
     if (msg.includes('No GitHub token') || msg.includes('401')) {
       tokenConfigured.value = false
       tokenChecked.value = true
@@ -117,14 +117,14 @@ async function handleCreate() {
       private: newRepoPrivate.value,
       auto_init: true,
     })
-    message.success('Repository created')
+    message.success(t('github.messages.repoCreated'))
     showCreateModal.value = false
     newRepoName.value = ''
     newRepoDesc.value = ''
     newRepoPrivate.value = false
     await loadData()
   } catch (err: any) {
-    message.error(err.message || 'Create failed')
+    message.error(err.message || t('github.messages.createFailed'))
   } finally {
     creating.value = false
   }
@@ -134,10 +134,10 @@ async function handleDelete(repo: GitHubRepo) {
   try {
     const [owner, name] = repo.full_name.split('/')
     await deleteGitHubRepo(owner, name)
-    message.success('Repository deleted')
+    message.success(t('github.messages.repoDeleted'))
     await loadData()
   } catch (err: any) {
-    message.error(err.message || 'Delete failed')
+    message.error(err.message || t('github.messages.deleteFailed'))
   }
 }
 
@@ -167,11 +167,11 @@ function formatRelativeTime(dateStr: string): string {
   const now = Date.now()
   const diff = now - d.getTime()
   const mins = Math.floor(diff / 60000)
-  if (mins < 60) return `${mins}m ago`
+  if (mins < 60) return t('github.time.minutesAgo', { value: mins })
   const hours = Math.floor(mins / 60)
-  if (hours < 24) return `${hours}h ago`
+  if (hours < 24) return t('github.time.hoursAgo', { value: hours })
   const days = Math.floor(hours / 24)
-  return `${days}d ago`
+  return t('github.time.daysAgo', { value: days })
 }
 
 function getLangColor(lang: string | null): string {
@@ -204,15 +204,15 @@ onMounted(async () => {
             <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/>
           </svg>
         </div>
-        <h2>Connect GitHub</h2>
+        <h2>{{ t('github.connectTitle') }}</h2>
         <p class="setup-desc">
-          Enter your GitHub Personal Access Token to manage repositories.
+          {{ t('github.connectDesc') }}
         </p>
         <div class="setup-form">
           <NInput
             v-model:value="setupToken"
             type="password"
-            placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+            :placeholder="t('github.placeholder.token')"
             show-password-on="click"
             size="large"
           />
@@ -223,12 +223,12 @@ onMounted(async () => {
             :loading="savingToken"
             :disabled="!setupToken.trim()"
             @click="handleSaveToken"
-          >
-            Save Token
+                    >
+            {{ t('github.actions.saveToken') }}
           </NButton>
         </div>
         <p class="setup-help">
-          Generate at: GitHub Settings → Developer settings → Personal access tokens
+          {{ t('github.tokenHelp') }}
         </p>
       </div>
     </div>
@@ -237,7 +237,7 @@ onMounted(async () => {
     <template v-else-if="tokenConfigured">
       <header class="page-header">
         <div class="header-left">
-          <h2>GitHub</h2>
+          <h2>{{ t('sidebar.github') }}</h2>
           <div v-if="user" class="user-info">
             <img :src="user.avatar_url" :alt="user.login" class="user-avatar" />
             <span class="user-name">{{ user.name || user.login }}</span>
@@ -246,16 +246,16 @@ onMounted(async () => {
         <div class="header-actions">
           <NInput
             v-model:value="searchQuery"
-            placeholder="Search repos..."
+            :placeholder="t('github.placeholder.searchRepos')"
             size="small"
             clearable
             style="width: 200px"
           />
           <NButton size="small" @click="loadData" :loading="loading">
-            Refresh
+            {{ t('common.refresh') }}
           </NButton>
           <NButton size="small" type="primary" @click="showCreateModal = true">
-            New Repo
+            {{ t('github.actions.newRepo') }}
           </NButton>
         </div>
       </header>
@@ -264,7 +264,7 @@ onMounted(async () => {
         <div v-if="error" class="error-banner">{{ error }}</div>
 
       <NSpin :show="loading" style="min-height: 200px">
-        <NEmpty v-if="!loading && filteredRepos.length === 0" description="No repositories" />
+        <NEmpty v-if="!loading && filteredRepos.length === 0" :description="t('github.empty.noRepos')" />
         <div v-else class="repo-grid">
           <div
             v-for="repo in filteredRepos"
@@ -273,7 +273,7 @@ onMounted(async () => {
             @click="showDetails(repo)"
           >
             <div class="repo-header">
-              <img :src="defaultProjectAvatar" alt="project avatar" class="repo-avatar" />
+              <img :src="defaultProjectAvatar" :alt="t('github.repoAvatarAlt')" class="repo-avatar" />
               <div class="repo-name">
                 <svg v-if="repo.private" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="lock-icon">
                   <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
@@ -291,7 +291,7 @@ onMounted(async () => {
                     </svg>
                   </button>
                 </template>
-                Delete {{ repo.full_name }}?
+                {{ t('github.messages.deleteConfirm', { name: repo.full_name }) }}
               </NPopconfirm>
             </div>
             <p v-if="repo.description" class="repo-desc">{{ repo.description }}</p>
@@ -317,24 +317,24 @@ onMounted(async () => {
       <NModal
         v-model:show="showCreateModal"
         preset="dialog"
-        title="Create Repository"
-        positive-text="Create"
+        :title="t('github.modal.createRepo')"
+        :positive-text="t('common.create')"
         :loading="creating"
         @positive-click="handleCreate"
       >
         <div class="modal-form">
           <div class="form-field">
-            <label>Name</label>
-            <NInput v-model:value="newRepoName" placeholder="repository-name" />
+            <label>{{ t('github.fields.name') }}</label>
+            <NInput v-model:value="newRepoName" :placeholder="t('github.placeholder.repoName')" />
           </div>
           <div class="form-field">
-            <label>Description</label>
-            <NInput v-model:value="newRepoDesc" type="textarea" placeholder="Optional description" :rows="2" />
+            <label>{{ t('github.fields.description') }}</label>
+            <NInput v-model:value="newRepoDesc" type="textarea" :placeholder="t('github.placeholder.repoDesc')" :rows="2" />
           </div>
           <div class="form-field">
             <label>
               <input type="checkbox" v-model="newRepoPrivate" />
-              Private repository
+              {{ t('github.fields.privateRepo') }}
             </label>
           </div>
         </div>
@@ -350,18 +350,18 @@ onMounted(async () => {
         <div v-if="selectedRepo" class="repo-detail">
           <div class="detail-links">
             <a :href="selectedRepo.html_url" target="_blank" class="link-btn">
-              Open in GitHub →
+              {{ t('github.actions.openInGithub') }}
             </a>
             <span class="clone-url">{{ selectedRepo.ssh_url }}</span>
           </div>
           <div class="detail-info">
-            <span>Branch: <strong>{{ selectedRepo.default_branch }}</strong></span>
-            <span>Issues: {{ selectedRepo.open_issues_count }}</span>
-            <span>Updated: {{ formatDate(selectedRepo.updated_at) }}</span>
+            <span>{{ t('github.fields.branch') }}: <strong>{{ selectedRepo.default_branch }}</strong></span>
+            <span>{{ t('github.fields.issues') }}: {{ selectedRepo.open_issues_count }}</span>
+            <span>{{ t('github.fields.updated') }}: {{ formatDate(selectedRepo.updated_at) }}</span>
           </div>
-          <h4>Recent Commits</h4>
+          <h4>{{ t('github.recentCommits') }}</h4>
           <NSpin :show="loadingCommits">
-            <NEmpty v-if="!loadingCommits && commits.length === 0" description="No commits" />
+            <NEmpty v-if="!loadingCommits && commits.length === 0" :description="t('github.empty.noCommits')" />
             <div v-else class="commit-list">
               <div v-for="commit in commits" :key="commit.sha" class="commit-item">
                 <span class="commit-sha">{{ commit.sha }}</span>

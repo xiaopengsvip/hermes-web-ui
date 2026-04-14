@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue'
+import { ref, watch, nextTick, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import MessageItem from './MessageItem.vue'
 import { useChatStore } from '@/stores/chat'
@@ -7,47 +7,84 @@ import { useChatStore } from '@/stores/chat'
 const { t } = useI18n()
 const chatStore = useChatStore()
 const listRef = ref<HTMLElement>()
+const isNearBottom = ref(true)
+const BOTTOM_THRESHOLD = 120
 
-function scrollToBottom() {
+function updateNearBottom() {
+  if (!listRef.value) return
+  const el = listRef.value
+  const distance = el.scrollHeight - el.scrollTop - el.clientHeight
+  isNearBottom.value = distance <= BOTTOM_THRESHOLD
+}
+
+function scrollToBottom(force = false) {
   nextTick(() => {
-    if (listRef.value) {
-      listRef.value.scrollTop = listRef.value.scrollHeight
-    }
+    if (!listRef.value) return
+    if (!force && !isNearBottom.value) return
+    listRef.value.scrollTop = listRef.value.scrollHeight
+    updateNearBottom()
   })
 }
 
-watch(() => chatStore.messages.length, scrollToBottom)
-watch(() => chatStore.messages[chatStore.messages.length - 1]?.content, scrollToBottom)
-watch(() => chatStore.isStreaming, (v) => { if (v) scrollToBottom() })
+function handleScroll() {
+  updateNearBottom()
+}
+
+watch(() => chatStore.messages.length, () => scrollToBottom(false))
+watch(() => chatStore.messages[chatStore.messages.length - 1]?.content, () => scrollToBottom(false))
+watch(() => chatStore.isStreaming, (v) => { if (v) scrollToBottom(false) })
+
+onMounted(() => {
+  scrollToBottom(true)
+})
 </script>
 
 <template>
-  <div ref="listRef" class="message-list">
-    <div v-if="chatStore.messages.length === 0" class="empty-state">
-      <img src="/assets/logo.png" alt="Hermes" class="empty-logo" />
-      <p>{{ t('chat.startConversation') }}</p>
+  <div class="message-list-wrap">
+    <div ref="listRef" class="message-list" @scroll="handleScroll">
+      <div v-if="chatStore.messages.length === 0" class="empty-state">
+        <img src="/assets/logo.png" alt="Hermes" class="empty-logo" />
+        <p>{{ t('chat.startConversation') }}</p>
+      </div>
+      <MessageItem
+        v-for="msg in chatStore.messages"
+        :key="msg.id"
+        :message="msg"
+      />
+      <div v-if="chatStore.isStreaming" class="streaming-indicator">
+        <span></span><span></span><span></span>
+      </div>
     </div>
-    <MessageItem
-      v-for="msg in chatStore.messages"
-      :key="msg.id"
-      :message="msg"
-    />
-    <div v-if="chatStore.isStreaming" class="streaming-indicator">
-      <span></span><span></span><span></span>
-    </div>
+
+    <button
+      v-if="!isNearBottom && chatStore.messages.length > 0"
+      class="jump-latest"
+      @click="scrollToBottom(true)"
+    >
+      {{ t('chat.jumpToLatest') }}
+    </button>
   </div>
 </template>
 
 <style scoped lang="scss">
 @use '@/styles/variables' as *;
 
-.message-list {
+.message-list-wrap {
+  position: relative;
   flex: 1;
+  min-height: 0;
+}
+
+.message-list {
+  height: 100%;
   overflow-y: auto;
-  padding: 20px;
+  padding: 24px 26px 20px;
   display: flex;
   flex-direction: column;
   gap: 16px;
+  background:
+    radial-gradient(circle at 0% 0%, rgba($accent-primary, 0.05) 0%, rgba($accent-primary, 0) 40%),
+    radial-gradient(circle at 100% 100%, rgba($accent-primary, 0.04) 0%, rgba($accent-primary, 0) 42%);
 }
 
 .empty-state {
@@ -58,11 +95,15 @@ watch(() => chatStore.isStreaming, (v) => { if (v) scrollToBottom() })
   justify-content: center;
   color: $text-muted;
   gap: 12px;
+  border: 1px dashed rgba($border-color, 0.9);
+  border-radius: $radius-md;
+  background: rgba($bg-secondary, 0.45);
 
   .empty-logo {
-    width: 48px;
-    height: 48px;
-    opacity: 0.25;
+    width: 52px;
+    height: 52px;
+    opacity: 0.35;
+    filter: drop-shadow(0 0 10px rgba($accent-primary, 0.18));
   }
 
   p {
@@ -86,6 +127,25 @@ watch(() => chatStore.isStreaming, (v) => { if (v) scrollToBottom() })
 
     &:nth-child(2) { animation-delay: 0.2s; }
     &:nth-child(3) { animation-delay: 0.4s; }
+  }
+}
+
+.jump-latest {
+  position: absolute;
+  right: 20px;
+  bottom: 14px;
+  z-index: 3;
+  border: 1px solid rgba($accent-primary, 0.6);
+  background: rgba($bg-primary, 0.85);
+  color: $accent-primary;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+
+  &:hover {
+    background: rgba($accent-primary, 0.12);
   }
 }
 

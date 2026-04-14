@@ -38,13 +38,13 @@ const schedulePresets = [
   { label: t('jobs.presets.everyHour'), value: '0 * * * *' },
   { label: t('jobs.presets.midnight'), value: '0 0 * * *' },
   { label: t('jobs.presets.morning'), value: '0 9 * * *' },
-  { label: 'Every Monday at 09:00', value: '0 9 * * 1' },
-  { label: 'Every month 1st at 09:00', value: '0 9 1 * *' },
+  { label: t('jobs.presets.everyMondayMorning'), value: '0 9 * * 1' },
+  { label: t('jobs.presets.everyMonthFirstMorning'), value: '0 9 1 * *' },
 ]
 
 const targetOptions = [
-  { label: 'Origin', value: 'origin' },
-  { label: 'Local', value: 'local' },
+  { label: t('jobs.target.origin'), value: 'origin' },
+  { label: t('jobs.target.local'), value: 'local' },
 ]
 
 onMounted(async () => {
@@ -60,18 +60,18 @@ onMounted(async () => {
         repeat_times: typeof job.repeat === 'number' ? job.repeat : (typeof job.repeat === 'object' ? job.repeat.times : null),
       }
     } catch (e: any) {
-      message.error('Failed to load job: ' + e.message)
+      message.error(`${t('jobs.messages.failedLoadJob')}: ${e.message}`)
     }
   }
 })
 
 async function handleSave() {
   if (!formData.value.name.trim()) {
-    message.warning('Name is required')
+    message.warning(t('jobs.validation.nameRequired'))
     return
   }
   if (!formData.value.schedule.trim()) {
-    message.warning('Schedule is required')
+    message.warning(t('jobs.validation.scheduleRequired'))
     return
   }
 
@@ -119,51 +119,51 @@ function handleClose() {
       <NFormItem :label="t('jobs.jobName')" required>
         <NInput
           v-model:value="formData.name"
-          placeholder="Job name"
+          :placeholder="t('jobs.placeholder.jobName')"
           maxlength="200"
           show-count
         />
       </NFormItem>
 
-      <NFormItem label="Schedule (Cron Expression)" required>
+      <NFormItem :label="t('jobs.scheduleCron')" required>
         <NInput
           v-model:value="formData.schedule"
-          placeholder="e.g. 0 9 * * *"
+          :placeholder="t('jobs.placeholder.scheduleExample')"
         />
       </NFormItem>
 
-      <NFormItem label="Quick Presets">
+      <NFormItem :label="t('jobs.quickPresets')">
         <NSelect
           v-model:value="presetValue"
           :options="schedulePresets"
-          placeholder="Select a preset..."
+          :placeholder="t('jobs.placeholder.selectPreset')"
           @update:value="v => formData.schedule = v"
         />
       </NFormItem>
 
-      <NFormItem label="Prompt" required>
+      <NFormItem :label="t('jobs.jobPrompt')" required>
         <NInput
           v-model:value="formData.prompt"
           type="textarea"
-          placeholder="The prompt to execute"
+          :placeholder="t('jobs.placeholder.prompt')"
           :rows="4"
           maxlength="5000"
           show-count
         />
       </NFormItem>
 
-      <NFormItem label="Deliver Target">
+      <NFormItem :label="t('jobs.deliverTarget')">
         <NSelect
           v-model:value="formData.deliver"
           :options="targetOptions"
         />
       </NFormItem>
 
-      <NFormItem label="Repeat Count (optional)">
+      <NFormItem :label="t('jobs.repeatCountOptional')">
         <NInputNumber
           v-model:value="formData.repeat_times"
           :min="1"
-          placeholder="Leave empty for infinite"
+          :placeholder="t('jobs.placeholder.repeatCount')"
           clearable
           style="width: 100%"
         />
@@ -172,9 +172,9 @@ function handleClose() {
 
     <template #footer>
       <div class="modal-footer">
-        <NButton @click="handleClose">Cancel</NButton>
+        <NButton @click="handleClose">{{ t('common.cancel') }}</NButton>
         <NButton type="primary" :loading="loading" @click="handleSave">
-          {{ isEdit ? 'Update' : 'Create' }}
+          {{ isEdit ? t('common.edit') : t('common.create') }}
         </NButton>
       </div>
     </template>

@@ -33,7 +33,7 @@ defineExpose({ collapsed })
         <img src="/assets/logo.png" alt="Hermes" class="logo-img" />
         <span v-if="!collapsed" class="logo-text">{{ t('sidebar.logo') }}</span>
       </div>
-      <button class="collapse-btn" @click="toggleCollapse" :title="collapsed ? 'Expand' : 'Collapse'">
+      <button class="collapse-btn" @click="toggleCollapse" :title="collapsed ? t('sidebar.expand') : t('sidebar.collapse')">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
           <template v-if="collapsed">
             <polyline points="9 18 15 12 9 6" />
@@ -73,18 +73,6 @@ defineExpose({ collapsed })
 
       <button
         class="nav-item"
-        :class="{ active: selectedKey === 'terminal' }"
-        @click="handleNav('terminal')"
-      >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="4 17 10 11 4 5" />
-          <line x1="12" y1="19" x2="20" y2="19" />
-        </svg>
-        <span>{{ t('sidebar.terminal') }}</span>
-      </button>
-
-      <button
-        class="nav-item"
         :class="{ active: selectedKey === 'materials' }"
         @click="handleNav('materials')"
       >
@@ -98,30 +86,29 @@ defineExpose({ collapsed })
 
       <button
         class="nav-item"
-        :class="{ active: selectedKey === 'audit' }"
-        @click="handleNav('audit')"
+        :class="{ active: selectedKey === 'projectCenter' }"
+        @click="handleNav('projectCenter')"
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-          <polyline points="14 2 14 8 20 8" />
-          <line x1="16" y1="13" x2="8" y2="13" />
-          <line x1="16" y1="17" x2="8" y2="17" />
-          <polyline points="10 9 9 9 8 9" />
+          <rect x="3" y="3" width="8" height="8" rx="2" ry="2" />
+          <rect x="13" y="3" width="8" height="8" rx="2" ry="2" />
+          <rect x="3" y="13" width="8" height="8" rx="2" ry="2" />
+          <path d="M13 17h8" />
+          <path d="M17 13v8" />
         </svg>
-        <span>{{ t('sidebar.audit') }}</span>
+        <span>{{ t('sidebar.projectCenter') }}</span>
       </button>
 
       <button
         class="nav-item"
-        :class="{ active: selectedKey === 'reports' }"
-        @click="handleNav('reports')"
+        :class="{ active: selectedKey === 'insights' }"
+        @click="handleNav('insights')"
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-          <polyline points="7 10 12 15 17 10" />
-          <line x1="12" y1="15" x2="12" y2="3" />
+          <polyline points="3 17 9 11 13 15 21 7" />
+          <polyline points="14 7 21 7 21 14" />
         </svg>
-        <span>{{ t('sidebar.reports') }}</span>
+        <span>{{ t('sidebar.insights') }}</span>
       </button>
 
       <button
@@ -226,6 +213,18 @@ defineExpose({ collapsed })
     <ModelSelector v-if="!collapsed" />
 
     <div class="sidebar-footer">
+      <button
+        class="nav-item footer-auth-btn"
+        :class="{ active: selectedKey === 'settings' }"
+        @click="handleNav('settings')"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+          <circle cx="12" cy="7" r="4" />
+        </svg>
+        <span>{{ t('sidebar.authSwitch') }}</span>
+      </button>
+
       <div class="status-row">
         <div class="status-indicator" :class="{ connected: appStore.connected, disconnected: !appStore.connected }">
           <span class="status-dot"></span>
@@ -248,13 +247,16 @@ defineExpose({ collapsed })
 .sidebar {
   width: $sidebar-width;
   height: 100vh;
-  background-color: var(--theme-sidebar, $bg-sidebar);
+  background:
+    radial-gradient(circle at 10% 0%, rgba(88, 124, 255, 0.18), transparent 35%),
+    radial-gradient(circle at 100% 20%, rgba(55, 200, 170, 0.12), transparent 32%),
+    var(--theme-sidebar, $bg-sidebar);
   backdrop-filter: blur(var(--theme-blur, $blur-md));
   -webkit-backdrop-filter: blur(var(--theme-blur, $blur-md));
-  border-right: 1px solid var(--theme-border, $border-color);
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
   display: flex;
   flex-direction: column;
-  padding: 20px 12px;
+  padding: 16px 12px;
   flex-shrink: 0;
   transition: all $transition-normal;
 
@@ -297,15 +299,15 @@ defineExpose({ collapsed })
   width: 28px;
   height: 28px;
   border: none;
-  background: none;
+  background: rgba(255, 255, 255, 0.06);
   color: var(--theme-text-secondary, $text-secondary);
   cursor: pointer;
-  border-radius: $radius-sm;
+  border-radius: 8px;
   transition: all $transition-fast;
   flex-shrink: 0;
 
   &:hover {
-    background: var(--theme-hover, rgba(var(--theme-primary-rgb, 102, 126, 234), 0.06));
+    background: linear-gradient(135deg, rgba(96, 129, 255, 0.24), rgba(92, 221, 195, 0.2));
     color: var(--theme-text, $text-primary);
   }
 }
@@ -315,6 +317,7 @@ defineExpose({ collapsed })
   height: 28px;
   border-radius: 50%;
   flex-shrink: 0;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.15), 0 0 14px rgba(96, 129, 255, 0.35);
 }
 
 .sidebar-logo {
@@ -336,39 +339,78 @@ defineExpose({ collapsed })
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
+  margin-top: 8px;
 }
 
 .nav-item {
+  --nav-accent: #7c8dff;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 12px;
-  border: none;
-  background: none;
+  padding: 9px 10px;
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.02);
   color: var(--theme-text-secondary, $text-secondary);
-  font-size: 14px;
-  border-radius: $radius-sm;
+  font-size: 13px;
+  border-radius: 10px;
   cursor: pointer;
   transition: all $transition-fast;
   width: 100%;
   text-align: left;
 
+  svg {
+    width: 16px;
+    height: 16px;
+    padding: 5px;
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--nav-accent) 18%, transparent);
+    color: var(--nav-accent);
+    stroke: currentColor;
+    flex-shrink: 0;
+  }
+
   &:hover {
-    background-color: var(--theme-hover, rgba(var(--theme-primary-rgb, 102, 126, 234), 0.06));
+    background: rgba(255, 255, 255, 0.06);
+    border-color: color-mix(in srgb, var(--nav-accent) 45%, transparent);
     color: var(--theme-text, $text-primary);
+    transform: translateX(2px);
   }
 
   &.active {
-    background-color: var(--theme-active, rgba(var(--theme-primary-rgb, 102, 126, 234), 0.12));
-    color: var(--theme-primary, $accent-primary);
+    background: linear-gradient(90deg,
+      color-mix(in srgb, var(--nav-accent) 24%, transparent),
+      rgba(255, 255, 255, 0.03));
+    border-color: color-mix(in srgb, var(--nav-accent) 58%, transparent);
+    color: var(--theme-text, $text-primary);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--nav-accent) 24%, transparent);
   }
 }
+
+.sidebar-nav .nav-item:nth-child(1) { --nav-accent: #5da3ff; }
+.sidebar-nav .nav-item:nth-child(2) { --nav-accent: #9a7bff; }
+.sidebar-nav .nav-item:nth-child(3) { --nav-accent: #ff9f43; }
+.sidebar-nav .nav-item:nth-child(4) { --nav-accent: #2ecc71; }
+.sidebar-nav .nav-item:nth-child(5) { --nav-accent: #ff6b81; }
+.sidebar-nav .nav-item:nth-child(6) { --nav-accent: #feca57; }
+.sidebar-nav .nav-item:nth-child(7) { --nav-accent: #1dd1a1; }
+.sidebar-nav .nav-item:nth-child(8) { --nav-accent: #54a0ff; }
+.sidebar-nav .nav-item:nth-child(9) { --nav-accent: #00d2d3; }
+.sidebar-nav .nav-item:nth-child(10) { --nav-accent: #576574; }
+.sidebar-nav .nav-item:nth-child(11) { --nav-accent: #000000; }
+.sidebar-nav .nav-item:nth-child(12) { --nav-accent: #111111; }
+.sidebar-nav .nav-item:nth-child(13) { --nav-accent: #f39c12; }
+.sidebar-nav .nav-item:nth-child(14) { --nav-accent: #10ac84; }
+.sidebar-nav .nav-item:nth-child(15) { --nav-accent: #8395a7; }
 
 .sidebar-footer {
   margin-top: auto;
   padding-top: 16px;
   border-top: 1px solid var(--theme-border, $border-color);
+}
+
+.footer-auth-btn {
+  margin-bottom: 6px;
 }
 
 .switchers {

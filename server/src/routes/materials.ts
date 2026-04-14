@@ -181,6 +181,15 @@ async function buildMaterialIndex(): Promise<{ materials: MaterialItem[]; catego
 
   const byPath = new Map<string, MaterialItem>()
 
+  const inferSessionRefsFromPath = (fullPath: string): MaterialSessionRef[] => {
+    const base = basename(fullPath)
+    const refs: MaterialSessionRef[] = []
+    for (const s of sessionsById.values()) {
+      if (base.includes(s.id)) refs.push(s)
+    }
+    return refs
+  }
+
   const addFile = async (fullPath: string, source: MaterialSource, sessionId?: string, messageId?: string) => {
     const exists = byPath.get(fullPath)
     if (exists) {
@@ -202,7 +211,12 @@ async function buildMaterialIndex(): Promise<{ materials: MaterialItem[]; catego
 
     const previewKind = previewKindByExt(ext)
     const category = `${source}-${previewKind}`
-    const chatSessions = sessionId && sessionsById.has(sessionId) ? [sessionsById.get(sessionId) as MaterialSessionRef] : []
+    const directSessionRefs = sessionId && sessionsById.has(sessionId) ? [sessionsById.get(sessionId) as MaterialSessionRef] : []
+    const inferredSessionRefs = source === 'chat' ? inferSessionRefsFromPath(fullPath) : []
+    const chatSessions = [...directSessionRefs]
+    for (const s of inferredSessionRefs) {
+      if (!chatSessions.find((x) => x.id === s.id)) chatSessions.push(s)
+    }
 
     const item: MaterialItem = {
       id: buildId(source, fullPath, sessionId, messageId),

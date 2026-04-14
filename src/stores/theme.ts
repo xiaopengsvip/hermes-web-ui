@@ -484,6 +484,130 @@ export const themes: Theme[] = [
         boxShadow3: '0 2px 8px rgba(0, 0, 0, 0.1)'
       }
     }
+  },
+  {
+    id: 'vercel-silk',
+    name: 'Vercel Silk',
+    nameZh: 'Vercel 丝绸白',
+    description: '黑白极简 + 柔和边界，适合工程审阅',
+    isDark: false,
+    colors: {
+      primary: '#171717',
+      secondary: '#4d4d4d',
+      accent: '#0072f5',
+      background: '#f7f8fa',
+      backgroundSecondary: '#ffffff',
+      text: '#171717',
+      textSecondary: '#4d4d4d',
+      textMuted: '#808080',
+      border: 'rgba(23, 23, 23, 0.12)',
+      success: '#0f9d58',
+      warning: '#f5a524',
+      error: '#ff5b4f',
+      info: '#0072f5'
+    },
+    naiveOverrides: {
+      common: {
+        primaryColor: '#171717',
+        primaryColorHover: '#000000',
+        primaryColorPressed: '#000000',
+        bodyColor: '#f7f8fa',
+        cardColor: '#ffffff',
+        modalColor: '#ffffff',
+        popoverColor: '#ffffff',
+        inputColor: '#ffffff',
+        actionColor: '#fafafa',
+        textColorBase: '#171717',
+        textColor1: '#171717',
+        textColor2: '#4d4d4d',
+        textColor3: '#808080',
+        borderColor: 'rgba(23, 23, 23, 0.12)',
+        hoverColor: 'rgba(23, 23, 23, 0.05)',
+        boxShadow1: '0 16px 36px rgba(0, 0, 0, 0.08)'
+      }
+    }
+  },
+  {
+    id: 'linear-night',
+    name: 'Linear Night',
+    nameZh: 'Linear 夜幕',
+    description: '紫蓝冷调 + 高级暗色，适合长时开发',
+    isDark: true,
+    colors: {
+      primary: '#7c6cff',
+      secondary: '#4f46e5',
+      accent: '#22d3ee',
+      background: '#0c0d14',
+      backgroundSecondary: '#131723',
+      text: 'rgba(255, 255, 255, 0.95)',
+      textSecondary: 'rgba(255, 255, 255, 0.74)',
+      textMuted: 'rgba(255, 255, 255, 0.48)',
+      border: 'rgba(255, 255, 255, 0.11)',
+      success: '#22c55e',
+      warning: '#f59e0b',
+      error: '#f87171',
+      info: '#7c6cff'
+    },
+    naiveOverrides: {
+      common: {
+        primaryColor: '#7c6cff',
+        primaryColorHover: '#6f5cff',
+        primaryColorPressed: '#624eff',
+        bodyColor: '#0c0d14',
+        cardColor: 'rgba(255, 255, 255, 0.06)',
+        modalColor: 'rgba(19, 23, 35, 0.96)',
+        popoverColor: 'rgba(19, 23, 35, 0.96)',
+        inputColor: 'rgba(255, 255, 255, 0.05)',
+        textColorBase: 'rgba(255, 255, 255, 0.95)',
+        textColor1: 'rgba(255, 255, 255, 0.95)',
+        textColor2: 'rgba(255, 255, 255, 0.74)',
+        textColor3: 'rgba(255, 255, 255, 0.48)',
+        borderColor: 'rgba(255, 255, 255, 0.11)',
+        hoverColor: 'rgba(255, 255, 255, 0.08)',
+        boxShadow1: '0 18px 40px rgba(0, 0, 0, 0.4)'
+      }
+    }
+  },
+  {
+    id: 'aurora-frost',
+    name: 'Aurora Frost',
+    nameZh: '极光冰川',
+    description: '青蓝极光玻璃感，视觉更炫酷',
+    isDark: true,
+    colors: {
+      primary: '#00d4ff',
+      secondary: '#3b82f6',
+      accent: '#67e8f9',
+      background: '#04111e',
+      backgroundSecondary: '#0a1f33',
+      text: 'rgba(235, 250, 255, 0.96)',
+      textSecondary: 'rgba(218, 241, 255, 0.76)',
+      textMuted: 'rgba(190, 220, 238, 0.55)',
+      border: 'rgba(125, 211, 252, 0.2)',
+      success: '#22c55e',
+      warning: '#f59e0b',
+      error: '#fb7185',
+      info: '#00d4ff'
+    },
+    naiveOverrides: {
+      common: {
+        primaryColor: '#00d4ff',
+        primaryColorHover: '#22d3ee',
+        primaryColorPressed: '#06b6d4',
+        bodyColor: '#04111e',
+        cardColor: 'rgba(0, 212, 255, 0.08)',
+        modalColor: 'rgba(10, 31, 51, 0.96)',
+        popoverColor: 'rgba(10, 31, 51, 0.96)',
+        inputColor: 'rgba(125, 211, 252, 0.08)',
+        textColorBase: 'rgba(235, 250, 255, 0.96)',
+        textColor1: 'rgba(235, 250, 255, 0.96)',
+        textColor2: 'rgba(218, 241, 255, 0.76)',
+        textColor3: 'rgba(190, 220, 238, 0.55)',
+        borderColor: 'rgba(125, 211, 252, 0.2)',
+        hoverColor: 'rgba(125, 211, 252, 0.16)',
+        boxShadow1: '0 18px 44px rgba(0, 27, 46, 0.52)'
+      }
+    }
   }
 ]
 
@@ -491,7 +615,15 @@ export const useThemeStore = defineStore('theme', () => {
   const currentThemeId = ref(localStorage.getItem('hermes_theme') || 'liquid-glass')
   const currentTheme = ref<Theme>(themes.find(t => t.id === currentThemeId.value) || themes[0])
 
-  // Watch for theme changes
+  const densityMode = ref<'compact' | 'comfortable'>(
+    localStorage.getItem('hermes_density') === 'compact' ? 'compact' : 'comfortable',
+  )
+
+  const savedMotion = localStorage.getItem('hermes_motion')
+  const motionMode = ref<'low' | 'medium' | 'high'>(
+    savedMotion === 'low' || savedMotion === 'high' || savedMotion === 'medium' ? savedMotion : 'medium',
+  )
+
   watch(currentThemeId, (newId) => {
     const theme = themes.find(t => t.id === newId)
     if (theme) {
@@ -501,11 +633,19 @@ export const useThemeStore = defineStore('theme', () => {
     }
   })
 
-  // Apply theme to document
+  watch(densityMode, (mode) => {
+    localStorage.setItem('hermes_density', mode)
+    applyDensity(mode)
+  })
+
+  watch(motionMode, (mode) => {
+    localStorage.setItem('hermes_motion', mode)
+    applyMotion(mode)
+  })
+
   function applyTheme(theme: Theme) {
     const root = document.documentElement
-    
-    // 基础颜色
+
     root.style.setProperty('--theme-primary', theme.colors.primary)
     root.style.setProperty('--theme-secondary', theme.colors.secondary)
     root.style.setProperty('--theme-accent', theme.colors.accent)
@@ -520,131 +660,146 @@ export const useThemeStore = defineStore('theme', () => {
     root.style.setProperty('--theme-error', theme.colors.error)
     root.style.setProperty('--theme-info', theme.colors.info)
 
-    // 侧边栏特定
     root.style.setProperty('--theme-sidebar', theme.isDark ? 'rgba(18, 18, 26, 0.8)' : 'rgba(255, 255, 255, 0.95)')
     root.style.setProperty('--theme-blur', theme.isDark ? '12px' : '8px')
     root.style.setProperty('--theme-hover', theme.isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)')
     root.style.setProperty('--theme-active', theme.isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)')
 
-    // RGB值（用于rgba计算）
     const primaryRgb = hexToRgb(theme.colors.primary)
     if (primaryRgb) {
       root.style.setProperty('--theme-primary-rgb', `${primaryRgb.r}, ${primaryRgb.g}, ${primaryRgb.b}`)
     }
 
-    // 成功状态发光
     root.style.setProperty('--theme-success-glow', `${theme.colors.success}80`)
-
-    // 滚动条
     root.style.setProperty('--theme-scrollbar', theme.isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.2)')
     root.style.setProperty('--theme-scrollbar-hover', theme.isDark ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.3)')
-
-    // 选择高亮
     root.style.setProperty('--theme-selection', theme.isDark ? 'rgba(102, 126, 234, 0.3)' : 'rgba(0, 0, 0, 0.1)')
 
-    // 卡片和输入框
     root.style.setProperty('--theme-card', theme.isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)')
     root.style.setProperty('--theme-card-hover', theme.isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)')
     root.style.setProperty('--theme-input', theme.isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)')
 
-    // 消息气泡
     root.style.setProperty('--theme-msg-user', theme.isDark ? 'rgba(102, 126, 234, 0.2)' : 'rgba(0, 0, 0, 0.1)')
     root.style.setProperty('--theme-msg-assistant', theme.isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.03)')
     root.style.setProperty('--theme-msg-system', theme.isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.2)')
 
-    // 代码块
     root.style.setProperty('--theme-code', theme.isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)')
 
-    // 阴影
     root.style.setProperty('--theme-shadow-glass', theme.isDark ? '0 8px 32px rgba(0, 0, 0, 0.3)' : '0 8px 32px rgba(0, 0, 0, 0.1)')
     root.style.setProperty('--theme-shadow-glass-light', theme.isDark ? '0 4px 16px rgba(0, 0, 0, 0.2)' : '0 4px 16px rgba(0, 0, 0, 0.05)')
     root.style.setProperty('--theme-shadow-glow', `0 0 20px ${theme.colors.primary}40`)
 
-    // 渐变
     root.style.setProperty('--theme-gradient-primary', `linear-gradient(135deg, ${theme.colors.primary} 0%, ${theme.colors.secondary} 100%)`)
     root.style.setProperty('--theme-gradient-secondary', `linear-gradient(135deg, ${theme.colors.accent} 0%, ${theme.colors.primary} 100%)`)
     root.style.setProperty('--theme-gradient-success', `linear-gradient(135deg, ${theme.colors.success} 0%, ${theme.colors.info} 100%)`)
     root.style.setProperty('--theme-gradient-warning', `linear-gradient(135deg, ${theme.colors.warning} 0%, ${theme.colors.primary} 100%)`)
     root.style.setProperty('--theme-gradient-error', `linear-gradient(135deg, ${theme.colors.error} 0%, ${theme.colors.warning} 100%)`)
 
-    // Glass效果
     root.style.setProperty('--theme-glass-bg', theme.isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.95)')
     root.style.setProperty('--theme-glass-bg-light', theme.isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(255, 255, 255, 0.98)')
     root.style.setProperty('--theme-glass-bg-dark', theme.isDark ? 'rgba(0, 0, 0, 0.2)' : 'rgba(0, 0, 0, 0.05)')
     root.style.setProperty('--theme-glass-border', theme.isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.1)')
     root.style.setProperty('--theme-glass-border-light', theme.isDark ? 'rgba(255, 255, 255, 0.25)' : 'rgba(0, 0, 0, 0.15)')
 
-    // 强调色
     root.style.setProperty('--theme-accent-hover', adjustColor(theme.colors.primary, 20))
     root.style.setProperty('--theme-primary-hover', adjustColor(theme.colors.primary, -10))
     root.style.setProperty('--theme-primary-muted', `${theme.colors.primary}80`)
 
-    // 更新 body 背景
     document.body.style.backgroundColor = theme.colors.background
     document.body.style.color = theme.colors.text
 
-    // 更新 meta theme-color
     const metaThemeColor = document.querySelector('meta[name="theme-color"]')
     if (metaThemeColor) {
       metaThemeColor.setAttribute('content', theme.colors.background)
     }
 
-    // 添加主题切换动画类
     document.body.classList.add('theme-transition')
     setTimeout(() => {
       document.body.classList.remove('theme-transition')
     }, 300)
   }
 
-  // 辅助函数：将hex转换为RGB
+  function applyDensity(mode: 'compact' | 'comfortable') {
+    const root = document.documentElement
+    const factor = mode === 'compact' ? '0.88' : '1'
+    root.style.setProperty('--ui-density-gap', factor)
+    root.style.setProperty('--ui-density-padding', mode === 'compact' ? '0.88' : '1')
+    document.body.setAttribute('data-density', mode)
+  }
+
+  function applyMotion(mode: 'low' | 'medium' | 'high') {
+    const root = document.documentElement
+    const mapping = {
+      low: { fast: '110ms', normal: '170ms', slow: '220ms' },
+      medium: { fast: '150ms', normal: '260ms', slow: '360ms' },
+      high: { fast: '210ms', normal: '340ms', slow: '520ms' },
+    } as const
+
+    const selected = mapping[mode]
+    root.style.setProperty('--ui-motion-fast', selected.fast)
+    root.style.setProperty('--ui-motion-normal', selected.normal)
+    root.style.setProperty('--ui-motion-slow', selected.slow)
+    document.body.setAttribute('data-motion', mode)
+  }
+
   function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
     const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
     return result ? {
       r: parseInt(result[1], 16),
       g: parseInt(result[2], 16),
-      b: parseInt(result[3], 16)
+      b: parseInt(result[3], 16),
     } : null
   }
 
-  // 辅助函数：调整颜色亮度
   function adjustColor(hex: string, amount: number): string {
     const rgb = hexToRgb(hex)
     if (!rgb) return hex
-    
+
     const adjust = (channel: number) => {
       const adjusted = channel + amount
       return Math.max(0, Math.min(255, adjusted))
     }
-    
+
     const toHex = (n: number) => {
-      const hex = n.toString(16)
-      return hex.length === 1 ? '0' + hex : hex
+      const asHex = n.toString(16)
+      return asHex.length === 1 ? '0' + asHex : asHex
     }
-    
+
     return `#${toHex(adjust(rgb.r))}${toHex(adjust(rgb.g))}${toHex(adjust(rgb.b))}`
   }
 
-  // Set theme
   function setTheme(themeId: string) {
     currentThemeId.value = themeId
   }
 
-  // Get theme by ID
+  function setDensity(mode: 'compact' | 'comfortable') {
+    densityMode.value = mode
+  }
+
+  function setMotion(mode: 'low' | 'medium' | 'high') {
+    motionMode.value = mode
+  }
+
   function getThemeById(themeId: string): Theme | undefined {
     return themes.find(t => t.id === themeId)
   }
 
-  // Initialize theme on store creation
   function initTheme() {
     applyTheme(currentTheme.value)
+    applyDensity(densityMode.value)
+    applyMotion(motionMode.value)
   }
 
   return {
     currentThemeId,
     currentTheme,
     themes,
+    densityMode,
+    motionMode,
     setTheme,
+    setDensity,
+    setMotion,
     getThemeById,
-    initTheme
+    initTheme,
   }
 })

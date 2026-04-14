@@ -1,10 +1,26 @@
 <script setup lang="ts">
-import { ref, nextTick, onMounted, watch } from 'vue'
+import { ref, nextTick, onMounted, watch, computed } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { NButton, NInput, NPopconfirm, NDropdown, NModal, useMessage } from 'naive-ui'
+import { useI18n } from 'vue-i18n'
 import { useTerminalStore, type TerminalCommand } from '@/stores/terminal'
+import { useChatStore } from '@/stores/chat'
 
+const { t } = useI18n()
+const route = useRoute()
+const router = useRouter()
 const terminalStore = useTerminalStore()
+const chatStore = useChatStore()
 const message = useMessage()
+
+const SESSION_PANEL_MEMORY_KEY = 'chat:preferred-panel'
+
+const terminalVisible = computed(() => route.query.panel === 'terminal')
+const chatSessionCount = computed(() => chatStore.sessions.length)
+const terminalSessionCount = computed(() => terminalStore.sessions.length)
+const preferredPanel = ref<'chat' | 'terminal'>(
+  localStorage.getItem(SESSION_PANEL_MEMORY_KEY) === 'terminal' ? 'terminal' : 'chat',
+)
 
 const commandInput = ref('')
 const inputRef = ref<InstanceType<typeof NInput> | null>(null)
@@ -19,8 +35,8 @@ const renameTarget = ref('')
 const renameInput = ref('')
 
 const sessionMenuOptions = [
-  { label: '重命名', key: 'rename' },
-  { label: '清空历史', key: 'clear' },
+  { label: t('terminal.renameSession'), key: 'rename' },
+  { label: t('terminal.clearHistory'), key: 'clear' },
 ]
 
 function scrollToBottom() {
@@ -66,10 +82,44 @@ function handleKeydown(e: KeyboardEvent) {
   }
 }
 
+function switchToChatView() {
+  const nextQuery = { ...route.query }
+  delete nextQuery.panel
+  router.replace({ name: 'chat', query: nextQuery })
+}
+
+function switchToTerminalView() {
+  router.replace({ name: 'chat', query: { ...route.query, panel: 'terminal' } })
+}
+
+function rememberPreferredPanel(panel: 'chat' | 'terminal') {
+  preferredPanel.value = panel
+  localStorage.setItem(SESSION_PANEL_MEMORY_KEY, panel)
+}
+
+function handleUnifiedMode(target: 'all' | 'chat' | 'terminal') {
+  if (target === 'all') {
+    if (preferredPanel.value === 'chat') {
+      switchToChatView()
+    } else {
+      switchToTerminalView()
+    }
+    return
+  }
+
+  if (target === 'chat') {
+    rememberPreferredPanel('chat')
+    switchToChatView()
+  } else {
+    rememberPreferredPanel('terminal')
+    switchToTerminalView()
+  }
+}
+
 function handleNewSession() {
   terminalStore.createSession()
   terminalStore.saveSessions()
-  message.success('新终端会话已创建')
+  message.success(t('terminal.messages.newSessionCreated'))
 }
 
 function handleSessionMenuSelect(key: string, sessionId: string) {
@@ -83,7 +133,7 @@ function handleSessionMenuSelect(key: string, sessionId: string) {
   } else if (key === 'clear') {
     terminalStore.clearSession(sessionId)
     terminalStore.saveSessions()
-    message.success('历史已清空')
+    message.success(t('terminal.messages.historyCleared'))
   }
 }
 
@@ -91,7 +141,7 @@ function handleRenameConfirm() {
   if (renameTarget.value && renameInput.value.trim()) {
     terminalStore.updateSessionTitle(renameTarget.value, renameInput.value.trim())
     terminalStore.saveSessions()
-    message.success('已重命名')
+    message.success(t('terminal.messages.renamed'))
   }
   showRenameModal.value = false
 }
@@ -99,7 +149,7 @@ function handleRenameConfirm() {
 function handleDeleteSession(id: string) {
   terminalStore.deleteSession(id)
   terminalStore.saveSessions()
-  message.success('会话已删除')
+  message.success(t('terminal.messages.sessionDeleted'))
 }
 
 function formatTime(ts: number): string {
@@ -111,8 +161,8 @@ function formatTime(ts: number): string {
 }
 
 function formatDuration(ms: number): string {
-  if (ms < 1000) return `${ms}ms`
-  return `${(ms / 1000).toFixed(1)}s`
+  if (ms < 1000) return t('terminal.time.milliseconds', { value: ms })
+  return t('terminal.time.seconds', { value: (ms / 1000).toFixed(1) })
 }
 
 function getStatusColor(cmd: TerminalCommand): string {
@@ -123,10 +173,11 @@ function getStatusColor(cmd: TerminalCommand): string {
 
 function copyOutput(cmd: TerminalCommand) {
   navigator.clipboard.writeText(cmd.output)
-  message.success('已复制输出')
+  message.success(t('terminal.messages.outputCopied'))
 }
 
 onMounted(() => {
+  chatStore.loadSessions()
   inputRef.value?.focus()
   scrollToBottom()
 })
@@ -141,7 +192,7 @@ watch(() => terminalStore.activeSession?.commands.length, () => {
     <!-- Session List -->
     <aside class="session-sidebar" :class="{ collapsed: !showSessionList }">
       <div class="sidebar-header">
-        <span v-if="showSessionList" class="sidebar-title">终端会话</span>
+        <span v-if="showSessionList" class="sidebar-title">{{ t('sidebar.terminal') }}</span>
         <NButton quaternary size="tiny" @click="handleNewSession" circle>
           <template #icon>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -151,12 +202,27 @@ watch(() => terminalStore.activeSession?.commands.length, () => {
         </NButton>
       </div>
 
+      <div v-if="showSessionList" class="view-mode-switch">
+        <button class="view-mode-btn" @click="handleUnifiedMode('all')">
+          <span>{{ t('chat.all') }}</span>
+          <small>{{ chatSessionCount + terminalSessionCount }}</small>
+        </button>
+        <button class="view-mode-btn" @click="handleUnifiedMode('chat')">
+          <span>{{ t('chat.chatOnly') }}</span>
+          <small>{{ chatSessionCount }}</small>
+        </button>
+        <button class="view-mode-btn" :class="{ active: terminalVisible }" @click="handleUnifiedMode('terminal')">
+          <span>{{ t('chat.terminalOnly') }}</span>
+          <small>{{ terminalSessionCount }}</small>
+        </button>
+      </div>
+
       <div v-if="showSessionList" class="session-list">
         <!-- 按日期分组 -->
         <div v-for="(sessions, groupKey) in terminalStore.groupedSessions" :key="groupKey" class="date-group">
           <div class="date-header">
             <span class="date-label">
-              {{ groupKey === 'today' ? '今天' : groupKey === 'yesterday' ? '昨天' : groupKey === 'thisWeek' ? '本周' : groupKey }}
+              {{ groupKey === 'today' ? t('chat.groupToday') : groupKey === 'yesterday' ? t('chat.groupYesterday') : groupKey === 'thisWeek' ? t('chat.groupThisWeek') : groupKey }}
             </span>
             <span class="date-count">{{ sessions.length }}</span>
           </div>
@@ -175,7 +241,7 @@ watch(() => terminalStore.activeSession?.commands.length, () => {
             <div class="session-info">
               <span class="session-title">{{ session.title }}</span>
               <span class="session-meta">
-                <span class="cmd-count">{{ session.commands.length }} 命令</span>
+                <span class="cmd-count">{{ session.commands.length }} {{ t('terminal.commands') }}</span>
                 <span class="session-time">{{ formatTime(session.updatedAt) }}</span>
               </span>
             </div>
@@ -198,13 +264,13 @@ watch(() => terminalStore.activeSession?.commands.length, () => {
                   </svg>
                 </button>
               </template>
-              删除此终端会话?
+              {{ t('terminal.confirmDeleteSession') }}
             </NPopconfirm>
           </button>
         </div>
 
         <div v-if="terminalStore.sessions.length === 0" class="empty-sessions">
-          暂无终端会话
+          {{ t('terminal.noSessions') }}
         </div>
       </div>
     </aside>
@@ -221,7 +287,7 @@ watch(() => terminalStore.activeSession?.commands.length, () => {
               </svg>
             </template>
           </NButton>
-          <span class="header-title">{{ terminalStore.activeSession?.title || 'Terminal' }}</span>
+          <span class="header-title">{{ terminalStore.activeSession?.title || t('sidebar.terminal') }}</span>
           <span class="header-cwd">{{ terminalStore.activeSession?.workingDir || '~' }}</span>
         </div>
         <div class="header-actions">
@@ -231,7 +297,7 @@ watch(() => terminalStore.activeSession?.commands.length, () => {
                 <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
               </svg>
             </template>
-            新建
+            {{ t('common.create') }}
           </NButton>
         </div>
       </header>
@@ -245,9 +311,9 @@ watch(() => terminalStore.activeSession?.commands.length, () => {
             </svg>
           </div>
           <div class="welcome-text">
-            <p>终端命令会话</p>
-            <p class="welcome-hint">输入命令后按 Enter 执行</p>
-            <p class="welcome-hint">↑/↓ 浏览历史命令</p>
+            <p>{{ t('terminal.welcomeTitle') }}</p>
+            <p class="welcome-hint">{{ t('terminal.welcomeHintEnter') }}</p>
+            <p class="welcome-hint">{{ t('terminal.welcomeHintHistory') }}</p>
           </div>
         </div>
 
@@ -263,7 +329,7 @@ watch(() => terminalStore.activeSession?.commands.length, () => {
               {{ cmd.status === 'running' ? '●' : cmd.exitCode === 0 ? '✓' : '✗' }}
             </span>
             <span class="command-duration">{{ formatDuration(cmd.duration) }}</span>
-            <button class="copy-btn" @click="copyOutput(cmd)" title="复制输出">
+            <button class="copy-btn" @click="copyOutput(cmd)" :title="t('terminal.copyOutput')">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9"/>
               </svg>
@@ -276,9 +342,9 @@ watch(() => terminalStore.activeSession?.commands.length, () => {
       <!-- Input Area -->
       <div class="terminal-input">
         <span class="input-prompt">
-          <span class="prompt-user">xiao2027</span>
+          <span class="prompt-user">{{ t('terminal.promptUser') }}</span>
           <span class="prompt-at">@</span>
-          <span class="prompt-host">hermes</span>
+          <span class="prompt-host">{{ t('terminal.promptHost') }}</span>
           <span class="prompt-colon">:</span>
           <span class="prompt-path">{{ terminalStore.activeSession?.workingDir?.replace('/home/xiao2027', '~') || '~' }}</span>
           <span class="prompt-dollar">$</span>
@@ -287,7 +353,7 @@ watch(() => terminalStore.activeSession?.commands.length, () => {
           ref="inputRef"
           v-model="commandInput"
           class="command-input"
-          placeholder="输入命令..."
+          :placeholder="t('terminal.placeholder.command')"
           spellcheck="false"
           autocomplete="off"
           @keydown="handleKeydown"
@@ -299,14 +365,14 @@ watch(() => terminalStore.activeSession?.commands.length, () => {
     <NModal
       v-model:show="showRenameModal"
       preset="dialog"
-      title="重命名会话"
-      positive-text="确认"
-      negative-text="取消"
+      :title="t('terminal.renameSession')"
+      :positive-text="t('common.confirm')"
+      :negative-text="t('common.cancel')"
       @positive-click="handleRenameConfirm"
     >
       <NInput
         v-model:value="renameInput"
-        placeholder="会话名称"
+        :placeholder="t('terminal.placeholder.sessionName')"
         @keyup.enter="handleRenameConfirm"
       />
     </NModal>
@@ -317,7 +383,8 @@ watch(() => terminalStore.activeSession?.commands.length, () => {
 @use '@/styles/variables' as *;
 
 .terminal-view {
-  height: 100vh;
+  height: 100%;
+  min-height: 0;
   display: flex;
 }
 
@@ -343,6 +410,58 @@ watch(() => terminalStore.activeSession?.commands.length, () => {
   justify-content: space-between;
   padding: 12px;
   border-bottom: 1px solid $border-color;
+}
+
+.view-mode-switch {
+  padding: 8px 8px 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.view-mode-btn {
+  border: 1px solid rgba($border-color, 0.8);
+  background: rgba($bg-primary, 0.55);
+  color: $text-secondary;
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all $transition-fast;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+
+  small {
+    min-width: 14px;
+    text-align: center;
+    font-size: 10px;
+    line-height: 14px;
+    border-radius: 999px;
+    padding: 0 4px;
+    color: $text-muted;
+    border: 1px solid rgba($border-color, 0.6);
+    background: rgba($bg-secondary, 0.5);
+  }
+
+  &:hover {
+    border-color: rgba($accent-primary, 0.55);
+    color: $text-primary;
+  }
+
+  &.active {
+    border-color: rgba($accent-primary, 0.72);
+    background: rgba($accent-primary, 0.14);
+    color: $accent-primary;
+    font-weight: 600;
+
+    small {
+      color: $accent-primary;
+      border-color: rgba($accent-primary, 0.45);
+      background: rgba($accent-primary, 0.12);
+    }
+  }
 }
 
 .sidebar-title {
