@@ -5,10 +5,8 @@ import { NButton, NInput, NModal, NPopconfirm, useMessage } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 import MessageList from './MessageList.vue'
 import ChatInput from './ChatInput.vue'
-import ChatDataFlow from './ChatDataFlow.vue'
 import { useChatStore } from '@/stores/chat'
 import { useTerminalStore } from '@/stores/terminal'
-import { useAppStore } from '@/stores/app'
 import { renameSession } from '@/api/sessions'
 
 const { t } = useI18n()
@@ -18,7 +16,6 @@ const message = useMessage()
 
 const chatStore = useChatStore()
 const terminalStore = useTerminalStore()
-const appStore = useAppStore()
 
 const SESSION_PINNED_MEMORY_KEY = 'chat:pinned-sessions'
 const SESSION_SELECTED_MEMORY_KEY = 'chat:selected-session'
@@ -93,34 +90,11 @@ const activeSessionLabel = computed(() => {
   return chatStore.activeSession?.title || t('chat.newChat')
 })
 
-const activeStats = computed(() => {
+const activeSessionMeta = computed(() => {
   if (isTerminalMode.value) {
-    return {
-      primary: `${terminalStore.activeSession?.commands.length || 0} 条命令`,
-      secondary: terminalStore.activeSession?.workingDir || '/home',
-      model: 'Terminal',
-    }
+    return terminalStore.activeSession?.workingDir || '/home'
   }
-
-  const msgCount = chatStore.messages.filter(m => m.role === 'user' || m.role === 'assistant').length
-  const toolCount = chatStore.messages.filter(m => m.role === 'tool').length
-  return {
-    primary: `${msgCount} 条消息 · ${toolCount} 个工具调用`,
-    secondary: chatStore.activeSession?.id || '--',
-    model: chatStore.activeSession?.model || appStore.selectedModel || '--',
-  }
-})
-
-const streamPulse = computed(() => {
-  const now = Date.now()
-  const recent = chatStore.streamEvents.filter(e => now - e.timestamp <= 10_000)
-  const kbps = Math.min(9.9, recent.length * 0.18)
-  return `${kbps.toFixed(1)} MB/s`
-})
-
-const runtimeBadge = computed(() => {
-  if (isTerminalMode.value) return 'Terminal Hybrid'
-  return chatStore.activeSession?.model || appStore.selectedModel || 'Hermes Hybrid'
+  return chatStore.activeSession?.id || '--'
 })
 
 function setContentMode(mode: 'chat' | 'terminal') {
@@ -369,14 +343,7 @@ onMounted(async () => {
 
     <section class="content-shell">
       <header class="content-topbar">
-        <div class="topbar-left">
-          <strong>AI 混合工作站</strong>
-          <NInput v-model:value="sessionSearch" size="small" clearable placeholder="搜索会话/ID..." class="top-search" />
-        </div>
-        <div class="topbar-right">
-          <span class="meta-chip">{{ activeStats.primary }}</span>
-          <span class="meta-chip muted">{{ runtimeBadge }}</span>
-        </div>
+        <strong>AI 混合工作站</strong>
       </header>
 
       <header class="content-header">
@@ -387,7 +354,7 @@ onMounted(async () => {
 
         <div class="content-meta">
           <strong>{{ activeSessionLabel }}</strong>
-          <span>{{ activeStats.secondary }}</span>
+          <span>{{ activeSessionMeta }}</span>
         </div>
 
         <div class="content-actions">
@@ -444,16 +411,6 @@ onMounted(async () => {
       </div>
     </section>
 
-    <ChatDataFlow :events="chatStore.streamEvents" :is-streaming="chatStore.isStreaming" @clear="chatStore.clearStreamEvents" />
-
-    <div class="floating-status">
-      <p>Network Traffic</p>
-      <strong>{{ streamPulse }}</strong>
-      <div class="bars">
-        <span></span><span></span><span></span><span></span><span></span>
-      </div>
-    </div>
-
     <NModal
       v-model:show="showRenameModal"
       preset="dialog"
@@ -474,7 +431,7 @@ onMounted(async () => {
   height: 100%;
   min-height: 0;
   display: grid;
-  grid-template-columns: 300px minmax(0, 1fr) 320px;
+  grid-template-columns: 300px minmax(0, 1fr);
   position: relative;
   background:
     radial-gradient(circle at 18% 20%, rgba(#6dddff, 0.11), transparent 46%),
@@ -595,6 +552,8 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 10px;
+
+  scrollbar-width: thin;
 }
 
 .session-card {
@@ -707,19 +666,10 @@ onMounted(async () => {
   z-index: 3;
   padding: 12px 16px;
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  gap: 12px;
   background: rgba(8, 14, 18, 0.48);
   backdrop-filter: blur(20px);
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.topbar-left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
 
   strong {
     font-size: 20px;
@@ -729,29 +679,6 @@ onMounted(async () => {
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
-  }
-}
-
-.top-search {
-  width: 260px;
-}
-
-.topbar-right {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.meta-chip {
-  font-size: 11px;
-  color: $text-secondary;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 999px;
-  padding: 3px 9px;
-  background: rgba(255, 255, 255, 0.04);
-
-  &.muted {
-    color: $text-muted;
   }
 }
 
@@ -827,6 +754,7 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   padding: 10px 14px 14px;
+  overflow: hidden;
 }
 
 .terminal-shell {
@@ -958,80 +886,15 @@ onMounted(async () => {
   background: rgba(13, 18, 24, 0.75);
 }
 
-.floating-status {
-  position: fixed;
-  right: 18px;
-  bottom: 96px;
-  z-index: 12;
-  border: 1px solid rgba(#6dddff, 0.25);
-  background: rgba(11, 18, 24, 0.72);
-  backdrop-filter: blur(14px);
-  border-radius: 16px;
-  padding: 10px 12px;
-  min-width: 138px;
-
-  p {
-    margin: 0;
-    font-size: 9px;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    color: $text-muted;
-  }
-
-  strong {
-    display: block;
-    margin-top: 4px;
-    font-size: 13px;
-    color: #7ee7ff;
-    font-family: $font-code;
-  }
-
-  .bars {
-    margin-top: 8px;
-    display: flex;
-    gap: 3px;
-    align-items: flex-end;
-    height: 18px;
-
-    span {
-      display: block;
-      width: 3px;
-      border-radius: 99px 99px 0 0;
-      background: linear-gradient(180deg, #6dddff, #dcb3ff);
-      animation: pulse-bars 1.2s infinite ease-in-out;
-    }
-
-    span:nth-child(1) { height: 8px; }
-    span:nth-child(2) { height: 14px; animation-delay: 0.1s; }
-    span:nth-child(3) { height: 11px; animation-delay: 0.2s; }
-    span:nth-child(4) { height: 17px; animation-delay: 0.3s; }
-    span:nth-child(5) { height: 9px; animation-delay: 0.4s; }
-  }
-}
-
-@keyframes pulse-bars {
-  0%, 100% { opacity: 0.45; }
-  50% { opacity: 1; }
-}
-
 @media (max-width: 1500px) {
   .chat-panel-v2 {
-    grid-template-columns: 280px minmax(0, 1fr) 280px;
-  }
-
-  .top-search {
-    width: 220px;
+    grid-template-columns: 280px minmax(0, 1fr);
   }
 }
 
 @media (max-width: 1200px) {
   .chat-panel-v2 {
     grid-template-columns: 260px minmax(0, 1fr);
-  }
-
-  .chat-panel-v2 :deep(.flow-rail),
-  .floating-status {
-    display: none;
   }
 }
 
@@ -1046,11 +909,6 @@ onMounted(async () => {
 
   .content-topbar {
     padding: 10px;
-  }
-
-  .topbar-left {
-    flex-direction: column;
-    align-items: flex-start;
 
     strong {
       font-size: 16px;
