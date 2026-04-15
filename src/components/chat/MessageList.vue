@@ -9,6 +9,27 @@ const chatStore = useChatStore()
 const listRef = ref<HTMLElement>()
 const isNearBottom = ref(true)
 const BOTTOM_THRESHOLD = 120
+const CHAT_SCROLL_MEMORY_PREFIX = 'chat:message-scroll:'
+
+function getScrollMemoryKey() {
+  return `${CHAT_SCROLL_MEMORY_PREFIX}${chatStore.activeSessionId || 'new'}`
+}
+
+function persistScrollPosition() {
+  if (!listRef.value) return
+  localStorage.setItem(getScrollMemoryKey(), String(listRef.value.scrollTop))
+}
+
+function restoreScrollPosition() {
+  if (!listRef.value) return
+  const saved = Number(localStorage.getItem(getScrollMemoryKey()) || '0')
+  if (Number.isFinite(saved) && saved > 0) {
+    listRef.value.scrollTop = saved
+    updateNearBottom()
+    return
+  }
+  scrollToBottom(true)
+}
 
 function updateNearBottom() {
   if (!listRef.value) return
@@ -28,14 +49,22 @@ function scrollToBottom(force = false) {
 
 function handleScroll() {
   updateNearBottom()
+  persistScrollPosition()
 }
 
 watch(() => chatStore.messages.length, () => scrollToBottom(false))
 watch(() => chatStore.messages[chatStore.messages.length - 1]?.content, () => scrollToBottom(false))
 watch(() => chatStore.isStreaming, (v) => { if (v) scrollToBottom(false) })
+watch(() => chatStore.activeSessionId, () => {
+  nextTick(() => {
+    restoreScrollPosition()
+  })
+})
 
 onMounted(() => {
-  scrollToBottom(true)
+  nextTick(() => {
+    restoreScrollPosition()
+  })
 })
 </script>
 

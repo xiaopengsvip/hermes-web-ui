@@ -19,6 +19,7 @@ const terminalStore = useTerminalStore()
 
 const SESSION_PINNED_MEMORY_KEY = 'chat:pinned-sessions'
 const SESSION_SELECTED_MEMORY_KEY = 'chat:selected-session'
+const SESSION_LIST_SCROLL_MEMORY_KEY = 'chat:session-list-scroll-top'
 
 const showSessions = ref(true)
 const sessionSearch = ref('')
@@ -26,6 +27,7 @@ const pinnedSessionKeys = ref<Set<string>>(new Set(JSON.parse(localStorage.getIt
 
 const terminalInput = ref('')
 const terminalOutputRef = ref<HTMLDivElement | null>(null)
+const sessionListRef = ref<HTMLDivElement | null>(null)
 const terminalHistory = ref<string[]>([])
 const terminalHistoryIndex = ref(-1)
 
@@ -136,6 +138,11 @@ function handleSessionClick(session: UnifiedSession) {
 
   terminalStore.switchSession(session.id)
   setContentMode('terminal')
+}
+
+function handleSessionListScroll() {
+  if (!sessionListRef.value) return
+  localStorage.setItem(SESSION_LIST_SCROLL_MEMORY_KEY, String(sessionListRef.value.scrollTop))
 }
 
 function handleNewSession() {
@@ -257,12 +264,18 @@ onMounted(async () => {
   }
 
   const selected = localStorage.getItem(SESSION_SELECTED_MEMORY_KEY)
-  if (!selected) return
+  if (selected) {
+    const [type, id] = selected.split(':')
+    const target = allSessions.value.find(s => s.type === type && s.id === id)
+    if (target) {
+      handleSessionClick(target)
+    }
+  }
 
-  const [type, id] = selected.split(':')
-  const target = allSessions.value.find(s => s.type === type && s.id === id)
-  if (target) {
-    handleSessionClick(target)
+  await nextTick()
+  const savedScroll = Number(localStorage.getItem(SESSION_LIST_SCROLL_MEMORY_KEY) || '0')
+  if (sessionListRef.value && Number.isFinite(savedScroll) && savedScroll > 0) {
+    sessionListRef.value.scrollTop = savedScroll
   }
 })
 </script>
@@ -307,7 +320,7 @@ onMounted(async () => {
         </div>
       </div>
 
-      <div v-if="showSessions" class="session-list">
+      <div v-if="showSessions" ref="sessionListRef" class="session-list" @scroll="handleSessionListScroll">
         <div v-if="filteredSessions.length === 0" class="session-empty">{{ t('chat.noSessions') }}</div>
         <article
           v-for="s in filteredSessions"
