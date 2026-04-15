@@ -683,8 +683,10 @@ onMounted(async () => {
 
 .content-shell {
   min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .content-topbar {
