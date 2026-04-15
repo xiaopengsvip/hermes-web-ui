@@ -298,7 +298,7 @@ async function handleSend() {
   inputError.value = null
   try {
     const sendingAttachments = [...attachments.value]
-    await chatStore.sendMessage(text, sendingAttachments.length > 0 ? sendingAttachments : undefined)
+    await chatStore.sendHybridInput(text, sendingAttachments.length > 0 ? sendingAttachments : undefined)
     inputText.value = ''
     localStorage.removeItem(draftKey.value)
     clearAttachments()
@@ -483,7 +483,7 @@ function isImage(type: string): boolean {
     </div>
 
     <div class="input-hint-row">
-      <span>{{ t('chat.inputHint') }}</span>
+      <span>{{ t('chat.inputHint') }} · 也可直接输入命令（如 $ ls -la）</span>
       <span>{{ t('chat.attachmentUsage', { count: attachments.length, size: formatSize(totalAttachmentSize) }) }}</span>
     </div>
   </div>

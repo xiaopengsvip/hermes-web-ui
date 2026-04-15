@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { startRun, streamRunEvents, type ChatMessage, type RunEvent } from '@/api/chat'
 import { fetchSessions, fetchSession, deleteSession as deleteSessionApi, type SessionSummary, type HermesMessage } from '@/api/sessions'
 import { useAppStore } from './app'
+import { useTerminalStore } from './terminal'
 
 export interface Attachment {
   id: string
@@ -342,6 +343,113 @@ export const useChatStore = defineStore('chat', () => {
     activeSession.value.updatedAt = Date.now()
   }
 
+  function isLikelyTerminalCommand(input: string): boolean {
+    const text = input.trim()
+    if (!text) return false
+
+    if (text.startsWith('$ ')) return true
+
+    const cmdPrefix = /^(ls|pwd|cd|cat|echo|grep|find|git|npm|pnpm|yarn|python|python3|node|curl|wget|chmod|chown|mv|cp|rm|mkdir|touch|ps|top|htop|df|du|whoami|uname|systemctl|pm2|vercel)\b/
+    return cmdPrefix.test(text)
+  }
+
+  async function sendHybridInput(content: string, attachments?: Attachment[]) {
+    const pure = content.trim()
+
+    if (attachments && attachments.length > 0) {
+      await sendMessage(content, attachments)
+      return
+    }
+
+    if (!isLikelyTerminalCommand(pure)) {
+      await sendMessage(content, attachments)
+      return
+    }
+
+    if (!activeSession.value) {
+      const session = createSession()
+      switchSession(session.id)
+    }
+
+    const terminalStore = useTerminalStore()
+    if (!terminalStore.activeSession) {
+      terminalStore.createSession()
+    }
+
+    const cmd = pure.startsWith('$ ') ? pure.slice(2).trim() : pure
+
+    addMessage({
+      id: uid(),
+      role: 'user',
+      content: pure,
+      timestamp: Date.now(),
+    })
+    updateSessionTitle()
+
+    isStreaming.value = true
+    clearStreamEvents()
+    pushStreamEvent('run.queued', { mode: 'terminal', command: cmd })
+    pushStreamEvent('run.started', { mode: 'terminal', command: cmd })
+
+    const toolMessageId = uid()
+    addMessage({
+      id: toolMessageId,
+      role: 'tool',
+      content: '',
+      timestamp: Date.now(),
+      toolName: 'terminal.execute',
+      toolPreview: cmd,
+      toolStatus: 'running',
+    })
+    pushStreamEvent('tool.started', {
+      mode: 'terminal',
+      toolName: 'terminal.execute',
+      toolMessageId,
+      command: cmd,
+    })
+
+    try {
+      const result = await terminalStore.executeCommand(cmd)
+      terminalStore.saveSessions()
+
+      const preview = result.output?.trim()
+        ? result.output.trim().split('\n').slice(0, 2).join(' · ').slice(0, 120)
+        : `exit code ${result.exitCode ?? 0}`
+
+      updateMessage(toolMessageId, {
+        toolStatus: result.exitCode === 0 ? 'done' : 'error',
+        toolPreview: preview,
+        content: result.output || '(no output)',
+      })
+
+      pushStreamEvent('tool.completed', {
+        mode: 'terminal',
+        toolName: 'terminal.execute',
+        toolMessageId,
+        command: cmd,
+        exitCode: result.exitCode,
+        duration: result.duration,
+      }, result.exitCode === 0 ? 'success' : 'error')
+
+      if (result.exitCode === 0) {
+        pushStreamEvent('run.completed', { mode: 'terminal', command: cmd }, 'success')
+      } else {
+        pushStreamEvent('run.failed', { mode: 'terminal', command: cmd, exitCode: result.exitCode }, 'error')
+      }
+    } catch (err: any) {
+      updateMessage(toolMessageId, {
+        toolStatus: 'error',
+        toolPreview: err?.message || 'terminal execute failed',
+        content: `Error: ${err?.message || 'terminal execute failed'}`,
+      })
+      pushStreamEvent('run.failed', { mode: 'terminal', command: cmd, error: err?.message }, 'error')
+    } finally {
+      isStreaming.value = false
+      pushStreamEvent('run.done', { mode: 'terminal', command: cmd }, 'success')
+      updateSessionTitle()
+    }
+  }
+
   async function sendMessage(content: string, attachments?: Attachment[]) {
     if ((!content.trim() && !(attachments && attachments.length > 0)) || isStreaming.value) return
 
@@ -643,6 +751,7 @@ export const useChatStore = defineStore('chat', () => {
     switchSessionModel,
     deleteSession,
     sendMessage,
+    sendHybridInput,
     resendMessage,
     regenerateLastResponse,
     clearCurrentSessionMessages,

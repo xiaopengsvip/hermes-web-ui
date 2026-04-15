@@ -96,6 +96,14 @@ function toolStateLabel(status?: string) {
           </div>
         </div>
 
+        <div v-if="message.content" class="tool-output-wrap">
+          <div class="tool-output-head">
+            <span class="terminal-mark">terminal</span>
+            <span class="tool-output-hint">输出</span>
+          </div>
+          <pre class="tool-output" :class="{ error: message.toolStatus === 'error' }">{{ message.content }}</pre>
+        </div>
+
         <div class="tool-actions">
           <button @click="showToolDetail = true">查看详情</button>
         </div>
@@ -421,6 +429,51 @@ function toolStateLabel(status?: string) {
     padding: 2px 10px;
     font-size: 11px;
     cursor: pointer;
+  }
+}
+
+.tool-output-wrap {
+  margin-top: 10px;
+  border: 1px solid rgba($border-color, 0.55);
+  border-radius: 10px;
+  overflow: hidden;
+  background: rgba($bg-primary, 0.6);
+}
+
+.tool-output-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-bottom: 1px solid rgba($border-color, 0.4);
+  font-size: 10px;
+
+  .terminal-mark {
+    color: #7ee7ff;
+    font-family: $font-code;
+    letter-spacing: 0.4px;
+  }
+
+  .tool-output-hint {
+    color: $text-muted;
+  }
+}
+
+.tool-output {
+  margin: 0;
+  padding: 8px;
+  max-height: 220px;
+  overflow: auto;
+  font-family: $font-code;
+  font-size: 11px;
+  line-height: 1.45;
+  color: #d5f4ff;
+  white-space: pre-wrap;
+  word-break: break-word;
+
+  &.error {
+    color: #ffb3bc;
   }
 }
 
