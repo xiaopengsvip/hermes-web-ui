@@ -26,6 +26,9 @@ import { securityCenterRoutes, initSecurityCenterScheduler } from './routes/secu
 import * as hermesCli from './services/hermes-cli'
 const { restartGateway } = hermesCli
 
+let serverInstance: ReturnType<Koa['listen']> | null = null
+let isShuttingDown = false
+
 export async function bootstrap() {
   await mkdir(config.uploadDir, { recursive: true })
   await mkdir(config.dataDir, { recursive: true })
@@ -76,9 +79,51 @@ export async function bootstrap() {
     }
   })
 
-  app.listen(config.port, '0.0.0.0', () => {
+  serverInstance = app.listen(config.port, '0.0.0.0', () => {
     console.log(`  ➜  Hermes BFF Server: http://localhost:${config.port}`)
     console.log(`  ➜  Upstream: ${config.upstream}`)
+  })
+
+  bindShutdownSignals()
+}
+
+function bindShutdownSignals() {
+  const shutdown = async (signal: string) => {
+    if (isShuttingDown) return
+    isShuttingDown = true
+
+    try {
+      console.log(`\n[${signal}] shutting down hermes-web-ui ...`)
+      if (serverInstance) {
+        await new Promise<void>((resolve) => {
+          serverInstance?.close(() => resolve())
+        })
+        serverInstance = null
+        console.log('  ✓ HTTP server closed')
+      }
+    } catch (err: any) {
+      console.error('  ✗ shutdown error:', err?.message || err)
+    }
+
+    process.exit(0)
+  }
+
+  process.once('SIGUSR2', () => {
+    shutdown('SIGUSR2')
+  })
+  process.on('SIGINT', () => {
+    shutdown('SIGINT')
+  })
+  process.on('SIGTERM', () => {
+    shutdown('SIGTERM')
+  })
+  process.on('uncaughtException', (err) => {
+    console.error('uncaughtException:', err)
+    shutdown('uncaughtException')
+  })
+  process.on('unhandledRejection', (err) => {
+    console.error('unhandledRejection:', err)
+    shutdown('unhandledRejection')
   })
 }
 

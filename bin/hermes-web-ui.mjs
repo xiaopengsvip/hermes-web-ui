@@ -56,6 +56,7 @@ function startDaemon(port) {
   const child = spawn(process.execPath, [serverEntry], {
     detached: true,
     stdio: ['ignore', logStream, logStream],
+    windowsHide: true,
     env: { ...process.env, PORT: String(port) },
   })
 
@@ -131,6 +132,7 @@ switch (command) {
     const port = !isNaN(command) ? parseInt(command) : DEFAULT_PORT
     const child = spawn(process.execPath, [serverEntry], {
       stdio: 'inherit',
+      windowsHide: true,
       env: { ...process.env, PORT: String(port) },
     })
     child.on('exit', (code) => process.exit(code ?? 1))
