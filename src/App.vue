@@ -127,6 +127,41 @@ useKeyboard()
   border-radius: 14px;
 }
 
+.app-main {
+  --page-content-max-width: 1120px;
+  --page-content-padding-y: 20px;
+  --page-content-padding-x: 16px;
+  --panel-radius: 14px;
+  --panel-shadow: 0 8px 22px rgba(0, 0, 0, 0.14);
+}
+
+.app-main :is(.services-scroll, .github-content, .vercel-content, .cloudflare-content, .settings-scroll) {
+  padding: var(--page-content-padding-y) var(--page-content-padding-x) !important;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.app-main :is(.services-scroll, .github-content, .vercel-content, .cloudflare-content, .settings-scroll) > * {
+  width: min(var(--page-content-max-width), 100%);
+}
+
+.app-main :is(.header-actions, .section-actions, .action-bar) {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.app-main :is(.header-actions, .section-actions, .action-bar) :is(.n-button, button) {
+  min-height: 30px;
+}
+
+.app-main :is(.section, .tab-content, .repo-card, .project-card, .zone-card, .worker-card, .service-card) {
+  border-radius: var(--panel-radius);
+  box-shadow: var(--panel-shadow);
+}
+
 @media (max-width: 768px) {
   .app-main {
     --layout-header-min-height: 52px;

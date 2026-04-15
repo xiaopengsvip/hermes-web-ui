@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import {
-  NButton, NSwitch, NSlider, NDataTable, NSelect, NTag, useMessage,
+  NButton, NSwitch, NSlider, NDataTable, NSelect, NTag, NInput, useMessage,
 } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
-import { fetchAuthCredentials, fetchAuthStream, switchAuthCredential, type AuthProviderCredentials, type AuthStreamEvent } from '@/api/auth'
+import { fetchAuthCredentials, fetchAuthStream, switchAuthCredential, addAuthCredential, startOAuthFlow, getOAuthFlow, cancelOAuthFlow, type AuthProviderCredentials, type AuthStreamEvent, type OAuthFlowSession } from '@/api/auth'
 
 const { t } = useI18n()
 const appStore = useAppStore()
@@ -17,6 +17,17 @@ const authProviders = ref<AuthProviderCredentials[]>([])
 const selectedProvider = ref('')
 const authStream = ref<AuthStreamEvent[]>([])
 const streamLoading = ref(false)
+const addingAccount = ref(false)
+const addProvider = ref('openrouter')
+const addLabel = ref('')
+const addApiKey = ref('')
+const addSetActive = ref(true)
+
+const oauthStarting = ref(false)
+const oauthProvider = ref('openai-codex')
+const oauthLabel = ref('')
+const oauthSession = ref<OAuthFlowSession | null>(null)
+let oauthTimer: ReturnType<typeof setInterval> | null = null
 let streamTimer: ReturnType<typeof setInterval> | null = null
 
 const providerOptions = computed(() => authProviders.value.map(p => ({
@@ -27,12 +38,26 @@ const providerOptions = computed(() => authProviders.value.map(p => ({
 const currentProviderAccounts = computed(() => authProviders.value.find(p => p.provider === selectedProvider.value)?.entries || [])
 const currentActiveAccount = computed(() => currentProviderAccounts.value.find(e => e.index === 1) || null)
 
-function prettyTime(iso?: string | null) {
-  if (!iso) return '-'
+function prettyTime(input?: string | number | null) {
+  if (input === null || input === undefined || input === '') return '-'
   try {
-    return new Date(iso).toLocaleString()
+    if (typeof input === 'number' && Number.isFinite(input)) {
+      const ms = input < 1e12 ? input * 1000 : input
+      return new Date(ms).toLocaleString()
+    }
+    if (typeof input === 'string') {
+      const trimmed = input.trim()
+      if (!trimmed) return '-'
+      const numeric = Number(trimmed)
+      if (Number.isFinite(numeric) && /^\d+(\.\d+)?$/.test(trimmed)) {
+        const ms = numeric < 1e12 ? numeric * 1000 : numeric
+        return new Date(ms).toLocaleString()
+      }
+      return new Date(trimmed).toLocaleString()
+    }
+    return String(input)
   } catch {
-    return iso
+    return String(input)
   }
 }
 
@@ -77,6 +102,117 @@ async function handleSwitchAccount(index: number) {
     message.error(e.message || t('settings.authSwitchFailed'))
   } finally {
     switchingAccount.value = false
+  }
+}
+
+async function handleAddAccount() {
+  if (!addProvider.value.trim() || !addApiKey.value.trim()) {
+    message.error(t('settings.authAddMissingFields'))
+    return
+  }
+
+  addingAccount.value = true
+  try {
+    const resp = await addAuthCredential({
+      provider: addProvider.value.trim(),
+      label: addLabel.value.trim() || undefined,
+      api_key: addApiKey.value.trim(),
+      set_active: addSetActive.value,
+    })
+
+    if (!resp?.success) {
+      message.error(resp?.error || t('settings.authAddFailed'))
+      return
+    }
+
+    message.success(t('settings.authAddSuccess'))
+    addApiKey.value = ''
+    addLabel.value = ''
+    await loadAuthAccounts()
+    selectedProvider.value = addProvider.value.trim()
+    await loadAuthStream()
+    await appStore.loadModels()
+  } catch (e: any) {
+    message.error(e.message || t('settings.authAddFailed'))
+  } finally {
+    addingAccount.value = false
+  }
+}
+
+async function pollOAuthSession(forceStop = false) {
+  if (!oauthSession.value?.id) return
+  try {
+    const resp = await getOAuthFlow(oauthSession.value.id)
+    oauthSession.value = resp.session
+
+    if (resp.session.status === 'authorized') {
+      if (oauthTimer) {
+        clearInterval(oauthTimer)
+        oauthTimer = null
+      }
+      message.success(t('settings.authOAuthSuccess'))
+      await loadAuthAccounts()
+      selectedProvider.value = resp.session.provider
+      await loadAuthStream()
+      await appStore.loadModels()
+      return
+    }
+
+    if (resp.session.status === 'failed' || resp.session.status === 'cancelled' || forceStop) {
+      if (oauthTimer) {
+        clearInterval(oauthTimer)
+        oauthTimer = null
+      }
+      if (resp.session.status === 'failed') {
+        message.error(resp.session.error || t('settings.authOAuthFailed'))
+      }
+    }
+  } catch (e: any) {
+    if (forceStop && oauthTimer) {
+      clearInterval(oauthTimer)
+      oauthTimer = null
+    }
+    if (forceStop) {
+      message.error(e.message || t('settings.authOAuthFailed'))
+    }
+  }
+}
+
+async function handleStartOAuth() {
+  if (!oauthProvider.value.trim()) {
+    message.error(t('settings.authOAuthProviderRequired'))
+    return
+  }
+
+  oauthStarting.value = true
+  try {
+    const resp = await startOAuthFlow(oauthProvider.value.trim(), oauthLabel.value.trim() || undefined)
+    oauthSession.value = resp.session
+
+    if (oauthTimer) {
+      clearInterval(oauthTimer)
+      oauthTimer = null
+    }
+
+    oauthTimer = setInterval(() => {
+      pollOAuthSession()
+    }, 2000)
+
+    await pollOAuthSession()
+  } catch (e: any) {
+    message.error(e.message || t('settings.authOAuthStartFailed'))
+  } finally {
+    oauthStarting.value = false
+  }
+}
+
+async function handleCancelOAuth() {
+  if (!oauthSession.value?.id) return
+  try {
+    await cancelOAuthFlow(oauthSession.value.id)
+    await pollOAuthSession(true)
+  } catch (e: any) {
+    message.error(e.message || t('settings.authOAuthCancelFailed'))
   }
 }
 
@@ -153,16 +289,22 @@ onBeforeUnmount(() => {
     clearInterval(streamTimer)
     streamTimer = null
   }
+  if (oauthTimer) {
+    clearInterval(oauthTimer)
+    oauthTimer = null
+  }
 })
 </script>
 
 <template>
   <div class="settings-view">
-    <header class="settings-header">
+    <header class="page-header">
       <h2 class="header-title">{{ t('settings.title') }}</h2>
     </header>
 
-    <div class="settings-content">
+    <div class="settings-body">
+      <div class="settings-scroll">
+        <div class="settings-content">
       <!-- API Configuration -->
       <section class="settings-section">
         <h3 class="section-title">{{ t('settings.apiConfig') }}</h3>
@@ -237,6 +379,62 @@ onBeforeUnmount(() => {
           />
         </div>
 
+        <div class="auth-add-card">
+          <div class="auth-add-title">{{ t('settings.authAddTitle') }}</div>
+          <p class="form-hint">{{ t('settings.authAddHint') }}</p>
+          <div class="auth-add-grid">
+            <NInput v-model:value="addProvider" size="small" :placeholder="t('settings.authAddProviderPlaceholder')" />
+            <NInput v-model:value="addLabel" size="small" :placeholder="t('settings.authAddLabelPlaceholder')" />
+            <NInput v-model:value="addApiKey" size="small" type="password" show-password-on="click" :placeholder="t('settings.authAddApiKeyPlaceholder')" />
+          </div>
+          <div class="auth-add-actions">
+            <div class="auth-add-switch">
+              <span>{{ t('settings.authAddSetActive') }}</span>
+              <NSwitch v-model:value="addSetActive" size="small" />
+            </div>
+            <NButton type="primary" size="small" :loading="addingAccount" @click="handleAddAccount">
+              {{ t('settings.authAddButton') }}
+            </NButton>
+          </div>
+        </div>
+
+        <div class="auth-oauth-card">
+          <div class="auth-add-title">{{ t('settings.authOAuthTitle') }}</div>
+          <p class="form-hint">{{ t('settings.authOAuthHint') }}</p>
+          <div class="auth-add-grid auth-oauth-grid">
+            <NSelect
+              v-model:value="oauthProvider"
+              size="small"
+              :options="[
+                { label: 'openai-codex', value: 'openai-codex' },
+                { label: 'nous', value: 'nous' }
+              ]"
+              :placeholder="t('settings.authOAuthProviderPlaceholder')"
+            />
+            <NInput v-model:value="oauthLabel" size="small" :placeholder="t('settings.authOAuthLabelPlaceholder')" />
+          </div>
+          <div class="auth-add-actions">
+            <NButton type="primary" size="small" :loading="oauthStarting" @click="handleStartOAuth">
+              {{ t('settings.authOAuthStartButton') }}
+            </NButton>
+            <NButton size="small" tertiary :disabled="!oauthSession || oauthSession.status !== 'pending'" @click="handleCancelOAuth">
+              {{ t('settings.authOAuthCancelButton') }}
+            </NButton>
+          </div>
+
+          <div v-if="oauthSession" class="auth-oauth-session">
+            <div>status: {{ oauthSession.status }}</div>
+            <div>provider: {{ oauthSession.provider }}</div>
+            <div>label: {{ oauthSession.label }}</div>
+            <div v-if="oauthSession.user_code">code: <strong>{{ oauthSession.user_code }}</strong></div>
+            <div v-if="oauthSession.verification_url" class="oauth-link-line">
+              <a :href="oauthSession.verification_url" target="_blank" rel="noopener noreferrer">{{ oauthSession.verification_url }}</a>
+            </div>
+            <div v-if="oauthSession.error" class="oauth-error">{{ oauthSession.error }}</div>
+            <pre v-if="oauthSession.logs?.length" class="auth-oauth-logs">{{ oauthSession.logs.slice(-10).join('\n') }}</pre>
+          </div>
+        </div>
+
         <div v-if="currentProviderAccounts.length > 0" class="auth-layout">
           <div class="auth-left">
             <div class="auth-current-card">
@@ -248,6 +446,8 @@ onBeforeUnmount(() => {
               <div class="auth-current-meta">
                 <div>status: {{ currentActiveAccount?.status || '-' }}</div>
                 <div>error_code: {{ currentActiveAccount?.meta?.last_error_code ?? '-' }}</div>
+                <div>expires_at: {{ prettyTime(currentActiveAccount?.meta?.expires_at) }}</div>
+                <div>last_refresh: {{ prettyTime(currentActiveAccount?.meta?.last_refresh) }}</div>
                 <div>last_status_at: {{ prettyTime(currentActiveAccount?.meta?.last_status_at) }}</div>
                 <div>reset_at: {{ prettyTime(currentActiveAccount?.meta?.last_error_reset_at) }}</div>
               </div>
@@ -255,11 +455,17 @@ onBeforeUnmount(() => {
 
             <div class="auth-accounts">
               <div v-for="entry in currentProviderAccounts" :key="`${selectedProvider}-${entry.id || entry.index}`" class="auth-account-item">
-                <div class="auth-account-meta">
-                  <span class="auth-account-label">{{ entry.label }}</span>
-                  <NTag size="small" :type="entry.index === 1 ? 'success' : 'default'">
-                    {{ entry.index === 1 ? t('settings.authCurrent') : `${t('settings.authRank')} #${entry.index}` }}
-                  </NTag>
+                <div class="auth-account-info">
+                  <div class="auth-account-meta">
+                    <span class="auth-account-label">{{ entry.label }}</span>
+                    <NTag size="small" :type="entry.index === 1 ? 'success' : 'default'">
+                      {{ entry.index === 1 ? t('settings.authCurrent') : `${t('settings.authRank')} #${entry.index}` }}
+                    </NTag>
+                  </div>
+                  <div class="auth-account-submeta">
+                    <span>status: {{ entry.status || '-' }}</span>
+                    <span>expires: {{ prettyTime(entry.meta?.expires_at) }}</span>
+                  </div>
                 </div>
                 <NButton
                   size="tiny"
@@ -330,6 +536,8 @@ onBeforeUnmount(() => {
           />
         </div>
       </section>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -338,14 +546,14 @@ onBeforeUnmount(() => {
 @use '@/styles/variables' as *;
 
 .settings-view {
-  height: 100vh;
+  height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
 }
 
-.settings-header {
-  display: flex;
-  align-items: center;
+.page-header {
+  margin-bottom: 0;
   padding: 12px 20px;
   border-bottom: 1px solid $border-color;
   flex-shrink: 0;
@@ -357,30 +565,63 @@ onBeforeUnmount(() => {
   color: $text-primary;
 }
 
-.settings-content {
+.settings-body {
   flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+
+.settings-scroll {
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 20px;
-  max-width: 1080px;
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-content {
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
 }
 
 .settings-section {
-  margin-bottom: 28px;
+  margin-bottom: 14px;
+  border: 1px solid $border-color;
+  border-radius: $radius-md;
+  background: linear-gradient(
+    180deg,
+    rgba($bg-secondary, 0.92),
+    rgba($bg-secondary, 0.75)
+  );
+  padding: 14px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
 
   .section-title {
-    font-size: 13px;
-    font-weight: 600;
+    font-size: 12px;
+    font-weight: 700;
     color: $text-secondary;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 14px;
+    letter-spacing: 0.65px;
+    margin-bottom: 12px;
     padding-bottom: 8px;
-    border-bottom: 1px solid $border-light;
+    border-bottom: 1px dashed $border-light;
+  }
+
+  &:last-child {
+    margin-bottom: 0;
   }
 }
 
 .form-group {
-  margin-bottom: 14px;
+  margin-bottom: 12px;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
 
   .form-label {
     display: block;
@@ -498,6 +739,96 @@ onBeforeUnmount(() => {
   gap: 8px;
 }
 
+.auth-add-card {
+  margin-bottom: 12px;
+  padding: 10px;
+  border: 1px solid $border-light;
+  border-radius: $radius-sm;
+  background: rgba($bg-secondary, 0.7);
+}
+
+.auth-oauth-card {
+  margin-bottom: 12px;
+  padding: 10px;
+  border: 1px solid rgba($accent-primary, 0.25);
+  border-radius: $radius-sm;
+  background: rgba($accent-primary, 0.04);
+}
+
+.auth-add-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: $text-secondary;
+  margin-bottom: 4px;
+}
+
+.auth-add-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 8px;
+
+  @media (max-width: 900px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.auth-oauth-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+
+  @media (max-width: 900px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.auth-add-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.auth-add-switch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: $text-secondary;
+}
+
+.auth-oauth-session {
+  margin-top: 10px;
+  padding: 8px;
+  border-radius: $radius-sm;
+  background: rgba($bg-secondary, 0.8);
+  border: 1px dashed $border-light;
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  color: $text-secondary;
+}
+
+.oauth-link-line a {
+  color: $accent-primary;
+  word-break: break-all;
+  text-decoration: underline;
+}
+
+.oauth-error {
+  color: $error;
+}
+
+.auth-oauth-logs {
+  margin: 6px 0 0;
+  max-height: 160px;
+  overflow: auto;
+  font-size: 11px;
+  line-height: 1.4;
+  color: $text-muted;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .auth-account-item {
   display: flex;
   align-items: center;
@@ -514,6 +845,19 @@ onBeforeUnmount(() => {
   gap: 8px;
 }
 
+.auth-account-info {
+  min-width: 0;
+}
+
+.auth-account-submeta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: $text-muted;
+}
+
 .auth-account-label {
   font-size: 13px;
   color: $text-primary;
@@ -522,8 +866,8 @@ onBeforeUnmount(() => {
 
 .auth-layout {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: 14px;
 
   @media (max-width: 900px) {
     grid-template-columns: 1fr;
@@ -583,7 +927,8 @@ onBeforeUnmount(() => {
   border: 1px solid $border-light;
   border-radius: $radius-sm;
   background: rgba($bg-secondary, 0.7);
-  max-height: 360px;
+  min-height: 220px;
+  max-height: 420px;
   overflow: auto;
   padding: 8px;
   display: flex;
@@ -634,9 +979,35 @@ onBeforeUnmount(() => {
 }
 
 .endpoint-table {
+  overflow-x: auto;
+
   :deep(.n-data-table) {
     --n-td-color: transparent;
     --n-th-color: rgba($accent-primary, 0.04);
+  }
+}
+
+@media (max-width: 900px) {
+  .settings-scroll {
+    padding: 14px;
+  }
+
+  .settings-section {
+    padding: 12px;
+  }
+
+  .auth-add-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .auth-account-item {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .auth-account-submeta {
+    justify-content: space-between;
   }
 }
 </style>

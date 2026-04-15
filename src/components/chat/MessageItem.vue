@@ -1,17 +1,22 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useMessage } from 'naive-ui'
+import { NModal, useMessage } from 'naive-ui'
 import { useChatStore } from '@/stores/chat'
 import type { Message } from '@/stores/chat'
 import MarkdownRenderer from './MarkdownRenderer.vue'
 
 const props = defineProps<{ message: Message }>()
+
 const { t } = useI18n()
 const toast = useMessage()
 const chatStore = useChatStore()
 
+const showToolDetail = ref(false)
+
 const isSystem = computed(() => props.message.role === 'system')
+const isTool = computed(() => props.message.role === 'tool')
+const canResend = computed(() => props.message.role === 'user' && !chatStore.isStreaming)
 
 const timeStr = computed(() => {
   const d = new Date(props.message.timestamp)
@@ -28,9 +33,6 @@ function formatSize(bytes: number): string {
   return t('chat.size.mb', { value: (bytes / (1024 * 1024)).toFixed(1) })
 }
 
-const hasAttachments = computed(() => (props.message.attachments?.length ?? 0) > 0)
-const canResend = computed(() => props.message.role === 'user' && !chatStore.isStreaming)
-
 async function copyMessage() {
   if (!props.message.content) return
   await navigator.clipboard.writeText(props.message.content)
@@ -41,291 +43,334 @@ async function resendMessage() {
   if (!canResend.value) return
   await chatStore.resendMessage(props.message.id)
 }
+
+function toolStateLabel(status?: string) {
+  if (status === 'running') return '执行中'
+  if (status === 'error') return '失败'
+  return '完成'
+}
 </script>
 
 <template>
-  <div class="message" :class="[message.role]">
-    <template v-if="message.role === 'tool'">
-      <div class="tool-line">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="tool-icon"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
-        <span class="tool-name">{{ message.toolName }}</span>
-        <span v-if="message.toolPreview" class="tool-preview">{{ message.toolPreview }}</span>
+  <div class="message-v2" :class="message.role">
+    <template v-if="isTool">
+      <div class="tool-card" :class="message.toolStatus || 'done'">
+        <div class="tool-card-head">
+          <div class="tool-left">
+            <span class="tool-chip">TOOL</span>
+            <strong>{{ message.toolName || 'Tool' }}</strong>
+          </div>
+          <span class="tool-status">{{ toolStateLabel(message.toolStatus) }}</span>
+        </div>
+
+        <p v-if="message.toolPreview" class="tool-preview">{{ message.toolPreview }}</p>
+
+        <div class="tool-actions">
+          <button @click="showToolDetail = true">查看详情</button>
+        </div>
       </div>
     </template>
+
     <template v-else>
-      <div class="msg-body">
-        <img v-if="message.role === 'assistant'" src="/assets/logo.png" alt="Hermes" class="msg-avatar" />
-        <div class="msg-content" :class="message.role">
-          <div class="message-bubble" :class="{ system: isSystem }">
-            <div v-if="hasAttachments" class="msg-attachments">
-              <div
-                v-for="att in message.attachments"
-                :key="att.id"
-                class="msg-attachment"
-                :class="{ image: isImage(att.type) }"
-              >
-                <template v-if="isImage(att.type) && att.url">
-                  <img :src="att.url" :alt="att.name" class="msg-attachment-thumb" />
-                </template>
-                <template v-else>
-                  <div class="msg-attachment-file">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                    <span class="att-name">{{ att.name }}</span>
-                    <span class="att-size">{{ formatSize(att.size) }}</span>
-                  </div>
-                </template>
+      <div class="message-row" :class="message.role">
+        <img v-if="message.role === 'assistant'" src="/assets/logo.png" alt="Hermes" class="avatar assistant" />
+
+        <div class="bubble-wrap" :class="message.role">
+          <div class="bubble" :class="{ system: isSystem }">
+            <div v-if="message.attachments?.length" class="attachments">
+              <div v-for="att in message.attachments" :key="att.id" class="attachment" :class="{ image: isImage(att.type) }">
+                <img v-if="isImage(att.type) && att.url" :src="att.url" :alt="att.name" class="attachment-thumb" />
+                <div v-else class="attachment-file">
+                  <span>{{ att.name }}</span>
+                  <small>{{ formatSize(att.size) }}</small>
+                </div>
               </div>
             </div>
+
             <MarkdownRenderer v-if="message.content" :content="message.content" />
-            <span v-if="message.isStreaming" class="streaming-cursor"></span>
+
             <div v-if="message.isStreaming && !message.content" class="streaming-dots">
               <span></span><span></span><span></span>
             </div>
-            <div v-if="message.content && (message.role === 'assistant' || message.role === 'user')" class="msg-actions">
-              <button class="msg-action-btn" @click="copyMessage">{{ t('common.copy') }}</button>
-              <button v-if="message.role === 'user'" class="msg-action-btn" :disabled="!canResend" @click="resendMessage">{{ t('chat.resend') }}</button>
-            </div>
+            <span v-if="message.isStreaming && message.content" class="streaming-cursor"></span>
           </div>
-          <div class="message-time">{{ timeStr }}</div>
+
+          <div class="bubble-meta">
+            <span>{{ timeStr }}</span>
+            <button v-if="message.content" @click="copyMessage">{{ t('common.copy') }}</button>
+            <button v-if="message.role === 'user'" :disabled="!canResend" @click="resendMessage">{{ t('chat.resend') }}</button>
+          </div>
         </div>
-        <div v-if="message.role === 'user'" class="msg-user-meta">
-          <img src="/everettlogo.jpg" :alt="t('chat.youLabel')" class="msg-avatar user-avatar" />
-          <span class="user-name-label">{{ t('chat.youLabel') }}</span>
-        </div>
+
+        <img v-if="message.role === 'user'" src="/everettlogo.jpg" :alt="t('chat.youLabel')" class="avatar user" />
       </div>
     </template>
+
+    <NModal v-model:show="showToolDetail" preset="card" title="工具调用详情" style="width: min(860px, 95vw)">
+      <div class="tool-modal-body">
+        <p><strong>工具：</strong>{{ message.toolName || 'Tool' }}</p>
+        <p><strong>状态：</strong>{{ toolStateLabel(message.toolStatus) }}</p>
+        <pre>{{ JSON.stringify(message, null, 2) }}</pre>
+      </div>
+    </NModal>
   </div>
 </template>
 
 <style scoped lang="scss">
 @use '@/styles/variables' as *;
 
-.message {
+.message-v2 {
   display: flex;
   flex-direction: column;
+
+  &.user { align-items: flex-end; }
+  &.assistant, &.system, &.tool { align-items: flex-start; }
+}
+
+.message-row {
+  width: 100%;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
 
   &.user {
-    align-items: flex-end;
+    justify-content: flex-end;
 
-    .msg-body {
-      max-width: 75%;
-    }
-
-    .msg-content.user {
+    .bubble-wrap {
       align-items: flex-end;
     }
-
-    .message-bubble {
-      background-color: $msg-user-bg;
-      border-radius: $radius-md $radius-md 4px $radius-md;
-    }
   }
+
+  &.assistant,
+  &.system {
+    justify-content: flex-start;
+  }
+}
+
+.avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
 
   &.assistant {
-    flex-direction: row;
-    align-items: flex-start;
-    gap: 8px;
-
-    .msg-body {
-      max-width: 80%;
-    }
-
-    .msg-avatar {
-      width: 28px;
-      height: 28px;
-      border-radius: 4px;
-      flex-shrink: 0;
-      margin-top: 2px;
-    }
-
-    .message-bubble {
-      background-color: $msg-assistant-bg;
-      border-radius: $radius-md $radius-md $radius-md 4px;
-    }
+    border-radius: 8px;
+    border: 1px solid rgba($border-color, 0.5);
   }
 
-  &.tool {
-    align-items: flex-start;
-  }
-
-  &.system {
-    align-items: flex-start;
-
-    .message-bubble.system {
-      border-left: 3px solid $warning;
-      border-radius: $radius-sm;
-      max-width: 80%;
-      background-color: rgba($warning, 0.06);
-    }
+  &.user {
+    border: 1px solid rgba($accent-primary, 0.35);
   }
 }
 
-.msg-body {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  max-width: 85%;
-}
-
-.msg-content {
+.bubble-wrap {
   display: flex;
   flex-direction: column;
-  min-width: 0;
+  gap: 6px;
+  max-width: min(78%, 860px);
 }
 
-.message-bubble {
-  padding: 10px 14px;
+.bubble {
+  border: 1px solid rgba($border-color, 0.6);
+  border-radius: 18px;
+  padding: 12px 14px;
+  background: linear-gradient(160deg, rgba($bg-secondary, 0.85), rgba($bg-primary, 0.9));
   font-size: 14px;
-  line-height: 1.65;
+  line-height: 1.7;
   word-break: break-word;
+
+  :deep(p) {
+    margin: 0;
+  }
 }
 
-.msg-attachments {
+.user .bubble {
+  background: linear-gradient(150deg, rgba($accent-primary, 0.33), rgba(#8364ff, 0.28));
+  border-color: rgba($accent-primary, 0.75);
+  box-shadow: 0 12px 24px rgba($accent-primary, 0.2);
+}
+
+.assistant .bubble {
+  background: linear-gradient(160deg, rgba($bg-secondary, 0.9), rgba($bg-primary, 0.95));
+}
+
+.system .bubble,
+.bubble.system {
+  border-left: 3px solid $warning;
+  background: rgba($warning, 0.08);
+}
+
+.bubble-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: $text-muted;
+
+  button {
+    border: 1px solid rgba($border-color, 0.75);
+    background: rgba($bg-secondary, 0.55);
+    color: $text-secondary;
+    border-radius: 999px;
+    padding: 2px 8px;
+    cursor: pointer;
+    font-size: 11px;
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    &:hover:not(:disabled) {
+      border-color: rgba($accent-primary, 0.6);
+      color: $accent-primary;
+    }
+  }
+}
+
+.attachments {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 8px;
 }
 
-.msg-attachment {
-  border-radius: $radius-sm;
+.attachment {
+  border: 1px solid rgba($border-color, 0.6);
+  border-radius: 10px;
   overflow: hidden;
-  background-color: rgba(0, 0, 0, 0.04);
-  border: 1px solid $border-light;
+  background: rgba($bg-primary, 0.5);
 
   &.image {
-    max-width: 200px;
+    max-width: 220px;
   }
 }
 
-.msg-attachment-thumb {
+.attachment-thumb {
   display: block;
-  max-width: 200px;
+  max-width: 220px;
   max-height: 160px;
   object-fit: contain;
 }
 
-.msg-attachment-file {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  font-size: 12px;
-  color: $text-secondary;
-
-  .att-name {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 160px;
-  }
-
-  .att-size {
-    color: $text-muted;
-    font-size: 11px;
-    flex-shrink: 0;
-  }
-}
-
-.msg-actions {
-  margin-top: 8px;
-  display: flex;
-  gap: 6px;
-}
-
-.msg-action-btn {
-  border: 1px solid rgba($border-color, 0.9);
-  background: rgba($bg-secondary, 0.6);
-  color: $text-secondary;
-  font-size: 11px;
-  border-radius: 999px;
-  padding: 2px 8px;
-  cursor: pointer;
-
-  &:hover:not(:disabled) {
-    border-color: rgba($accent-primary, 0.55);
-    color: $accent-primary;
-  }
-
-  &:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
-}
-
-.message-time {
-  font-size: 11px;
-  color: $text-muted;
-  margin-top: 4px;
-  padding: 0 4px;
-}
-
-.msg-user-meta {
+.attachment-file {
+  padding: 8px 10px;
   display: flex;
   flex-direction: column;
+  gap: 2px;
+
+  small {
+    color: $text-muted;
+    font-size: 11px;
+  }
+}
+
+.tool-card {
+  width: min(86%, 920px);
+  border: 1px solid rgba($border-color, 0.65);
+  border-radius: 14px;
+  background: linear-gradient(140deg, rgba($bg-secondary, 0.8), rgba($bg-primary, 0.95));
+  padding: 10px 12px;
+
+  &.running {
+    border-color: rgba(#ffe082, 0.8);
+    box-shadow: 0 0 0 1px rgba(#ffe082, 0.3) inset;
+  }
+
+  &.done {
+    border-color: rgba(#4ade80, 0.7);
+  }
+
+  &.error {
+    border-color: rgba(#ff6b78, 0.8);
+    background: linear-gradient(140deg, rgba(#ff6b78, 0.12), rgba($bg-primary, 0.95));
+  }
+}
+
+.tool-card-head {
+  display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 4px;
-  flex-shrink: 0;
-  min-width: 40px;
+  gap: 8px;
 }
 
-.user-avatar {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 1px solid rgba($accent-primary, 0.25);
-}
-
-.user-name-label {
-  font-size: 11px;
-  font-weight: 600;
-  color: $text-secondary;
-  letter-spacing: 0.3px;
-  line-height: 1;
-}
-
-.tool-line {
+.tool-left {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  color: $text-muted;
-  padding: 0 4px;
+  gap: 8px;
 
-  .tool-name {
+  strong {
+    font-size: 13px;
     font-family: $font-code;
   }
+}
 
-  .tool-preview {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    max-width: 400px;
+.tool-chip {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  border: 1px solid rgba($accent-primary, 0.58);
+  color: $accent-primary;
+  border-radius: 999px;
+  padding: 1px 7px;
+}
+
+.tool-status {
+  font-size: 11px;
+  color: $text-muted;
+}
+
+.tool-preview {
+  margin: 8px 0 0;
+  color: $text-secondary;
+  font-size: 12px;
+}
+
+.tool-actions {
+  margin-top: 8px;
+
+  button {
+    border: 1px solid rgba($border-color, 0.7);
+    background: rgba($bg-primary, 0.5);
+    color: $text-secondary;
+    border-radius: 999px;
+    padding: 2px 10px;
+    font-size: 11px;
+    cursor: pointer;
   }
+}
+
+.tool-modal-body pre {
+  margin: 10px 0 0;
+  max-height: 55vh;
+  overflow: auto;
+  background: rgba($bg-primary, 0.65);
+  border: 1px solid rgba($border-color, 0.45);
+  border-radius: 10px;
+  padding: 10px;
+  font-size: 12px;
 }
 
 .streaming-cursor {
   display: inline-block;
   width: 2px;
   height: 1em;
-  background-color: $text-muted;
   margin-left: 2px;
-  vertical-align: text-bottom;
+  background-color: $text-muted;
   animation: blink 0.8s infinite;
 }
 
 .streaming-dots {
   display: flex;
   gap: 4px;
-  padding: 4px 0;
 
   span {
     width: 6px;
     height: 6px;
-    background-color: $text-muted;
-    border-radius: 50%;
-    animation: pulse 1.4s infinite ease-in-out;
+    border-radius: 999px;
+    background: $text-muted;
+    animation: pulse 1.3s infinite ease-in-out;
 
     &:nth-child(2) { animation-delay: 0.2s; }
     &:nth-child(3) { animation-delay: 0.4s; }

@@ -280,17 +280,25 @@ defineExpose({ collapsed })
   transition: all $transition-normal;
 
   &.collapsed {
-    width: 60px;
-    padding: 20px 8px;
+    width: 68px;
+    padding: 16px 8px;
 
     .sidebar-logo {
       justify-content: center;
-      padding: 4px 0 20px;
+      padding: 4px 0 16px;
     }
 
     .nav-item {
       justify-content: center;
-      padding: 10px;
+      padding: 10px 8px;
+
+      span {
+        display: none;
+      }
+
+      &:hover {
+        transform: none;
+      }
     }
 
     .status-row {
@@ -332,11 +340,13 @@ defineExpose({ collapsed })
 }
 
 .logo-img {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
   flex-shrink: 0;
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.15), 0 0 14px rgba(96, 129, 255, 0.35);
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.2),
+    0 0 18px rgba(134, 59, 255, 0.38);
 }
 
 .sidebar-logo {
@@ -360,10 +370,13 @@ defineExpose({ collapsed })
   flex-direction: column;
   gap: 6px;
   margin-top: 8px;
+  overflow-y: auto;
+  padding-right: 2px;
 }
 
 .nav-item {
   --nav-accent: #7c8dff;
+  --nav-accent-2: #4ecbff;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -383,9 +396,16 @@ defineExpose({ collapsed })
     height: 16px;
     padding: 5px;
     border-radius: 8px;
-    background: color-mix(in srgb, var(--nav-accent) 18%, transparent);
-    color: var(--nav-accent);
+    background: linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--nav-accent) 78%, #ffffff 8%),
+      color-mix(in srgb, var(--nav-accent-2) 82%, #ffffff 6%)
+    );
+    color: #ffffff;
     stroke: currentColor;
+    box-shadow:
+      0 8px 16px color-mix(in srgb, var(--nav-accent) 38%, transparent),
+      inset 0 1px 0 rgba(255, 255, 255, 0.34);
     flex-shrink: 0;
   }
 
@@ -397,30 +417,32 @@ defineExpose({ collapsed })
   }
 
   &.active {
-    background: linear-gradient(90deg,
+    background: linear-gradient(
+      90deg,
       color-mix(in srgb, var(--nav-accent) 24%, transparent),
-      rgba(255, 255, 255, 0.03));
+      rgba(255, 255, 255, 0.03)
+    );
     border-color: color-mix(in srgb, var(--nav-accent) 58%, transparent);
     color: var(--theme-text, $text-primary);
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--nav-accent) 24%, transparent);
   }
 }
 
-.sidebar-nav .nav-item:nth-child(1) { --nav-accent: #5da3ff; }
-.sidebar-nav .nav-item:nth-child(2) { --nav-accent: #9a7bff; }
-.sidebar-nav .nav-item:nth-child(3) { --nav-accent: #ff9f43; }
-.sidebar-nav .nav-item:nth-child(4) { --nav-accent: #2ecc71; }
-.sidebar-nav .nav-item:nth-child(5) { --nav-accent: #ff6b81; }
-.sidebar-nav .nav-item:nth-child(6) { --nav-accent: #feca57; }
-.sidebar-nav .nav-item:nth-child(7) { --nav-accent: #1dd1a1; }
-.sidebar-nav .nav-item:nth-child(8) { --nav-accent: #54a0ff; }
-.sidebar-nav .nav-item:nth-child(9) { --nav-accent: #00d2d3; }
-.sidebar-nav .nav-item:nth-child(10) { --nav-accent: #576574; }
-.sidebar-nav .nav-item:nth-child(11) { --nav-accent: #000000; }
-.sidebar-nav .nav-item:nth-child(12) { --nav-accent: #111111; }
-.sidebar-nav .nav-item:nth-child(13) { --nav-accent: #f39c12; }
-.sidebar-nav .nav-item:nth-child(14) { --nav-accent: #10ac84; }
-.sidebar-nav .nav-item:nth-child(15) { --nav-accent: #8395a7; }
+.sidebar-nav .nav-item:nth-child(1) { --nav-accent: #4f9dff; --nav-accent-2: #2ee6d6; }
+.sidebar-nav .nav-item:nth-child(2) { --nav-accent: #8a5bff; --nav-accent-2: #d17dff; }
+.sidebar-nav .nav-item:nth-child(3) { --nav-accent: #ff9f43; --nav-accent-2: #ffd166; }
+.sidebar-nav .nav-item:nth-child(4) { --nav-accent: #2ecc71; --nav-accent-2: #00d2d3; }
+.sidebar-nav .nav-item:nth-child(5) { --nav-accent: #ff6b81; --nav-accent-2: #ff8ec7; }
+.sidebar-nav .nav-item:nth-child(6) { --nav-accent: #feca57; --nav-accent-2: #ff9ff3; }
+.sidebar-nav .nav-item:nth-child(7) { --nav-accent: #1dd1a1; --nav-accent-2: #48dbfb; }
+.sidebar-nav .nav-item:nth-child(8) { --nav-accent: #54a0ff; --nav-accent-2: #5f27cd; }
+.sidebar-nav .nav-item:nth-child(9) { --nav-accent: #00d2d3; --nav-accent-2: #0984e3; }
+.sidebar-nav .nav-item:nth-child(10) { --nav-accent: #576574; --nav-accent-2: #8395a7; }
+.sidebar-nav .nav-item:nth-child(11) { --nav-accent: #24292f; --nav-accent-2: #6e7681; }
+.sidebar-nav .nav-item:nth-child(12) { --nav-accent: #000000; --nav-accent-2: #555555; }
+.sidebar-nav .nav-item:nth-child(13) { --nav-accent: #f38020; --nav-accent-2: #faae40; }
+.sidebar-nav .nav-item:nth-child(14) { --nav-accent: #10ac84; --nav-accent-2: #2ed573; }
+.sidebar-nav .nav-item:nth-child(15) { --nav-accent: #8395a7; --nav-accent-2: #c8d6e5; }
 
 .sidebar-footer {
   margin-top: auto;

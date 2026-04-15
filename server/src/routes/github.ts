@@ -111,6 +111,77 @@ githubRoutes.get('/api/github/repos/:owner/:repo/commits', async (ctx) => {
   }
 })
 
+// GET /api/github/repos/:owner/:repo/pulls — list pull requests
+githubRoutes.get('/api/github/repos/:owner/:repo/pulls', async (ctx) => {
+  try {
+    const state = (ctx.query.state as string) || 'open'
+    const per_page = parseInt(ctx.query.per_page as string) || 20
+    const pulls = await github.listPullRequests(ctx.params.owner, ctx.params.repo, state, per_page)
+    ctx.body = { pulls }
+  } catch (err: any) {
+    ctx.status = githubErrorStatus(err.message)
+    ctx.body = { error: err.message }
+  }
+})
+
+// GET /api/github/repos/:owner/:repo/issues — list issues (excluding PRs)
+githubRoutes.get('/api/github/repos/:owner/:repo/issues', async (ctx) => {
+  try {
+    const state = (ctx.query.state as string) || 'open'
+    const per_page = parseInt(ctx.query.per_page as string) || 20
+    const issues = await github.listIssues(ctx.params.owner, ctx.params.repo, state, per_page)
+    ctx.body = { issues }
+  } catch (err: any) {
+    ctx.status = githubErrorStatus(err.message)
+    ctx.body = { error: err.message }
+  }
+})
+
+// POST /api/github/repos/:owner/:repo/issues — create issue
+githubRoutes.post('/api/github/repos/:owner/:repo/issues', async (ctx) => {
+  try {
+    const body = ctx.request.body as any
+    if (!body?.title) {
+      ctx.status = 400
+      ctx.body = { error: 'title is required' }
+      return
+    }
+    const issue = await github.createIssue(ctx.params.owner, ctx.params.repo, {
+      title: body.title,
+      body: body.body,
+      labels: body.labels,
+    })
+    ctx.body = issue
+  } catch (err: any) {
+    ctx.status = githubErrorStatus(err.message)
+    ctx.body = { error: err.message }
+  }
+})
+
+// POST /api/github/repos/:owner/:repo/pulls — create pull request
+githubRoutes.post('/api/github/repos/:owner/:repo/pulls', async (ctx) => {
+  try {
+    const body = ctx.request.body as any
+    if (!body?.title || !body?.head || !body?.base) {
+      ctx.status = 400
+      ctx.body = { error: 'title/head/base are required' }
+      return
+    }
+    const pr = await github.createPullRequest(ctx.params.owner, ctx.params.repo, {
+      title: body.title,
+      head: body.head,
+      base: body.base,
+      body: body.body,
+      draft: !!body.draft,
+    })
+    ctx.body = pr
+  } catch (err: any) {
+    ctx.status = githubErrorStatus(err.message)
+    ctx.body = { error: err.message }
+  }
+})
+
+
 // POST /api/github/repos — create repo
 githubRoutes.post('/api/github/repos', async (ctx) => {
   try {

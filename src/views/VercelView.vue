@@ -243,19 +243,17 @@ onMounted(loadData)
 @use '@/styles/variables' as *;
 
 .vercel-view {
-  height: 100vh;
+  height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
 }
 
 .page-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
   margin-bottom: 0;
-  padding: 12px 20px;
-  border-bottom: 1px solid $border-color;
   flex-shrink: 0;
+  gap: 12px;
+  flex-wrap: wrap;
 
   h2 {
     font-size: 20px;
@@ -265,15 +263,10 @@ onMounted(loadData)
   }
 }
 
-.header-actions {
-  display: flex;
-  gap: 8px;
-}
-
 .vercel-content {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  padding: 20px;
 }
 
 .error-banner {
@@ -293,6 +286,18 @@ onMounted(loadData)
   flex: 1;
 }
 
+.section {
+  border: 1px solid color-mix(in srgb, var(--theme-border, #fff) 84%, transparent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--theme-card, rgba(255, 255, 255, 0.08)) 92%, transparent),
+    color-mix(in srgb, var(--theme-background-secondary, #14141f) 95%, transparent)
+  );
+  border-radius: 14px;
+  padding: 14px 16px;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.14);
+}
+
 .section h3 {
   font-size: 14px;
   font-weight: 600;
@@ -310,14 +315,17 @@ onMounted(loadData)
 
 .project-card {
   padding: 12px;
-  background: $bg-secondary;
-  border: 1px solid $border-color;
-  border-radius: $radius-md;
+  border: 1px solid color-mix(in srgb, var(--theme-border, #fff) 84%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--theme-card, rgba(255,255,255,0.08)) 92%, transparent);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
   cursor: pointer;
-  transition: all $transition-fast;
+  transition: transform $transition-fast, border-color $transition-fast, box-shadow $transition-fast;
 
   &:hover {
-    border-color: $accent-primary;
+    transform: translateY(-1px);
+    border-color: rgba($accent-primary, 0.55);
+    box-shadow: 0 9px 20px rgba(0, 0, 0, 0.16);
   }
 }
 

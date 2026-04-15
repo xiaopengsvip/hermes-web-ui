@@ -323,19 +323,16 @@ onMounted(loadData)
 @use '@/styles/variables' as *;
 
 .cloudflare-view {
-  height: 100vh;
+  height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
 }
 
 .page-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 20px;
-  border-bottom: 1px solid $border-color;
   flex-shrink: 0;
   gap: 16px;
+  flex-wrap: wrap;
 }
 
 .header-left {
@@ -394,19 +391,26 @@ onMounted(loadData)
 }
 
 .header-actions {
-  display: flex;
-  gap: 8px;
   flex-shrink: 0;
 }
 
 .cloudflare-content {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  padding: 20px;
 }
 
 .tab-content {
   min-height: 200px;
+  border: 1px solid color-mix(in srgb, var(--theme-border, #fff) 84%, transparent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--theme-card, rgba(255, 255, 255, 0.08)) 92%, transparent),
+    color-mix(in srgb, var(--theme-background-secondary, #14141f) 95%, transparent)
+  );
+  border-radius: 14px;
+  padding: 14px 16px;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.14);
 }
 
 .error-banner {

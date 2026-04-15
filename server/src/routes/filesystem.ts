@@ -1,9 +1,10 @@
 import Router from '@koa/router'
 import { readdir, readFile, stat, writeFile, mkdir, copyFile } from 'fs/promises'
-import { execFile } from 'child_process'
+import { execFile, spawn, type ChildProcessWithoutNullStreams } from 'child_process'
 import { promisify } from 'util'
 import { join, resolve } from 'path'
 import { homedir } from 'os'
+import { randomUUID } from 'crypto'
 
 // --- Auth / Credential Pool ---
 
@@ -33,6 +34,88 @@ interface AuthStreamEvent {
 }
 
 const authEventStream: AuthStreamEvent[] = []
+
+type OAuthFlowStatus = 'pending' | 'authorized' | 'failed' | 'cancelled'
+
+interface OAuthFlowSession {
+  id: string
+  provider: string
+  label: string
+  status: OAuthFlowStatus
+  created_at: string
+  updated_at: string
+  verification_url?: string | null
+  user_code?: string | null
+  logs: string[]
+  error?: string | null
+  process?: ChildProcessWithoutNullStreams
+}
+
+const oauthFlowSessions = new Map<string, OAuthFlowSession>()
+const OAUTH_MAX_LOGS = 200
+
+function trimLogs(logs: string[]): string[] {
+  if (logs.length <= OAUTH_MAX_LOGS) return logs
+  return logs.slice(logs.length - OAUTH_MAX_LOGS)
+}
+
+function extractVerificationUrl(line: string): string | null {
+  const match = line.match(/https?:\/\/\S+/)
+  return match?.[0] || null
+}
+
+function extractUserCode(line: string): string | null {
+  const match = line.match(/\b[A-Z0-9]{3,}(?:-[A-Z0-9]{2,})+\b|\b[A-Z0-9]{6,}\b/)
+  return match?.[0] || null
+}
+
+function toIsoTime(value: unknown): string | null {
+  if (value === null || value === undefined || value === '') return null
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    // auth.json often stores unix seconds (float)
+    const ms = value < 1e12 ? value * 1000 : value
+    return new Date(ms).toISOString()
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) return null
+
+    const asNum = Number(trimmed)
+    if (Number.isFinite(asNum) && trimmed.match(/^\d+(\.\d+)?$/)) {
+      const ms = asNum < 1e12 ? asNum * 1000 : asNum
+      return new Date(ms).toISOString()
+    }
+
+    const dt = new Date(trimmed)
+    if (!Number.isNaN(dt.getTime())) return dt.toISOString()
+  }
+
+  return null
+}
+
+function decodeJwtExpiresAt(token: unknown): string | null {
+  if (typeof token !== 'string' || token.split('.').length !== 3) return null
+  try {
+    const payloadPart = token.split('.')[1]
+    const padded = payloadPart + '='.repeat((4 - (payloadPart.length % 4)) % 4)
+    const payloadJson = Buffer.from(padded.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf-8')
+    const payload = JSON.parse(payloadJson) as { exp?: number }
+    if (typeof payload.exp !== 'number' || !Number.isFinite(payload.exp)) return null
+    return new Date(payload.exp * 1000).toISOString()
+  } catch {
+    return null
+  }
+}
+
+function inferExpiresAt(entry: any): string | null {
+  return (
+    toIsoTime(entry?.expires_at)
+    || decodeJwtExpiresAt(entry?.access_token)
+    || null
+  )
+}
 
 function appendAuthEvent(event: Omit<AuthStreamEvent, 'id' | 'timestamp'>): void {
   authEventStream.unshift({
@@ -544,10 +627,10 @@ fsRoutes.get('/api/auth/credentials', async (ctx) => {
             meta: {
               last_error_code: entry.last_error_code ?? null,
               last_error_message: entry.last_error_message ?? null,
-              last_error_reset_at: entry.last_error_reset_at ?? null,
-              last_status_at: entry.last_status_at ?? null,
-              expires_at: entry.expires_at ?? null,
-              last_refresh: entry.last_refresh ?? null,
+              last_error_reset_at: toIsoTime(entry.last_error_reset_at),
+              last_status_at: toIsoTime(entry.last_status_at),
+              expires_at: inferExpiresAt(entry),
+              last_refresh: toIsoTime(entry.last_refresh),
               base_url: entry.base_url ?? null,
             },
           }))
@@ -636,6 +719,328 @@ fsRoutes.post('/api/auth/switch', async (ctx) => {
       output: (err?.stdout || err?.stderr || '').toString().trim(),
     }
   }
+})
+
+// POST /api/auth/add — add a new credential without leaving current session
+fsRoutes.post('/api/auth/add', async (ctx) => {
+  const body = (ctx.request.body || {}) as {
+    provider?: string
+    label?: string
+    api_key?: string
+    set_active?: boolean
+  }
+
+  const provider = String(body.provider || '').trim()
+  const apiKey = String(body.api_key || '').trim()
+  const requestedLabel = String(body.label || '').trim()
+
+  if (!provider || !apiKey) {
+    ctx.status = 400
+    ctx.body = { error: 'Missing provider or api_key' }
+    return
+  }
+
+  const label = requestedLabel || `webui-${provider}-${Date.now()}`
+
+  try {
+    const args = ['auth', 'add', provider, '--type', 'api-key', '--label', label, '--api-key', apiKey]
+    const { stdout, stderr } = await execFileAsync('hermes', args, { timeout: 30000, maxBuffer: 1024 * 1024 })
+
+    const redact = (text: string) => text.replaceAll(apiKey, '***')
+    const addOutput = redact((stdout || stderr || '').toString().trim())
+
+    let switchOutput = ''
+    if (body.set_active !== false) {
+      const switched = await execFileAsync('hermes', ['auth', 'use', provider, label], { timeout: 15000, maxBuffer: 1024 * 1024 })
+      switchOutput = redact(((switched.stdout || switched.stderr || '') as string).trim())
+    }
+
+    appendAuthEvent({
+      type: 'switch',
+      provider,
+      message: `Added credential for ${provider}${body.set_active === false ? '' : ' and switched active account'}`,
+      payload: {
+        provider,
+        label,
+        set_active: body.set_active !== false,
+      },
+    })
+
+    ctx.body = {
+      success: true,
+      label,
+      output: [addOutput, switchOutput].filter(Boolean).join('\n').trim(),
+    }
+  } catch (err: any) {
+    const rawOutput = ((err?.stdout || err?.stderr || '') as string).toString()
+    const safeOutput = rawOutput.replaceAll(apiKey, '***').trim()
+
+    appendAuthEvent({
+      type: 'error',
+      provider,
+      message: `Add credential failed for ${provider}`,
+      payload: {
+        provider,
+        label,
+        error: err?.message || 'Add credential failed',
+        output: safeOutput,
+      },
+    })
+
+    ctx.status = 500
+    ctx.body = {
+      success: false,
+      error: err?.message || 'Add credential failed',
+      output: safeOutput,
+    }
+  }
+})
+
+// POST /api/auth/oauth/start — start OAuth device-code flow and return session id/link
+fsRoutes.post('/api/auth/oauth/start', async (ctx) => {
+  const body = (ctx.request.body || {}) as { provider?: string; label?: string }
+  const provider = String(body.provider || '').trim()
+  const requestedLabel = String(body.label || '').trim()
+
+  if (!provider || !['openai-codex', 'nous'].includes(provider)) {
+    ctx.status = 400
+    ctx.body = { error: 'Unsupported provider. Use openai-codex or nous.' }
+    return
+  }
+
+  const label = requestedLabel || `webui-${provider}-oauth-${Date.now()}`
+  const id = randomUUID()
+  const nowIso = new Date().toISOString()
+
+  const session: OAuthFlowSession = {
+    id,
+    provider,
+    label,
+    status: 'pending',
+    created_at: nowIso,
+    updated_at: nowIso,
+    verification_url: null,
+    user_code: null,
+    logs: [],
+    error: null,
+  }
+
+  oauthFlowSessions.set(id, session)
+
+  const python = '/home/xiao2027/.hermes/hermes-agent/venv/bin/python'
+  const script = `
+import sys
+from types import SimpleNamespace
+from hermes_cli.auth_commands import auth_add_command, auth_use_command
+
+provider = sys.argv[1]
+label = sys.argv[2]
+
+add_args = SimpleNamespace(
+    provider=provider,
+    auth_type='oauth',
+    label=label,
+    api_key=None,
+    portal_url=None,
+    inference_url=None,
+    client_id=None,
+    scope=None,
+    no_browser=True,
+    timeout=15.0,
+    insecure=False,
+    ca_bundle=None,
+    min_key_ttl_seconds=300,
+)
+
+use_args = SimpleNamespace(provider=provider, target=label)
+
+auth_add_command(add_args)
+auth_use_command(use_args)
+print('__HERMES_OAUTH_DONE__', flush=True)
+`
+
+  const child = spawn(python, ['-u', '-c', script, provider, label], {
+    cwd: resolve(homedir(), '.hermes', 'hermes-agent'),
+    env: {
+      ...process.env,
+      ALL_PROXY: process.env.ALL_PROXY || 'socks5://172.22.192.1:21841',
+      HTTP_PROXY: process.env.HTTP_PROXY || 'http://172.22.192.1:21841',
+      HTTPS_PROXY: process.env.HTTPS_PROXY || 'http://172.22.192.1:21841',
+      NO_PROXY: process.env.NO_PROXY || 'localhost,127.0.0.1',
+      PATH: `/home/xiao2027/.hermes/hermes-agent/venv/bin:/home/xiao2027/.hermes/hermes-agent:${process.env.PATH || ''}`,
+    },
+  })
+
+  session.process = child
+
+  const onLine = (raw: string, source: 'stdout' | 'stderr') => {
+    const clean = raw.replace(/\u001b\[[0-9;]*m/g, '').trim()
+    if (!clean) return
+
+    session.logs = trimLogs([...session.logs, `[${source}] ${clean}`])
+    session.updated_at = new Date().toISOString()
+
+    if (!session.verification_url) {
+      const url = extractVerificationUrl(clean)
+      if (url && (url.includes('codex/device') || url.includes('/device'))) {
+        session.verification_url = url
+      }
+    }
+
+    if (!session.user_code) {
+      if (/enter this code|code:/i.test(clean)) {
+        const maybeCode = extractUserCode(clean)
+        if (maybeCode) session.user_code = maybeCode
+      }
+    }
+
+    if (!session.user_code && session.logs.length > 1) {
+      const maybeCode = extractUserCode(clean)
+      if (maybeCode && maybeCode.length >= 6 && maybeCode.length <= 32) {
+        session.user_code = maybeCode
+      }
+    }
+
+    if (clean.includes('__HERMES_OAUTH_DONE__')) {
+      session.status = 'authorized'
+      session.updated_at = new Date().toISOString()
+      appendAuthEvent({
+        type: 'switch',
+        provider,
+        message: `OAuth login succeeded for ${provider} and switched to ${label}`,
+        payload: { provider, label, session_id: id },
+      })
+    }
+  }
+
+  child.stdout.on('data', (buf) => {
+    String(buf)
+      .split(/\r?\n/)
+      .forEach((line) => onLine(line, 'stdout'))
+  })
+
+  child.stderr.on('data', (buf) => {
+    String(buf)
+      .split(/\r?\n/)
+      .forEach((line) => onLine(line, 'stderr'))
+  })
+
+  child.on('error', (err) => {
+    session.status = 'failed'
+    session.error = err.message
+    session.updated_at = new Date().toISOString()
+    appendAuthEvent({
+      type: 'error',
+      provider,
+      message: `OAuth process crashed for ${provider}`,
+      payload: { provider, label, session_id: id, error: err.message },
+    })
+  })
+
+  child.on('exit', (code) => {
+    session.process = undefined
+    if (session.status === 'cancelled') return
+
+    if (code === 0 && session.status !== 'authorized') {
+      session.status = 'authorized'
+      appendAuthEvent({
+        type: 'switch',
+        provider,
+        message: `OAuth login completed for ${provider}`,
+        payload: { provider, label, session_id: id },
+      })
+      return
+    }
+
+    if (code !== 0 && session.status !== 'authorized') {
+      session.status = 'failed'
+      session.error = session.error || `OAuth process exited with code ${code}`
+      appendAuthEvent({
+        type: 'error',
+        provider,
+        message: `OAuth login failed for ${provider}`,
+        payload: {
+          provider,
+          label,
+          session_id: id,
+          exit_code: code,
+          error: session.error,
+        },
+      })
+    }
+
+    session.updated_at = new Date().toISOString()
+  })
+
+  ctx.body = {
+    success: true,
+    session: {
+      id: session.id,
+      provider: session.provider,
+      label: session.label,
+      status: session.status,
+      verification_url: session.verification_url,
+      user_code: session.user_code,
+      created_at: session.created_at,
+      updated_at: session.updated_at,
+    },
+  }
+})
+
+// GET /api/auth/oauth/:id — poll OAuth flow status
+fsRoutes.get('/api/auth/oauth/:id', async (ctx) => {
+  const id = String(ctx.params.id || '').trim()
+  const session = oauthFlowSessions.get(id)
+  if (!session) {
+    ctx.status = 404
+    ctx.body = { error: 'OAuth session not found' }
+    return
+  }
+
+  const limitRaw = Number(ctx.query.limit || 120)
+  const limit = Number.isFinite(limitRaw) ? Math.max(10, Math.min(500, Math.floor(limitRaw))) : 120
+
+  ctx.body = {
+    session: {
+      id: session.id,
+      provider: session.provider,
+      label: session.label,
+      status: session.status,
+      verification_url: session.verification_url,
+      user_code: session.user_code,
+      created_at: session.created_at,
+      updated_at: session.updated_at,
+      error: session.error || null,
+      logs: session.logs.slice(-limit),
+    },
+  }
+})
+
+// POST /api/auth/oauth/:id/cancel — cancel running OAuth flow
+fsRoutes.post('/api/auth/oauth/:id/cancel', async (ctx) => {
+  const id = String(ctx.params.id || '').trim()
+  const session = oauthFlowSessions.get(id)
+  if (!session) {
+    ctx.status = 404
+    ctx.body = { error: 'OAuth session not found' }
+    return
+  }
+
+  if (session.process && !session.process.killed) {
+    session.process.kill('SIGTERM')
+  }
+
+  session.status = 'cancelled'
+  session.updated_at = new Date().toISOString()
+
+  appendAuthEvent({
+    type: 'info',
+    provider: session.provider,
+    message: `OAuth flow cancelled for ${session.provider}`,
+    payload: { session_id: session.id, provider: session.provider, label: session.label },
+  })
+
+  ctx.body = { success: true }
 })
 
 // GET /api/config/models

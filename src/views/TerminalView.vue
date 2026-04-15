@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { ref, nextTick, onMounted, watch, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { NButton, NInput, NPopconfirm, NDropdown, NModal, useMessage } from 'naive-ui'
+import { NButton, NInput, NPopconfirm, NModal, useMessage } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 import { useTerminalStore, type TerminalCommand } from '@/stores/terminal'
 import { useChatStore } from '@/stores/chat'
+import { renameSession } from '@/api/sessions'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -14,8 +15,10 @@ const chatStore = useChatStore()
 const message = useMessage()
 
 const SESSION_PANEL_MEMORY_KEY = 'chat:preferred-panel'
+const SESSION_FILTER_MEMORY_KEY = 'chat:session-filter'
+const SESSION_PINNED_MEMORY_KEY = 'chat:pinned-sessions'
+const SESSION_SELECTED_MEMORY_KEY = 'chat:selected-session'
 
-const terminalVisible = computed(() => route.query.panel === 'terminal')
 const chatSessionCount = computed(() => chatStore.sessions.length)
 const terminalSessionCount = computed(() => terminalStore.sessions.length)
 const preferredPanel = ref<'chat' | 'terminal'>(
@@ -26,6 +29,15 @@ const commandInput = ref('')
 const inputRef = ref<InstanceType<typeof NInput> | null>(null)
 const outputRef = ref<HTMLDivElement | null>(null)
 const showSessionList = ref(true)
+const sessionSearch = ref('')
+const sessionTypeFilter = ref<'all' | 'chat' | 'terminal'>(
+  localStorage.getItem(SESSION_FILTER_MEMORY_KEY) === 'chat'
+    ? 'chat'
+    : localStorage.getItem(SESSION_FILTER_MEMORY_KEY) === 'terminal'
+      ? 'terminal'
+      : 'all',
+)
+const pinnedSessionKeys = ref<Set<string>>(new Set(JSON.parse(localStorage.getItem(SESSION_PINNED_MEMORY_KEY) || '[]')))
 const commandHistory = ref<string[]>([])
 const historyIndex = ref(-1)
 
@@ -33,11 +45,6 @@ const historyIndex = ref(-1)
 const showRenameModal = ref(false)
 const renameTarget = ref('')
 const renameInput = ref('')
-
-const sessionMenuOptions = [
-  { label: t('terminal.renameSession'), key: 'rename' },
-  { label: t('terminal.clearHistory'), key: 'clear' },
-]
 
 function scrollToBottom() {
   nextTick(() => {
@@ -98,6 +105,9 @@ function rememberPreferredPanel(panel: 'chat' | 'terminal') {
 }
 
 function handleUnifiedMode(target: 'all' | 'chat' | 'terminal') {
+  sessionTypeFilter.value = target
+  localStorage.setItem(SESSION_FILTER_MEMORY_KEY, target)
+
   if (target === 'all') {
     if (preferredPanel.value === 'chat') {
       switchToChatView()
@@ -116,40 +126,135 @@ function handleUnifiedMode(target: 'all' | 'chat' | 'terminal') {
   }
 }
 
+interface UnifiedSession {
+  id: string
+  title: string
+  createdAt: number
+  updatedAt: number
+  type: 'chat' | 'terminal'
+  messageCount?: number
+  commandCount?: number
+  model?: string
+}
+
+const allSessions = computed<UnifiedSession[]>(() => {
+  const chatSessions: UnifiedSession[] = chatStore.sessions.map(s => ({
+    id: s.id,
+    title: s.title,
+    createdAt: s.createdAt,
+    updatedAt: s.updatedAt,
+    type: 'chat',
+    messageCount: s.messages.length || s.messageCount,
+    model: s.model,
+  }))
+  const terminalSessions: UnifiedSession[] = terminalStore.sessions.map(s => ({
+    id: s.id,
+    title: s.title,
+    createdAt: s.createdAt,
+    updatedAt: s.updatedAt,
+    type: 'terminal',
+    commandCount: s.commands.length,
+  }))
+
+  return [...chatSessions, ...terminalSessions].sort((a, b) => {
+    const aPinned = pinnedSessionKeys.value.has(`${a.type}:${a.id}`)
+    const bPinned = pinnedSessionKeys.value.has(`${b.type}:${b.id}`)
+    if (aPinned !== bPinned) return aPinned ? -1 : 1
+    return b.updatedAt - a.updatedAt
+  })
+})
+
+const filteredSessions = computed(() => {
+  const keyword = sessionSearch.value.trim().toLowerCase()
+  return allSessions.value.filter((session) => {
+    if (sessionTypeFilter.value !== 'all' && session.type !== sessionTypeFilter.value) {
+      return false
+    }
+    if (!keyword) return true
+    return session.title.toLowerCase().includes(keyword) || session.id.toLowerCase().includes(keyword)
+  })
+})
+
+function isPinned(session: UnifiedSession): boolean {
+  return pinnedSessionKeys.value.has(`${session.type}:${session.id}`)
+}
+
+function togglePin(session: UnifiedSession) {
+  const key = `${session.type}:${session.id}`
+  if (pinnedSessionKeys.value.has(key)) {
+    pinnedSessionKeys.value.delete(key)
+  } else {
+    pinnedSessionKeys.value.add(key)
+  }
+  localStorage.setItem(SESSION_PINNED_MEMORY_KEY, JSON.stringify(Array.from(pinnedSessionKeys.value)))
+}
+
+function handleSessionClick(session: UnifiedSession) {
+  localStorage.setItem(SESSION_SELECTED_MEMORY_KEY, `${session.type}:${session.id}`)
+
+  if (session.type === 'chat') {
+    rememberPreferredPanel('chat')
+    chatStore.switchSession(session.id)
+    switchToChatView()
+    return
+  }
+
+  rememberPreferredPanel('terminal')
+  terminalStore.switchSession(session.id)
+  switchToTerminalView()
+}
+
+function isSessionActive(session: UnifiedSession): boolean {
+  if (session.type === 'chat') {
+    return session.id === chatStore.activeSessionId
+  }
+  return session.id === terminalStore.activeSessionId
+}
+
 function handleNewSession() {
   terminalStore.createSession()
   terminalStore.saveSessions()
   message.success(t('terminal.messages.newSessionCreated'))
 }
 
-function handleSessionMenuSelect(key: string, sessionId: string) {
-  if (key === 'rename') {
-    const session = terminalStore.sessions.find(s => s.id === sessionId)
-    if (session) {
-      renameTarget.value = sessionId
-      renameInput.value = session.title
-      showRenameModal.value = true
-    }
-  } else if (key === 'clear') {
-    terminalStore.clearSession(sessionId)
-    terminalStore.saveSessions()
-    message.success(t('terminal.messages.historyCleared'))
-  }
+function openRenameModal(session: UnifiedSession) {
+  renameTarget.value = `${session.type}:${session.id}`
+  renameInput.value = session.title
+  showRenameModal.value = true
 }
 
-function handleRenameConfirm() {
-  if (renameTarget.value && renameInput.value.trim()) {
-    terminalStore.updateSessionTitle(renameTarget.value, renameInput.value.trim())
+async function handleRenameConfirm() {
+  const key = renameTarget.value
+  if (!key || !renameInput.value.trim()) return
+
+  const [type, id] = key.split(':')
+  const title = renameInput.value.trim()
+
+  if (type === 'chat') {
+    const ok = await renameSession(id, title)
+    if (ok) {
+      chatStore.updateSessionTitle(id, title)
+      message.success(t('common.success'))
+    } else {
+      message.error(t('common.error'))
+    }
+  } else {
+    terminalStore.updateSessionTitle(id, title)
     terminalStore.saveSessions()
     message.success(t('terminal.messages.renamed'))
   }
+
   showRenameModal.value = false
 }
 
-function handleDeleteSession(id: string) {
-  terminalStore.deleteSession(id)
-  terminalStore.saveSessions()
-  message.success(t('terminal.messages.sessionDeleted'))
+function handleDeleteSession(id: string, type: 'chat' | 'terminal') {
+  if (type === 'chat') {
+    chatStore.deleteSession(id)
+  } else {
+    terminalStore.deleteSession(id)
+    terminalStore.saveSessions()
+  }
+  message.success(t('chat.sessionDeleted'))
 }
 
 function formatTime(ts: number): string {
@@ -178,8 +283,22 @@ function copyOutput(cmd: TerminalCommand) {
 
 onMounted(() => {
   chatStore.loadSessions()
+
+  const selected = localStorage.getItem(SESSION_SELECTED_MEMORY_KEY)
+  if (selected) {
+    const [type, id] = selected.split(':')
+    if (type === 'terminal') {
+      terminalStore.switchSession(id)
+      switchToTerminalView()
+    }
+  }
+
   inputRef.value?.focus()
   scrollToBottom()
+})
+
+watch(sessionTypeFilter, (value) => {
+  localStorage.setItem(SESSION_FILTER_MEMORY_KEY, value)
 })
 
 watch(() => terminalStore.activeSession?.commands.length, () => {
@@ -202,76 +321,81 @@ watch(() => terminalStore.activeSession?.commands.length, () => {
         </NButton>
       </div>
 
-      <div v-if="showSessionList" class="view-mode-switch">
-        <button class="view-mode-btn" @click="handleUnifiedMode('all')">
-          <span>{{ t('chat.all') }}</span>
-          <small>{{ chatSessionCount + terminalSessionCount }}</small>
-        </button>
-        <button class="view-mode-btn" @click="handleUnifiedMode('chat')">
-          <span>{{ t('chat.chatOnly') }}</span>
-          <small>{{ chatSessionCount }}</small>
-        </button>
-        <button class="view-mode-btn" :class="{ active: terminalVisible }" @click="handleUnifiedMode('terminal')">
-          <span>{{ t('chat.terminalOnly') }}</span>
-          <small>{{ terminalSessionCount }}</small>
-        </button>
+      <div v-if="showSessionList" class="session-tools">
+        <NInput
+          v-model:value="sessionSearch"
+          size="small"
+          clearable
+          :placeholder="t('chat.searchSessions')"
+        />
+
+        <div class="view-mode-switch">
+          <button class="view-mode-btn" :class="{ active: sessionTypeFilter === 'all' }" @click="handleUnifiedMode('all')">
+            <span>{{ t('chat.all') }}</span>
+            <small>{{ allSessions.length }}</small>
+          </button>
+          <button class="view-mode-btn" :class="{ active: sessionTypeFilter === 'chat' }" @click="handleUnifiedMode('chat')">
+            <span>{{ t('chat.chatOnly') }}</span>
+            <small>{{ chatSessionCount }}</small>
+          </button>
+          <button class="view-mode-btn" :class="{ active: sessionTypeFilter === 'terminal' }" @click="handleUnifiedMode('terminal')">
+            <span>{{ t('chat.terminalOnly') }}</span>
+            <small>{{ terminalSessionCount }}</small>
+          </button>
+        </div>
       </div>
 
       <div v-if="showSessionList" class="session-list">
-        <!-- 按日期分组 -->
-        <div v-for="(sessions, groupKey) in terminalStore.groupedSessions" :key="groupKey" class="date-group">
-          <div class="date-header">
-            <span class="date-label">
-              {{ groupKey === 'today' ? t('chat.groupToday') : groupKey === 'yesterday' ? t('chat.groupYesterday') : groupKey === 'thisWeek' ? t('chat.groupThisWeek') : groupKey }}
-            </span>
-            <span class="date-count">{{ sessions.length }}</span>
-          </div>
-          <button
-            v-for="session in sessions"
-            :key="session.id"
-            class="session-item"
-            :class="{ active: session.id === terminalStore.activeSessionId }"
-            @click="terminalStore.switchSession(session.id)"
-          >
-            <div class="session-icon">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                <polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/>
-              </svg>
-            </div>
-            <div class="session-info">
-              <span class="session-title">{{ session.title }}</span>
-              <span class="session-meta">
-                <span class="cmd-count">{{ session.commands.length }} {{ t('terminal.commands') }}</span>
-                <span class="session-time">{{ formatTime(session.updatedAt) }}</span>
-              </span>
-            </div>
-            <NDropdown
-              :options="sessionMenuOptions"
-              trigger="click"
-              @select="(key: string) => handleSessionMenuSelect(key, session.id)"
-            >
-              <button class="session-menu" @click.stop>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                  <circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/>
-                </svg>
-              </button>
-            </NDropdown>
-            <NPopconfirm @positive-click="handleDeleteSession(session.id)">
-              <template #trigger>
-                <button class="session-delete" @click.stop>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-                  </svg>
-                </button>
-              </template>
-              {{ t('terminal.confirmDeleteSession') }}
-            </NPopconfirm>
-          </button>
+        <div v-if="filteredSessions.length === 0" class="empty-sessions">
+          {{ t('chat.noSessions') }}
         </div>
 
-        <div v-if="terminalStore.sessions.length === 0" class="empty-sessions">
-          {{ t('terminal.noSessions') }}
-        </div>
+        <button
+          v-for="session in filteredSessions"
+          :key="session.type + ':' + session.id"
+          class="session-item"
+          :class="{ active: isSessionActive(session), pinned: isPinned(session) }"
+          @click="handleSessionClick(session)"
+        >
+          <div class="session-icon">
+            <svg v-if="session.type === 'terminal'" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/>
+            </svg>
+            <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+          </div>
+          <div class="session-info">
+            <span class="session-title">
+              {{ session.title }}
+              <span v-if="isPinned(session)" class="pinned-tag">{{ t('chat.pinned') }}</span>
+            </span>
+            <span class="session-meta">
+              <span class="cmd-count">{{ session.type === 'terminal' ? session.commandCount : session.messageCount }} {{ session.type === 'terminal' ? t('chat.commandsCount') : t('chat.messagesCount') }}</span>
+              <span class="session-time">{{ formatTime(session.updatedAt) }}</span>
+            </span>
+          </div>
+
+          <button class="session-pin" :title="isPinned(session) ? t('chat.unpinSession') : t('chat.pinSession')" @click.stop="togglePin(session)">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M9 3h6l-1 5 3 3-2 2-3-3-4 11-1-1 2-8-4-4 2-2 3 3z"/>
+            </svg>
+          </button>
+          <button class="session-rename" :title="t('chat.renameSession')" @click.stop="openRenameModal(session)">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
+          </button>
+
+          <NPopconfirm @positive-click="handleDeleteSession(session.id, session.type)">
+            <template #trigger>
+              <button class="session-delete" @click.stop>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </template>
+            {{ t('chat.deleteSessionConfirm') }}
+          </NPopconfirm>
+        </button>
       </div>
     </aside>
 
@@ -412,8 +536,15 @@ watch(() => terminalStore.activeSession?.commands.length, () => {
   border-bottom: 1px solid $border-color;
 }
 
-.view-mode-switch {
+.session-tools {
   padding: 8px 8px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.view-mode-switch {
+  padding: 0;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
@@ -524,9 +655,15 @@ watch(() => terminalStore.activeSession?.commands.length, () => {
     background: rgba($accent-primary, 0.06);
     color: $text-primary;
 
-    .session-menu, .session-delete {
+    .session-pin,
+    .session-rename,
+    .session-delete {
       opacity: 1;
     }
+  }
+
+  &.pinned {
+    background: linear-gradient(120deg, rgba($warning, 0.1), rgba($accent-primary, 0.04));
   }
 
   &.active {
@@ -552,11 +689,26 @@ watch(() => terminalStore.activeSession?.commands.length, () => {
 }
 
 .session-title {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 13px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.pinned-tag {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  color: $warning;
+  border: 1px solid rgba($warning, 0.5);
+  background: rgba($warning, 0.12);
+  border-radius: 999px;
+  padding: 0 6px;
+  line-height: 16px;
+  flex-shrink: 0;
 }
 
 .session-meta {
@@ -567,7 +719,9 @@ watch(() => terminalStore.activeSession?.commands.length, () => {
   margin-top: 2px;
 }
 
-.session-menu, .session-delete {
+.session-pin,
+.session-rename,
+.session-delete {
   flex-shrink: 0;
   opacity: 0;
   padding: 2px;
@@ -582,6 +736,16 @@ watch(() => terminalStore.activeSession?.commands.length, () => {
     color: $text-primary;
     background: rgba($text-primary, 0.1);
   }
+}
+
+.session-pin:hover {
+  color: $warning;
+  background: rgba($warning, 0.12);
+}
+
+.session-rename:hover {
+  color: $accent-primary;
+  background: rgba($accent-primary, 0.1);
 }
 
 .session-delete:hover {

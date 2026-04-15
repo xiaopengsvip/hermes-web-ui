@@ -413,19 +413,13 @@ onUnmounted(() => {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
 }
 
 .page-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
   margin-bottom: 0;
-  padding: 12px 20px;
-  border-bottom: 1px solid $border-color;
   flex-shrink: 0;
+  gap: 12px;
+  flex-wrap: wrap;
 
   h2 {
     font-size: 20px;
@@ -447,6 +441,8 @@ onUnmounted(() => {
 .status-spin {
   flex: 1;
   min-height: 0;
+  width: min(1120px, 100%);
+  margin: 0 auto;
 }
 
 .status-spin :deep(.n-spin-body),
@@ -468,6 +464,18 @@ onUnmounted(() => {
 
 .stats-grid {
   flex-shrink: 0;
+}
+
+.section {
+  border: 1px solid color-mix(in srgb, var(--theme-border, #fff) 84%, transparent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--theme-card, rgba(255, 255, 255, 0.08)) 92%, transparent),
+    color-mix(in srgb, var(--theme-background-secondary, #14141f) 95%, transparent)
+  );
+  border-radius: 14px;
+  padding: 14px 16px;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.14);
 }
 
 .section h3 {
@@ -520,12 +528,6 @@ onUnmounted(() => {
   justify-content: space-between;
 }
 
-.section-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
 .logs-hint {
   font-size: 12px;
   color: $text-muted;
@@ -572,12 +574,6 @@ onUnmounted(() => {
   color: $text-primary;
   white-space: pre-wrap;
   word-break: break-word;
-}
-
-.action-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
 }
 
 .service-list {

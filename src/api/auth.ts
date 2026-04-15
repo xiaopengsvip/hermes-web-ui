@@ -48,3 +48,47 @@ export async function switchAuthCredential(provider: string, target: string | nu
     body: JSON.stringify({ provider, target }),
   })
 }
+
+export interface AddAuthCredentialPayload {
+  provider: string
+  api_key: string
+  label?: string
+  set_active?: boolean
+}
+
+export interface OAuthFlowSession {
+  id: string
+  provider: string
+  label: string
+  status: 'pending' | 'authorized' | 'failed' | 'cancelled'
+  verification_url?: string | null
+  user_code?: string | null
+  created_at: string
+  updated_at: string
+  error?: string | null
+  logs?: string[]
+}
+
+export async function addAuthCredential(payload: AddAuthCredentialPayload): Promise<{ success: boolean; output?: string; error?: string; label?: string }> {
+  return request('/api/auth/add', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function startOAuthFlow(provider: string, label?: string): Promise<{ success: boolean; session: OAuthFlowSession }> {
+  return request('/api/auth/oauth/start', {
+    method: 'POST',
+    body: JSON.stringify({ provider, label }),
+  })
+}
+
+export async function getOAuthFlow(sessionId: string): Promise<{ session: OAuthFlowSession }> {
+  return request(`/api/auth/oauth/${encodeURIComponent(sessionId)}`)
+}
+
+export async function cancelOAuthFlow(sessionId: string): Promise<{ success: boolean }> {
+  return request(`/api/auth/oauth/${encodeURIComponent(sessionId)}/cancel`, {
+    method: 'POST',
+  })
+}

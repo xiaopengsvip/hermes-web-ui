@@ -39,6 +39,30 @@ export interface GitHubCommit {
   url: string
 }
 
+export interface GitHubPullRequest {
+  id: number
+  number: number
+  title: string
+  state: string
+  html_url: string
+  created_at: string
+  updated_at: string
+  draft?: boolean
+  user?: { login: string }
+}
+
+export interface GitHubIssue {
+  id: number
+  number: number
+  title: string
+  state: string
+  html_url: string
+  created_at: string
+  updated_at: string
+  labels?: Array<{ name: string }>
+  user?: { login: string }
+}
+
 /**
  * Get GitHub token from environment or ~/.hermes/auth.json
  */
@@ -197,6 +221,23 @@ export async function listCommits(owner: string, repo: string, per_page = 10): P
     },
     url: c.html_url,
   }))
+}
+
+export async function listPullRequests(owner: string, repo: string, state = 'open', per_page = 20): Promise<GitHubPullRequest[]> {
+  return ghApi(`/repos/${owner}/${repo}/pulls?state=${encodeURIComponent(state)}&per_page=${per_page}`)
+}
+
+export async function listIssues(owner: string, repo: string, state = 'open', per_page = 20): Promise<GitHubIssue[]> {
+  const data = await ghApi(`/repos/${owner}/${repo}/issues?state=${encodeURIComponent(state)}&per_page=${per_page}`)
+  return (Array.isArray(data) ? data : []).filter((item: any) => !item.pull_request)
+}
+
+export async function createIssue(owner: string, repo: string, data: { title: string; body?: string; labels?: string[] }): Promise<GitHubIssue> {
+  return ghApi(`/repos/${owner}/${repo}/issues`, { method: 'POST', body: data })
+}
+
+export async function createPullRequest(owner: string, repo: string, data: { title: string; head: string; base: string; body?: string; draft?: boolean }): Promise<GitHubPullRequest> {
+  return ghApi(`/repos/${owner}/${repo}/pulls`, { method: 'POST', body: data })
 }
 
 /**

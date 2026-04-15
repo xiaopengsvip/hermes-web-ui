@@ -36,6 +36,28 @@ export interface Session {
   messageCount?: number
 }
 
+export interface StreamEventItem {
+  id: string
+  event: string
+  label: string
+  timestamp: number
+  detail?: Record<string, any>
+  level?: 'info' | 'success' | 'error'
+}
+
+const EVENT_LABELS: Record<string, string> = {
+  'run.queued': '任务已入队',
+  'run.started': '任务开始',
+  'message.delta': '模型增量输出',
+  'tool.started': '工具开始执行',
+  'tool.completed': '工具执行完成',
+  'run.completed': '任务完成',
+  'run.failed': '任务失败',
+  'run.done': '流结束',
+  'run.error': '流错误',
+  'run.stopped': '手动停止',
+}
+
 function uid(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8)
 }
@@ -139,9 +161,29 @@ export const useChatStore = defineStore('chat', () => {
   const abortController = ref<AbortController | null>(null)
   const isLoadingSessions = ref(false)
   const isLoadingMessages = ref(false)
+  const streamEvents = ref<StreamEventItem[]>([])
 
   const activeSession = ref<Session | null>(null)
   const messages = ref<Message[]>([])
+
+  function pushStreamEvent(event: string, detail?: Record<string, any>, level: StreamEventItem['level'] = 'info') {
+    streamEvents.value.unshift({
+      id: uid(),
+      event,
+      label: EVENT_LABELS[event] || event,
+      timestamp: Date.now(),
+      detail,
+      level,
+    })
+
+    if (streamEvents.value.length > 300) {
+      streamEvents.value = streamEvents.value.slice(0, 300)
+    }
+  }
+
+  function clearStreamEvents() {
+    streamEvents.value = []
+  }
 
   async function loadSessions() {
     isLoadingSessions.value = true
@@ -188,6 +230,7 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   async function switchSession(sessionId: string) {
+    clearStreamEvents()
     activeSessionId.value = sessionId
     activeSession.value = sessions.value.find(s => s.id === sessionId) || null
 
@@ -318,6 +361,12 @@ export const useChatStore = defineStore('chat', () => {
     updateSessionTitle()
 
     isStreaming.value = true
+    clearStreamEvents()
+    pushStreamEvent('run.queued', {
+      hasContent: Boolean(content.trim()),
+      attachmentCount: attachments?.length || 0,
+      sessionId: activeSession.value?.id,
+    })
 
     try {
       // Build conversation history from past messages
@@ -355,11 +404,14 @@ export const useChatStore = defineStore('chat', () => {
         return
       }
 
+      pushStreamEvent('run.started', { runId })
+
       // Listen to SSE events
       abortController.value = streamRunEvents(
         runId,
         // onEvent
         (evt: RunEvent) => {
+          pushStreamEvent(evt.event, evt as Record<string, any>, evt.event === 'run.failed' ? 'error' : 'info')
           switch (evt.event) {
             case 'run.started':
               break
@@ -416,6 +468,7 @@ export const useChatStore = defineStore('chat', () => {
               isStreaming.value = false
               abortController.value = null
               updateSessionTitle()
+              pushStreamEvent('run.completed', { runId }, 'success')
               break
 
             case 'run.failed':
@@ -441,6 +494,7 @@ export const useChatStore = defineStore('chat', () => {
               })
               isStreaming.value = false
               abortController.value = null
+              pushStreamEvent('run.failed', { runId, error: evt.error }, 'error')
               break
           }
         },
@@ -453,6 +507,7 @@ export const useChatStore = defineStore('chat', () => {
           isStreaming.value = false
           abortController.value = null
           updateSessionTitle()
+          pushStreamEvent('run.done', { runId }, 'success')
         },
         // onError
         (err) => {
@@ -473,6 +528,7 @@ export const useChatStore = defineStore('chat', () => {
           }
           isStreaming.value = false
           abortController.value = null
+          pushStreamEvent('run.error', { runId, error: err.message }, 'error')
         },
       )
     } catch (err: any) {
@@ -484,6 +540,7 @@ export const useChatStore = defineStore('chat', () => {
       })
       isStreaming.value = false
       abortController.value = null
+      pushStreamEvent('run.error', { error: err.message }, 'error')
     }
   }
 
@@ -523,6 +580,9 @@ export const useChatStore = defineStore('chat', () => {
   function stopStreaming() {
     abortController.value?.abort()
     isStreaming.value = false
+    pushStreamEvent('run.stopped', {
+      sessionId: activeSession.value?.id,
+    })
     const lastMsg = messages.value[messages.value.length - 1]
     if (lastMsg?.isStreaming) {
       updateMessage(lastMsg.id, { isStreaming: false })
@@ -541,6 +601,8 @@ export const useChatStore = defineStore('chat', () => {
     isStreaming,
     isLoadingSessions,
     isLoadingMessages,
+    streamEvents,
+    clearStreamEvents,
     newChat,
     switchSession,
     switchSessionModel,

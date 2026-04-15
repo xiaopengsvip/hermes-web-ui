@@ -384,7 +384,8 @@ onMounted(async () => {
 @use '@/styles/variables' as *;
 
 .github-view {
-  height: 100vh;
+  height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
 }
@@ -395,16 +396,23 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   flex: 1;
+  min-height: 0;
+  padding: 24px 16px;
 }
 
 .setup-card {
   text-align: center;
-  max-width: 420px;
+  max-width: 520px;
   width: 100%;
-  padding: 40px;
-  background: $bg-secondary;
-  border: 1px solid $border-color;
-  border-radius: $radius-lg;
+  padding: 32px 28px;
+  border: 1px solid color-mix(in srgb, var(--theme-border, #fff) 84%, transparent);
+  border-radius: 16px;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--theme-card, rgba(255, 255, 255, 0.08)) 92%, transparent),
+    color-mix(in srgb, var(--theme-background-secondary, #14141f) 95%, transparent)
+  );
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.2);
 
   h2 {
     font-size: 22px;
@@ -444,13 +452,10 @@ onMounted(async () => {
 
 // Main content
 .page-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
   margin-bottom: 0;
-  padding: 12px 20px;
-  border-bottom: 1px solid $border-color;
   flex-shrink: 0;
+  gap: 12px;
+  flex-wrap: wrap;
 
   h2 {
     font-size: 20px;
@@ -462,8 +467,8 @@ onMounted(async () => {
 
 .github-content {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  padding: 20px;
 }
 
 .header-left {
@@ -489,12 +494,6 @@ onMounted(async () => {
   color: $text-secondary;
 }
 
-.header-actions {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
 .error-banner {
   padding: 10px 16px;
   background: rgba($error, 0.1);
@@ -514,15 +513,21 @@ onMounted(async () => {
 
 .repo-card {
   padding: 14px;
-  background: $bg-secondary;
-  border: 1px solid $border-color;
-  border-radius: $radius-md;
+  border: 1px solid color-mix(in srgb, var(--theme-border, #fff) 84%, transparent);
+  border-radius: 14px;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--theme-card, rgba(255, 255, 255, 0.08)) 93%, transparent),
+    color-mix(in srgb, var(--theme-background-secondary, #14141f) 96%, transparent)
+  );
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.14);
   cursor: pointer;
-  transition: all $transition-fast;
+  transition: transform $transition-fast, border-color $transition-fast, box-shadow $transition-fast;
 
   &:hover {
-    border-color: $accent-primary;
-    background: rgba($accent-primary, 0.03);
+    transform: translateY(-1px);
+    border-color: rgba($accent-primary, 0.55);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.2);
   }
 }
 

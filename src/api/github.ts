@@ -39,6 +39,30 @@ export interface GitHubCommit {
   url: string
 }
 
+export interface GitHubPullRequest {
+  id: number
+  number: number
+  title: string
+  state: string
+  html_url: string
+  created_at: string
+  updated_at: string
+  draft?: boolean
+  user?: { login: string }
+}
+
+export interface GitHubIssue {
+  id: number
+  number: number
+  title: string
+  state: string
+  html_url: string
+  created_at: string
+  updated_at: string
+  labels?: Array<{ name: string }>
+  user?: { login: string }
+}
+
 export async function fetchGitHubUser(): Promise<GitHubUser> {
   return request<GitHubUser>('/api/github/user')
 }
@@ -58,6 +82,28 @@ export async function fetchGitHubBranches(owner: string, repo: string): Promise<
 
 export async function fetchGitHubCommits(owner: string, repo: string, per_page = 10): Promise<{ commits: GitHubCommit[] }> {
   return request<{ commits: GitHubCommit[] }>(`/api/github/repos/${owner}/${repo}/commits?per_page=${per_page}`)
+}
+
+export async function fetchGitHubPulls(owner: string, repo: string, state = 'open', per_page = 20): Promise<{ pulls: GitHubPullRequest[] }> {
+  return request<{ pulls: GitHubPullRequest[] }>(`/api/github/repos/${owner}/${repo}/pulls?state=${encodeURIComponent(state)}&per_page=${per_page}`)
+}
+
+export async function fetchGitHubIssues(owner: string, repo: string, state = 'open', per_page = 20): Promise<{ issues: GitHubIssue[] }> {
+  return request<{ issues: GitHubIssue[] }>(`/api/github/repos/${owner}/${repo}/issues?state=${encodeURIComponent(state)}&per_page=${per_page}`)
+}
+
+export async function createGitHubIssue(owner: string, repo: string, data: { title: string; body?: string; labels?: string[] }): Promise<GitHubIssue> {
+  return request<GitHubIssue>(`/api/github/repos/${owner}/${repo}/issues`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function createGitHubPull(owner: string, repo: string, data: { title: string; head: string; base: string; body?: string; draft?: boolean }): Promise<GitHubPullRequest> {
+  return request<GitHubPullRequest>(`/api/github/repos/${owner}/${repo}/pulls`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
 }
 
 export async function createGitHubRepo(data: { name: string; description?: string; private?: boolean; auto_init?: boolean }): Promise<GitHubRepo> {
