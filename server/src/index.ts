@@ -5,6 +5,7 @@ import serve from 'koa-static'
 import send from 'koa-send'
 import { resolve } from 'path'
 import { mkdir } from 'fs/promises'
+import type { Socket } from 'net'
 import { config } from './config'
 import { proxyRoutes } from './routes/proxy'
 import { uploadRoutes } from './routes/upload'
@@ -28,6 +29,7 @@ const { restartGateway } = hermesCli
 
 let serverInstance: ReturnType<Koa['listen']> | null = null
 let isShuttingDown = false
+const activeSockets = new Set<Socket>()
 
 export async function bootstrap() {
   await mkdir(config.uploadDir, { recursive: true })
@@ -84,13 +86,32 @@ export async function bootstrap() {
     console.log(`  ➜  Upstream: ${config.upstream}`)
   })
 
+  serverInstance.on('connection', (socket: Socket) => {
+    activeSockets.add(socket)
+    socket.once('close', () => {
+      activeSockets.delete(socket)
+    })
+  })
+
   bindShutdownSignals()
 }
 
 function bindShutdownSignals() {
-  const shutdown = async (signal: string) => {
+  const shutdown = async (signal: string, exitCode = 0) => {
     if (isShuttingDown) return
     isShuttingDown = true
+
+    const forceExitTimer = setTimeout(() => {
+      for (const socket of activeSockets) {
+        try {
+          socket.destroy()
+        } catch {
+          // ignore
+        }
+      }
+      process.exit(exitCode)
+    }, 8000)
+    forceExitTimer.unref()
 
     try {
       console.log(`\n[${signal}] shutting down hermes-web-ui ...`)
@@ -103,27 +124,30 @@ function bindShutdownSignals() {
       }
     } catch (err: any) {
       console.error('  ✗ shutdown error:', err?.message || err)
+      exitCode = exitCode === 0 ? 1 : exitCode
+    } finally {
+      clearTimeout(forceExitTimer)
     }
 
-    process.exit(0)
+    process.exit(exitCode)
   }
 
   process.once('SIGUSR2', () => {
-    shutdown('SIGUSR2')
+    shutdown('SIGUSR2', 0)
   })
   process.on('SIGINT', () => {
-    shutdown('SIGINT')
+    shutdown('SIGINT', 0)
   })
   process.on('SIGTERM', () => {
-    shutdown('SIGTERM')
+    shutdown('SIGTERM', 0)
   })
   process.on('uncaughtException', (err) => {
     console.error('uncaughtException:', err)
-    shutdown('uncaughtException')
+    shutdown('uncaughtException', 1)
   })
   process.on('unhandledRejection', (err) => {
     console.error('unhandledRejection:', err)
-    shutdown('unhandledRejection')
+    shutdown('unhandledRejection', 1)
   })
 }
 
