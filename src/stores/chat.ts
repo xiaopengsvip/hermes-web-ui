@@ -109,20 +109,21 @@ function mapHermesMessages(msgs: HermesMessage[]): Message[] {
     // Tool result messages
     if (msg.role === 'tool') {
       const toolName = msg.tool_name || toolNameMap.get(msg.tool_call_id || '') || 'Tool'
+      const raw = msg.content || ''
       // Extract a short preview from the content
       let preview = ''
-      if (msg.content) {
+      if (raw) {
         try {
-          const parsed = JSON.parse(msg.content)
+          const parsed = JSON.parse(raw)
           preview = parsed.url || parsed.title || parsed.preview || parsed.summary || ''
         } catch {
-          preview = msg.content.slice(0, 80)
+          preview = raw.slice(0, 80)
         }
       }
       result.push({
         id: String(msg.id),
         role: 'tool',
-        content: '',
+        content: raw,
         timestamp: Math.round(msg.timestamp * 1000),
         toolName,
         toolPreview: preview.slice(0, 100) || undefined,
@@ -163,11 +164,19 @@ export const useChatStore = defineStore('chat', () => {
   const isLoadingSessions = ref(false)
   const isLoadingMessages = ref(false)
   const streamEvents = ref<StreamEventItem[]>([])
+  const lastDeltaEventTs = ref(0)
+
 
   const activeSession = ref<Session | null>(null)
   const messages = ref<Message[]>([])
 
   function pushStreamEvent(event: string, detail?: Record<string, any>, level: StreamEventItem['level'] = 'info') {
+    if (event === 'message.delta') {
+      const now = Date.now()
+      if (now - lastDeltaEventTs.value < 700) return
+      lastDeltaEventTs.value = now
+    }
+
     streamEvents.value.unshift({
       id: uid(),
       event,
@@ -184,6 +193,7 @@ export const useChatStore = defineStore('chat', () => {
 
   function clearStreamEvents() {
     streamEvents.value = []
+    lastDeltaEventTs.value = 0
   }
 
   async function loadSessions() {
@@ -574,6 +584,7 @@ export const useChatStore = defineStore('chat', () => {
             }
 
             case 'tool.completed': {
+              const evtAny = evt as Record<string, any>
               const toolName = evt.tool || evt.name
               const toolMsgs = messages.value
                 .filter(m => m.role === 'tool' && m.toolStatus === 'running')
@@ -582,10 +593,18 @@ export const useChatStore = defineStore('chat', () => {
               const fallback = messages.value.filter(m => m.role === 'tool' && m.toolStatus === 'running')
               const target = toolMsgs[toolMsgs.length - 1] || fallback[fallback.length - 1]
 
+              const rawOutput = evtAny.output ?? evtAny.result ?? evtAny.content
+              const outputText = typeof rawOutput === 'string'
+                ? rawOutput
+                : rawOutput != null
+                  ? JSON.stringify(rawOutput, null, 2)
+                  : ''
+
               if (target) {
                 updateMessage(target.id, {
                   toolStatus: 'done',
                   toolPreview: evt.preview || target.toolPreview,
+                  content: outputText || target.content || '',
                 })
               }
 

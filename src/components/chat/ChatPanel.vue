@@ -86,6 +86,7 @@ const filteredSessions = computed(() => {
 
 const chatSessionCount = computed(() => allSessions.value.filter(s => s.type === 'chat').length)
 const terminalSessionCount = computed(() => allSessions.value.filter(s => s.type === 'terminal').length)
+const displayedSessionCount = computed(() => filteredSessions.value.length)
 
 const activeSessionLabel = computed(() => {
   if (isTerminalMode.value) return terminalStore.activeSession?.title || 'Terminal Session'
@@ -138,6 +139,12 @@ function handleSessionClick(session: UnifiedSession) {
 
   terminalStore.switchSession(session.id)
   setContentMode('terminal')
+}
+
+function handleSessionCardKeydown(event: KeyboardEvent, session: UnifiedSession) {
+  if (event.key !== 'Enter' && event.key !== ' ') return
+  event.preventDefault()
+  handleSessionClick(session)
 }
 
 function handleSessionListScroll() {
@@ -299,22 +306,19 @@ onMounted(async () => {
         </NButton>
       </header>
 
-      <div v-if="showSessions" class="workspace-nav">
-        <button class="workspace-nav-btn">
-          <span>主页</span>
-        </button>
-        <button class="workspace-nav-btn" :class="{ active: isTerminalMode }" @click="setContentMode('terminal')">
-          <span>终端</span>
-        </button>
-        <button class="workspace-nav-btn" :class="{ active: !isTerminalMode }" @click="setContentMode('chat')">
+      <div v-if="showSessions" class="workspace-nav" role="tablist" aria-label="面板模式">
+        <button class="workspace-nav-btn" :class="{ active: !isTerminalMode }" role="tab" :aria-selected="!isTerminalMode" @click="setContentMode('chat')">
           <span>聊天</span>
+        </button>
+        <button class="workspace-nav-btn" :class="{ active: isTerminalMode }" role="tab" :aria-selected="isTerminalMode" @click="setContentMode('terminal')">
+          <span>终端</span>
         </button>
       </div>
 
       <div v-if="showSessions" class="session-tools">
         <NInput v-model:value="sessionSearch" size="small" clearable :placeholder="t('chat.searchSessions')" />
         <div class="session-summary">
-          <span>全部 {{ allSessions.length }}</span>
+          <span>显示 {{ displayedSessionCount }} / {{ allSessions.length }}</span>
           <span>聊天 {{ chatSessionCount }}</span>
           <span>终端 {{ terminalSessionCount }}</span>
         </div>
@@ -327,7 +331,11 @@ onMounted(async () => {
           :key="`${s.type}:${s.id}`"
           class="session-card"
           :class="{ active: isSessionActive(s), terminal: s.type === 'terminal' }"
+          role="button"
+          tabindex="0"
+          :aria-label="`打开${s.title}`"
           @click="handleSessionClick(s)"
+          @keydown="handleSessionCardKeydown($event, s)"
         >
           <div class="session-card-top">
             <span class="session-tag" :class="s.type">{{ s.type === 'terminal' ? 'TERMINAL' : 'CHAT' }}</span>
@@ -371,7 +379,6 @@ onMounted(async () => {
         </div>
 
         <div class="content-actions">
-          <NButton size="small" quaternary @click="chatStore.clearStreamEvents">清空流</NButton>
           <NButton size="small" @click="handleNewSession">{{ isTerminalMode ? '新建终端' : t('chat.newChat') }}</NButton>
         </div>
       </header>
@@ -515,6 +522,7 @@ onMounted(async () => {
 .workspace-nav {
   padding: 10px 10px 2px;
   display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
 }
 
@@ -582,6 +590,12 @@ onMounted(async () => {
     transform: translateY(-1px);
     border-color: rgba(#6dddff, 0.5);
     box-shadow: 0 14px 22px rgba(4, 10, 14, 0.32);
+  }
+
+  &:focus-visible {
+    outline: none;
+    border-color: rgba(#6dddff, 0.9);
+    box-shadow: 0 0 0 2px rgba(#6dddff, 0.25);
   }
 
   &.active {

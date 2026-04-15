@@ -483,7 +483,7 @@ function isImage(type: string): boolean {
     </div>
 
     <div class="input-hint-row">
-      <span>{{ t('chat.inputHint') }} · 也可直接输入命令（如 $ ls -la）</span>
+      <span>{{ t('chat.inputHint') }} · Slash: /new /clear /model</span>
       <span>{{ t('chat.attachmentUsage', { count: attachments.length, size: formatSize(totalAttachmentSize) }) }}</span>
     </div>
   </div>

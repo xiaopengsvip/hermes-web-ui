@@ -13,6 +13,7 @@ const toast = useMessage()
 const chatStore = useChatStore()
 
 const showToolDetail = ref(false)
+const isToolOutputExpanded = ref(false)
 
 const isSystem = computed(() => props.message.role === 'system')
 const isTool = computed(() => props.message.role === 'tool')
@@ -24,7 +25,7 @@ const relatedToolEvents = computed(() => {
   const name = props.message.toolName
   const minTs = props.message.timestamp - 15000
 
-  return chatStore.streamEvents
+  const matched = chatStore.streamEvents
     .filter((evt) => {
       if (evt.timestamp < minTs) return false
       const detail = (evt.detail || {}) as Record<string, any>
@@ -33,8 +34,19 @@ const relatedToolEvents = computed(() => {
       const byName = Boolean(name && detailName && detailName === name)
       return byMessage || (evt.event.startsWith('tool.') && byName)
     })
+    .sort((a, b) => b.timestamp - a.timestamp)
     .slice(0, 6)
+
+  return matched.reverse()
 })
+
+const toolOutputLineCount = computed(() => {
+  if (!props.message.content) return 0
+  return props.message.content.split('\n').length
+})
+
+const shouldClampToolOutput = computed(() => !isToolOutputExpanded.value && toolOutputLineCount.value > 10)
+
 
 const timeStr = computed(() => {
   const d = new Date(props.message.timestamp)
@@ -101,7 +113,12 @@ function toolStateLabel(status?: string) {
             <span class="terminal-mark">terminal</span>
             <span class="tool-output-hint">输出</span>
           </div>
-          <pre class="tool-output" :class="{ error: message.toolStatus === 'error' }">{{ message.content }}</pre>
+          <pre class="tool-output" :class="[{ error: message.toolStatus === 'error' }, { clamp: shouldClampToolOutput }]">{{ message.content }}</pre>
+          <div v-if="toolOutputLineCount > 10" class="tool-output-actions">
+            <button @click="isToolOutputExpanded = !isToolOutputExpanded">
+              {{ isToolOutputExpanded ? '收起输出' : `展开输出（${toolOutputLineCount} 行）` }}
+            </button>
+          </div>
         </div>
 
         <div class="tool-actions">
@@ -472,8 +489,34 @@ function toolStateLabel(status?: string) {
   white-space: pre-wrap;
   word-break: break-word;
 
+  &.clamp {
+    max-height: 160px;
+  }
+
   &.error {
     color: #ffb3bc;
+  }
+}
+
+.tool-output-actions {
+  border-top: 1px solid rgba($border-color, 0.35);
+  padding: 6px 8px;
+  display: flex;
+  justify-content: flex-end;
+
+  button {
+    border: 1px solid rgba($border-color, 0.6);
+    background: rgba($bg-secondary, 0.5);
+    color: $text-secondary;
+    border-radius: 999px;
+    padding: 2px 8px;
+    font-size: 10px;
+    cursor: pointer;
+
+    &:hover {
+      border-color: rgba($accent-primary, 0.55);
+      color: $accent-primary;
+    }
   }
 }
 
