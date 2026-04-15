@@ -38,6 +38,36 @@ const providerOptions = computed(() => authProviders.value.map(p => ({
 const currentProviderAccounts = computed(() => authProviders.value.find(p => p.provider === selectedProvider.value)?.entries || [])
 const currentActiveAccount = computed(() => currentProviderAccounts.value.find(e => e.index === 1) || null)
 
+const allAccounts = computed(() => authProviders.value.flatMap(provider =>
+  (provider.entries || []).map(entry => ({
+    provider: provider.provider,
+    entry,
+    isCurrent: entry.index === 1,
+  })),
+))
+
+function providerDisplayName(provider: string) {
+  if (provider === 'openai-codex') return 'openai-codex（Codex）'
+  if (provider === 'nous') return 'nous（Nous）'
+  return provider
+}
+
+function accountStatusType(status?: string): 'success' | 'warning' | 'error' | 'default' {
+  const s = (status || '').toLowerCase()
+  if (s === 'ok' || s === 'active' || s === 'valid') return 'success'
+  if (s === 'warning' || s === 'expiring') return 'warning'
+  if (s === 'error' || s === 'invalid' || s === 'expired') return 'error'
+  return 'default'
+}
+
+function accountStatusLabel(status?: string) {
+  const s = (status || '').toLowerCase()
+  if (s === 'ok' || s === 'active' || s === 'valid') return t('settings.accountStatusAvailable')
+  if (s === 'warning' || s === 'expiring') return t('settings.accountStatusWarning')
+  if (s === 'error' || s === 'invalid' || s === 'expired') return t('settings.accountStatusUnavailable')
+  return t('settings.accountStatusUnknown')
+}
+
 function prettyTime(input?: string | number | null) {
   if (input === null || input === undefined || input === '') return '-'
   try {
@@ -85,11 +115,12 @@ async function loadAuthAccounts() {
   }
 }
 
-async function handleSwitchAccount(index: number) {
-  if (!selectedProvider.value) return
+async function handleSwitchAccount(provider: string, index: number) {
+  if (!provider) return
+  selectedProvider.value = provider
   switchingAccount.value = true
   try {
-    const resp = await switchAuthCredential(selectedProvider.value, index)
+    const resp = await switchAuthCredential(provider, index)
     if (resp?.success) {
       message.success(t('settings.authSwitchSuccess'))
       await loadAuthAccounts()
@@ -103,6 +134,13 @@ async function handleSwitchAccount(index: number) {
   } finally {
     switchingAccount.value = false
   }
+}
+
+function handleAccountRowKeydown(event: KeyboardEvent, provider: string, index: number, disabled: boolean) {
+  if (disabled) return
+  if (event.key !== 'Enter' && event.key !== ' ') return
+  event.preventDefault()
+  handleSwitchAccount(provider, index)
 }
 
 async function handleAddAccount() {
@@ -369,6 +407,51 @@ onBeforeUnmount(() => {
       <!-- Account Switch -->
       <section class="settings-section">
         <h3 class="section-title">{{ t('settings.authManager') }}</h3>
+
+        <div class="form-group">
+          <label class="form-label">{{ t('settings.authQuickSwitch') }}</label>
+          <div v-if="allAccounts.length" class="auth-accounts auth-accounts-global">
+            <article
+              v-for="row in allAccounts"
+              :key="`${row.provider}-${row.entry.id || row.entry.index}`"
+              class="auth-account-item"
+              :class="{ clickable: !row.isCurrent, current: row.isCurrent }"
+              role="button"
+              tabindex="0"
+              :aria-label="`切换到 ${row.provider} ${row.entry.label}`"
+              @click="!row.isCurrent && handleSwitchAccount(row.provider, row.entry.index)"
+              @keydown="handleAccountRowKeydown($event, row.provider, row.entry.index, row.isCurrent)"
+            >
+              <div class="auth-account-info">
+                <div class="auth-account-meta">
+                  <span class="auth-account-label">{{ row.entry.label || '-' }}</span>
+                  <NTag size="small" :type="row.isCurrent ? 'success' : 'default'">
+                    {{ row.isCurrent ? t('settings.authCurrent') : `${t('settings.authRank')} #${row.entry.index}` }}
+                  </NTag>
+                  <NTag size="small" :type="accountStatusType(row.entry.status)">{{ accountStatusLabel(row.entry.status) }}</NTag>
+                </div>
+                <div class="auth-account-submeta">
+                  <span>{{ t('settings.authProvider') }}: {{ providerDisplayName(row.provider) }}</span>
+                  <span>{{ t('settings.authTypeLabel') }}: {{ row.entry.auth_type || '-' }}</span>
+                  <span>{{ t('settings.authSourceLabel') }}: {{ row.entry.source || '-' }}</span>
+                  <span>ID: {{ row.entry.id || '-' }}</span>
+                </div>
+              </div>
+              <NButton
+                size="tiny"
+                type="primary"
+                tertiary
+                :disabled="row.isCurrent"
+                :loading="switchingAccount"
+                @click.stop="handleSwitchAccount(row.provider, row.entry.index)"
+              >
+                {{ row.isCurrent ? t('settings.authCurrent') : t('settings.authSwitchButton') }}
+              </NButton>
+            </article>
+          </div>
+          <p v-else class="empty-text">{{ t('settings.authNoAccounts') }}</p>
+        </div>
+
         <div class="form-group">
           <label class="form-label">{{ t('settings.authProvider') }}</label>
           <NSelect
@@ -442,39 +525,45 @@ onBeforeUnmount(() => {
               <div class="auth-current-main">
                 <div class="auth-current-label">{{ currentActiveAccount?.label || '-' }}</div>
                 <NTag size="small" type="success">{{ t('settings.authCurrent') }}</NTag>
+                <NTag size="small" :type="accountStatusType(currentActiveAccount?.status)">{{ accountStatusLabel(currentActiveAccount?.status) }}</NTag>
               </div>
               <div class="auth-current-meta">
-                <div>status: {{ currentActiveAccount?.status || '-' }}</div>
-                <div>error_code: {{ currentActiveAccount?.meta?.last_error_code ?? '-' }}</div>
-                <div>expires_at: {{ prettyTime(currentActiveAccount?.meta?.expires_at) }}</div>
-                <div>last_refresh: {{ prettyTime(currentActiveAccount?.meta?.last_refresh) }}</div>
-                <div>last_status_at: {{ prettyTime(currentActiveAccount?.meta?.last_status_at) }}</div>
-                <div>reset_at: {{ prettyTime(currentActiveAccount?.meta?.last_error_reset_at) }}</div>
+                <div>{{ t('settings.authProvider') }}: {{ providerDisplayName(selectedProvider) }}</div>
+                <div>{{ t('settings.authStatusLabel') }}: {{ currentActiveAccount?.status || '-' }}</div>
+                <div>{{ t('settings.authErrorCodeLabel') }}: {{ currentActiveAccount?.meta?.last_error_code ?? '-' }}</div>
+                <div>{{ t('settings.authExpiresAtLabel') }}: {{ prettyTime(currentActiveAccount?.meta?.expires_at) }}</div>
+                <div>{{ t('settings.authLastRefreshLabel') }}: {{ prettyTime(currentActiveAccount?.meta?.last_refresh) }}</div>
+                <div>{{ t('settings.authLastStatusAtLabel') }}: {{ prettyTime(currentActiveAccount?.meta?.last_status_at) }}</div>
+                <div>{{ t('settings.authResetAtLabel') }}: {{ prettyTime(currentActiveAccount?.meta?.last_error_reset_at) }}</div>
               </div>
             </div>
 
             <div class="auth-accounts">
-              <div v-for="entry in currentProviderAccounts" :key="`${selectedProvider}-${entry.id || entry.index}`" class="auth-account-item">
+              <div v-for="entry in currentProviderAccounts" :key="`${selectedProvider}-${entry.id || entry.index}`" class="auth-account-item" :class="{ clickable: entry.index !== 1, current: entry.index === 1 }">
                 <div class="auth-account-info">
                   <div class="auth-account-meta">
-                    <span class="auth-account-label">{{ entry.label }}</span>
+                    <span class="auth-account-label">{{ entry.label || '-' }}</span>
                     <NTag size="small" :type="entry.index === 1 ? 'success' : 'default'">
                       {{ entry.index === 1 ? t('settings.authCurrent') : `${t('settings.authRank')} #${entry.index}` }}
                     </NTag>
+                    <NTag size="small" :type="accountStatusType(entry.status)">{{ accountStatusLabel(entry.status) }}</NTag>
                   </div>
                   <div class="auth-account-submeta">
-                    <span>status: {{ entry.status || '-' }}</span>
-                    <span>expires: {{ prettyTime(entry.meta?.expires_at) }}</span>
+                    <span>{{ t('settings.authStatusLabel') }}: {{ entry.status || '-' }}</span>
+                    <span>{{ t('settings.authTypeLabel') }}: {{ entry.auth_type || '-' }}</span>
+                    <span>{{ t('settings.authSourceLabel') }}: {{ entry.source || '-' }}</span>
+                    <span>{{ t('settings.authExpiresShortLabel') }}: {{ prettyTime(entry.meta?.expires_at) }}</span>
                   </div>
                 </div>
                 <NButton
                   size="tiny"
                   type="primary"
                   tertiary
+                  :disabled="entry.index === 1"
                   :loading="switchingAccount"
-                  @click="handleSwitchAccount(entry.index)"
+                  @click="handleSwitchAccount(selectedProvider, entry.index)"
                 >
-                  {{ t('settings.authSwitchButton') }}
+                  {{ entry.index === 1 ? t('settings.authCurrent') : t('settings.authSwitchButton') }}
                 </NButton>
               </div>
             </div>
@@ -739,6 +828,12 @@ onBeforeUnmount(() => {
   gap: 8px;
 }
 
+.auth-accounts-global {
+  max-height: 300px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
 .auth-add-card {
   margin-bottom: 12px;
   padding: 10px;
@@ -837,6 +932,28 @@ onBeforeUnmount(() => {
   padding: 8px 10px;
   background: $bg-secondary;
   border-radius: $radius-sm;
+  border: 1px solid transparent;
+  transition: border-color 0.2s ease, background 0.2s ease;
+
+  &.clickable {
+    cursor: pointer;
+
+    &:hover {
+      border-color: rgba($accent-primary, 0.45);
+      background: rgba($accent-primary, 0.08);
+    }
+
+    &:focus-visible {
+      outline: none;
+      border-color: rgba($accent-primary, 0.65);
+      box-shadow: 0 0 0 2px rgba($accent-primary, 0.2);
+    }
+  }
+
+  &.current {
+    border-color: rgba($success, 0.35);
+    background: rgba($success, 0.08);
+  }
 }
 
 .auth-account-meta {
@@ -853,6 +970,7 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-wrap: wrap;
   margin-top: 4px;
   font-size: 11px;
   color: $text-muted;
