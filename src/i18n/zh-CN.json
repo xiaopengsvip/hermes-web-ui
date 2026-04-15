@@ -582,7 +582,20 @@
     "apiConfig": "API 配置",
     "modelManagement": "模型管理",
     "currentModel": "当前模型",
+    "modelSwitchSuccess": "已切换模型：{model}",
+    "modelSwitchFailed": "模型切换失败",
     "availableModels": "可用模型",
+    "unavailableModels": "不可用模型",
+    "unavailableModelsHint": "以下模型源当前不可用（网络/密钥/额度等原因），仅供诊断参考。",
+    "unavailableTag": "不可用",
+    "unavailableReasonLabel": "原因",
+    "unavailableReasonMissingBaseUrl": "缺少 base_url",
+    "unavailableReasonMissingToken": "缺少 API 凭证",
+    "unavailableReasonExhausted": "账号额度已耗尽",
+    "unavailableReasonEmpty": "模型列表为空",
+    "unavailableReasonHttp": "接口返回 HTTP {code}",
+    "unavailableReasonFetchFailed": "请求失败",
+    "unavailableReasonUnknown": "未知原因",
     "modelsSource": "模型从 ~/.hermes/auth.json 凭证池发现",
     "modelsCount": "共 {count} 个",
     "showMore": "查看更多（+{count}）",
@@ -652,7 +665,8 @@
   "modelSelector": {
     "title": "模型",
     "selectModel": "选择模型",
-    "noModels": "暂无可用模型"
+    "noModels": "暂无可用模型",
+    "unavailableGroup": "不可用"
   },
   "markdown": {
     "copy": "复制",

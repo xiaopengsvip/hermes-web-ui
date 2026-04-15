@@ -12,6 +12,7 @@ const appStore = useAppStore()
 const message = useMessage()
 
 const testingConnection = ref(false)
+const switchingModel = ref(false)
 const switchingAccount = ref(false)
 const authProviders = ref<AuthProviderCredentials[]>([])
 const selectedProvider = ref('')
@@ -305,6 +306,49 @@ function toggleAllModels() {
   }
 }
 
+function normalizeModel(model: string) {
+  if (!model) return ''
+  const parts = model.split('/')
+  if (parts.length <= 1) return model
+  return parts.slice(1).join('/')
+}
+
+function isCurrentModel(model: string, provider: string) {
+  if (!appStore.selectedModel) return false
+  const selected = appStore.selectedModel
+  return (
+    selected === model
+    || selected === `${provider}/${model}`
+    || normalizeModel(selected) === model
+  )
+}
+
+function unavailableReasonText(reason: string) {
+  if (reason === 'missing_base_url') return t('settings.unavailableReasonMissingBaseUrl')
+  if (reason === 'missing_token') return t('settings.unavailableReasonMissingToken')
+  if (reason === 'all_credentials_exhausted') return t('settings.unavailableReasonExhausted')
+  if (reason === 'empty_model_list') return t('settings.unavailableReasonEmpty')
+  if (reason.startsWith('http_')) return t('settings.unavailableReasonHttp', { code: reason.replace('http_', '') })
+  if (reason.startsWith('fetch_failed:')) return t('settings.unavailableReasonFetchFailed')
+  return t('settings.unavailableReasonUnknown')
+}
+
+async function handleSwitchModel(model: string, provider: string) {
+  switchingModel.value = true
+  try {
+    const ok = await appStore.switchModel(model, provider)
+    if (!ok) {
+      message.error(t('settings.modelSwitchFailed'))
+      return
+    }
+    message.success(t('settings.modelSwitchSuccess', { model }))
+  } catch (e: any) {
+    message.error(e.message || t('settings.modelSwitchFailed'))
+  } finally {
+    switchingModel.value = false
+  }
+}
+
 const endpoints = [
   { method: 'GET', endpoint: '/health', description: 'Health Check' },
   { method: 'POST', endpoint: '/v1/runs', description: 'Start Async Run' },
@@ -382,14 +426,18 @@ onBeforeUnmount(() => {
               </div>
               <div v-if="group.base_url" class="model-group-base">{{ group.base_url }}</div>
               <div class="model-group-list">
-                <NTag
+                <button
                   v-for="model in visibleModels(group)"
                   :key="`${group.provider}-${model}`"
-                  size="small"
-                  class="model-pill"
+                  type="button"
+                  class="model-switch-pill"
+                  :class="{ active: isCurrentModel(model, group.provider) }"
+                  :disabled="switchingModel"
+                  @click="handleSwitchModel(model, group.provider)"
                 >
-                  {{ model }}
-                </NTag>
+                  <span>{{ model }}</span>
+                  <NTag v-if="isCurrentModel(model, group.provider)" size="tiny" type="success">{{ t('settings.authCurrent') }}</NTag>
+                </button>
               </div>
               <NButton
                 v-if="group.models.length > MODEL_PREVIEW_LIMIT"
@@ -399,6 +447,32 @@ onBeforeUnmount(() => {
               >
                 {{ isExpanded(group) ? t('settings.showLess') : t('settings.showMore', { count: group.models.length - MODEL_PREVIEW_LIMIT }) }}
               </NButton>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="appStore.unavailableModelGroups.length > 0" class="form-group">
+          <label class="form-label">{{ t('settings.unavailableModels') }}</label>
+          <p class="form-hint">{{ t('settings.unavailableModelsHint') }}</p>
+          <div class="model-groups unavailable-model-groups">
+            <div v-for="group in appStore.unavailableModelGroups" :key="`unavailable-${group.provider}-${group.base_url || group.label}`" class="model-group-card unavailable">
+              <div class="model-group-head">
+                <div class="model-group-provider">{{ group.label }}</div>
+                <NTag size="small" type="error">{{ t('settings.unavailableTag') }}</NTag>
+              </div>
+              <div v-if="group.base_url" class="model-group-base">{{ group.base_url }}</div>
+              <div class="model-group-reason">{{ t('settings.unavailableReasonLabel') }}: {{ unavailableReasonText(group.reason) }}</div>
+              <div class="model-group-list">
+                <NTag
+                  v-for="model in group.models"
+                  :key="`unavailable-${group.provider}-${model}`"
+                  size="small"
+                  type="warning"
+                  class="model-pill unavailable"
+                >
+                  {{ model }}
+                </NTag>
+              </div>
             </div>
           </div>
         </div>
@@ -814,6 +888,56 @@ onBeforeUnmount(() => {
 
 .model-pill {
   max-width: 100%;
+
+  &.unavailable {
+    opacity: 0.9;
+  }
+}
+
+.model-switch-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  border: 1px solid rgba($accent-primary, 0.25);
+  background: rgba($accent-primary, 0.06);
+  color: $text-primary;
+  border-radius: 999px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1.35;
+  transition: border-color 0.2s ease, background 0.2s ease;
+
+  &:hover:not(:disabled) {
+    border-color: rgba($accent-primary, 0.55);
+    background: rgba($accent-primary, 0.16);
+  }
+
+  &:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+  }
+
+  &.active {
+    border-color: rgba($success, 0.6);
+    background: rgba($success, 0.14);
+  }
+}
+
+.unavailable-model-groups {
+  margin-top: 6px;
+}
+
+.model-group-card.unavailable {
+  border-color: rgba($error, 0.3);
+  background: rgba($error, 0.05);
+}
+
+.model-group-reason {
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: $text-secondary;
 }
 
 .empty-text {

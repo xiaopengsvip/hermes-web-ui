@@ -39,9 +39,18 @@ export interface AvailableModelGroup {
   models: string[]
 }
 
+export interface UnavailableModelGroup {
+  provider: string
+  label: string
+  base_url: string
+  models: string[]
+  reason: string
+}
+
 export interface AvailableModelsResponse {
   default: string
   groups: AvailableModelGroup[]
+  unavailable_groups?: UnavailableModelGroup[]
 }
 
 export interface CustomProvider {

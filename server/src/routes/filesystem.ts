@@ -137,7 +137,7 @@ async function loadAuthJson(): Promise<AuthJson | null> {
   }
 }
 
-async function fetchProviderModels(baseUrl: string, apiKey: string): Promise<string[]> {
+async function fetchProviderModels(baseUrl: string, apiKey: string): Promise<{ models: string[]; reason?: string }> {
   try {
     const url = baseUrl.replace(/\/+$/, '') + '/models'
     const res = await fetch(url, {
@@ -146,17 +146,21 @@ async function fetchProviderModels(baseUrl: string, apiKey: string): Promise<str
     })
     if (!res.ok) {
       console.error(`[available-models] ${baseUrl} returned ${res.status}`)
-      return []
+      return { models: [], reason: `http_${res.status}` }
     }
     const data = await res.json() as { data?: Array<{ id: string }> }
     if (!Array.isArray(data.data)) {
       console.error(`[available-models] ${baseUrl} returned unexpected format`)
-      return []
+      return { models: [], reason: 'invalid_response' }
     }
-    return data.data.map(m => m.id).filter(id => !id.startsWith('hermes')).sort()
+    const models = data.data.map(m => m.id).filter(id => !id.startsWith('hermes')).sort()
+    if (models.length === 0) {
+      return { models: [], reason: 'empty_model_list' }
+    }
+    return { models }
   } catch (err: any) {
     console.error(`[available-models] ${baseUrl} failed: ${err.message}`)
-    return []
+    return { models: [], reason: `fetch_failed:${err.message || 'unknown'}` }
   }
 }
 
@@ -519,15 +523,44 @@ fsRoutes.get('/api/available-models', async (ctx) => {
 
     // Collect unique endpoints from credential pool
     const endpoints: Array<{ key: string; label: string; base_url: string; token: string }> = []
+    const unavailableGroups: Array<{ provider: string; label: string; base_url: string; models: string[]; reason: string }> = []
     const seenUrls = new Set<string>()
+    const seenUnavailable = new Set<string>()
+
+    const pushUnavailable = (provider: string, label: string, baseUrl: string, reason: string) => {
+      const key = `${provider}::${baseUrl}::${reason}`
+      if (seenUnavailable.has(key)) return
+      seenUnavailable.add(key)
+      unavailableGroups.push({
+        provider,
+        label,
+        base_url: baseUrl,
+        models: KNOWN_MODELS[provider] || [],
+        reason,
+      })
+    }
 
     for (const [providerKey, entries] of Object.entries(pool)) {
       if (!Array.isArray(entries) || entries.length === 0) continue
-      const entry = entries.find(e => e.last_status !== 'exhausted') || entries[0]
-      if (!entry?.base_url) continue
+
+      const nonExhausted = entries.find(e => e.last_status !== 'exhausted')
+      if (!nonExhausted) {
+        const exhaustedEntry = entries[0] as any
+        pushUnavailable(providerKey, providerKey.replace(/^custom:/, '') || exhaustedEntry?.label || providerKey, exhaustedEntry?.base_url || '', 'all_credentials_exhausted')
+        continue
+      }
+
+      const entry = nonExhausted as any
+      if (!entry?.base_url) {
+        pushUnavailable(providerKey, providerKey.replace(/^custom:/, '') || entry?.label || providerKey, '', 'missing_base_url')
+        continue
+      }
       // Support both access_token and agent_key
-      const token = entry.access_token || (entry as any).agent_key || ''
-      if (!token) continue
+      const token = entry.access_token || entry.agent_key || ''
+      if (!token) {
+        pushUnavailable(providerKey, providerKey.replace(/^custom:/, '') || entry?.label || providerKey, entry.base_url, 'missing_token')
+        continue
+      }
       const baseUrl = entry.base_url.replace(/\/+$/, '')
       if (seenUrls.has(baseUrl)) continue
       seenUrls.add(baseUrl)
@@ -546,7 +579,14 @@ fsRoutes.get('/api/available-models', async (ctx) => {
       const providerInfo = info as any
       const baseUrl = providerInfo.inference_base_url || ''
       const token = providerInfo.agent_key || ''
-      if (!baseUrl || !token) continue
+      if (!baseUrl) {
+        pushUnavailable(providerKey, providerKey, '', 'missing_base_url')
+        continue
+      }
+      if (!token) {
+        pushUnavailable(providerKey, providerKey, baseUrl, 'missing_token')
+        continue
+      }
       const cleanUrl = baseUrl.replace(/\/+$/, '')
       if (seenUrls.has(cleanUrl)) continue
       seenUrls.add(cleanUrl)
@@ -561,17 +601,21 @@ fsRoutes.get('/api/available-models', async (ctx) => {
     // Fetch all provider models in parallel
     const results = await Promise.allSettled(
       endpoints.map(async ep => {
-        const models = await fetchProviderModels(ep.base_url, ep.token)
-        return { ...ep, models }
+        const fetched = await fetchProviderModels(ep.base_url, ep.token)
+        return { ...ep, fetched }
       }),
     )
 
     const groups: Array<{ provider: string; label: string; base_url: string; models: string[] }> = []
     for (const result of results) {
-      if (result.status === 'fulfilled' && result.value.models.length > 0) {
-        const { key, label, base_url, models } = result.value
-        groups.push({ provider: key, label, base_url, models })
-      } else if (result.status === 'rejected') {
+      if (result.status === 'fulfilled') {
+        const { key, label, base_url, fetched } = result.value
+        if (fetched.models.length > 0) {
+          groups.push({ provider: key, label, base_url, models: fetched.models })
+        } else {
+          pushUnavailable(key, label, base_url, fetched.reason || 'empty_model_list')
+        }
+      } else {
         console.error(`[available-models] Failed: ${result.reason?.message || result.reason}`)
       }
     }
@@ -589,16 +633,16 @@ fsRoutes.get('/api/available-models', async (ctx) => {
         }
       }
       if (groups.length > 0) {
-        ctx.body = { default: currentDefault, groups }
+        ctx.body = { default: currentDefault, groups, unavailable_groups: unavailableGroups }
         return
       }
       // Last resort: fall back to config.yaml parsing
       const fallback = buildModelGroups(yaml)
-      ctx.body = fallback
+      ctx.body = { ...fallback, unavailable_groups: unavailableGroups }
       return
     }
 
-    ctx.body = { default: currentDefault, groups }
+    ctx.body = { default: currentDefault, groups, unavailable_groups: unavailableGroups }
   } catch (err: any) {
     ctx.status = 500
     ctx.body = { error: err.message }

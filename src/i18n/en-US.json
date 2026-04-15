@@ -582,7 +582,20 @@
     "apiConfig": "API Configuration",
     "modelManagement": "Model Management",
     "currentModel": "Current Model",
+    "modelSwitchSuccess": "Model switched: {model}",
+    "modelSwitchFailed": "Failed to switch model",
     "availableModels": "Available Models",
+    "unavailableModels": "Unavailable Models",
+    "unavailableModelsHint": "These model sources are currently unavailable (network/key/quota), shown for diagnostics.",
+    "unavailableTag": "Unavailable",
+    "unavailableReasonLabel": "Reason",
+    "unavailableReasonMissingBaseUrl": "Missing base_url",
+    "unavailableReasonMissingToken": "Missing API credential",
+    "unavailableReasonExhausted": "Account quota exhausted",
+    "unavailableReasonEmpty": "Model list is empty",
+    "unavailableReasonHttp": "Endpoint returned HTTP {code}",
+    "unavailableReasonFetchFailed": "Request failed",
+    "unavailableReasonUnknown": "Unknown reason",
     "modelsSource": "Models are discovered from ~/.hermes/auth.json credential pool",
     "modelsCount": "{count} models",
     "showMore": "Show more (+{count})",
@@ -652,7 +665,8 @@
   "modelSelector": {
     "title": "Model",
     "selectModel": "Select Model",
-    "noModels": "No models available"
+    "noModels": "No models available",
+    "unavailableGroup": "Unavailable"
   },
   "markdown": {
     "copy": "Copy",

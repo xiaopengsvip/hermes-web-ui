@@ -1,11 +1,12 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { checkHealth, fetchAvailableModels, updateDefaultModel, type AvailableModelGroup } from '@/api/system'
+import { checkHealth, fetchAvailableModels, updateDefaultModel, type AvailableModelGroup, type UnavailableModelGroup } from '@/api/system'
 
 export const useAppStore = defineStore('app', () => {
   const connected = ref(false)
   const serverVersion = ref('')
   const modelGroups = ref<AvailableModelGroup[]>([])
+  const unavailableModelGroups = ref<UnavailableModelGroup[]>([])
   const selectedModel = ref('')
   const healthPollTimer = ref<ReturnType<typeof setInterval>>()
 
@@ -28,21 +29,24 @@ export const useAppStore = defineStore('app', () => {
     try {
       const res = await fetchAvailableModels()
       modelGroups.value = res.groups
+      unavailableModelGroups.value = res.unavailable_groups || []
       selectedModel.value = res.default
     } catch {
       // ignore
     }
   }
 
-  async function switchModel(modelId: string, providerOverride?: string) {
+  async function switchModel(modelId: string, providerOverride?: string): Promise<boolean> {
     try {
       // Find the group containing this model to get provider info
       const group = modelGroups.value.find(g => g.models.includes(modelId))
       const provider = providerOverride || group?.provider || ''
       await updateDefaultModel({ default: modelId, provider })
       selectedModel.value = modelId
+      return true
     } catch (err: any) {
       console.error('Failed to switch model:', err)
+      return false
     }
   }
 
@@ -63,6 +67,7 @@ export const useAppStore = defineStore('app', () => {
     connected,
     serverVersion,
     modelGroups,
+    unavailableModelGroups,
     selectedModel,
     streamEnabled,
     sessionPersistence,
