@@ -30,6 +30,11 @@ function levelClass(level?: string) {
   if (level === 'success') return 'success'
   return 'info'
 }
+
+function eventToolName(event: StreamEventItem): string {
+  const detail = (event.detail || {}) as Record<string, any>
+  return String(detail.toolName || detail.tool || detail.name || '')
+}
 </script>
 
 <template>
@@ -57,6 +62,7 @@ function levelClass(level?: string) {
         <div class="flow-item-main">
           <strong>{{ event.label }}</strong>
           <small>{{ event.event }}</small>
+          <small v-if="eventToolName(event)" class="tool-binding">工具：{{ eventToolName(event) }}</small>
         </div>
         <time>{{ formatTime(event.timestamp) }}</time>
       </button>
@@ -84,6 +90,7 @@ function levelClass(level?: string) {
           <div class="flow-item-main">
             <strong>{{ event.label }}</strong>
             <small>{{ event.event }}</small>
+            <small v-if="eventToolName(event)" class="tool-binding">工具：{{ eventToolName(event) }}</small>
           </div>
           <time>{{ formatTime(event.timestamp) }}</time>
         </button>
@@ -99,8 +106,9 @@ function levelClass(level?: string) {
   width: 320px;
   min-width: 280px;
   max-width: 360px;
-  border-left: 1px solid rgba($border-color, 0.65);
-  background: linear-gradient(180deg, rgba($bg-secondary, 0.75), rgba($bg-primary, 0.95));
+  border-left: 1px solid rgba(255, 255, 255, 0.09);
+  background: rgba(11, 16, 21, 0.68);
+  backdrop-filter: blur(20px);
   display: flex;
   flex-direction: column;
 }
@@ -160,6 +168,9 @@ function levelClass(level?: string) {
 
   strong { font-size: 12px; display: block; }
   small { font-size: 10px; color: $text-muted; }
+  .tool-binding {
+    color: rgba($accent-primary, 0.9);
+  }
   time { font-size: 10px; color: $text-muted; align-self: start; }
 }
 

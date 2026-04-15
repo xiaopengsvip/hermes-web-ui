@@ -493,10 +493,10 @@ function isImage(type: string): boolean {
 @use '@/styles/variables' as *;
 
 .chat-input-area {
-  padding: 12px 20px 16px;
-  border-top: 1px solid rgba($border-color, 0.9);
-  background: linear-gradient(180deg, rgba($bg-primary, 0.84), rgba($bg-primary, 0.95));
-  backdrop-filter: blur(10px);
+  padding: 14px 20px 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.09);
+  background: linear-gradient(180deg, rgba($bg-primary, 0.66), rgba($bg-primary, 0.92));
+  backdrop-filter: blur(16px);
   flex-shrink: 0;
 }
 
@@ -598,14 +598,16 @@ function isImage(type: string): boolean {
   display: flex;
   align-items: center;
   gap: 10px;
-  background-color: $bg-input;
-  border: 1px solid $border-color;
-  border-radius: $radius-md;
+  background: rgba(31, 39, 43, 0.42);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
   padding: 10px 12px;
-  transition: border-color $transition-fast;
+  transition: border-color $transition-fast, box-shadow $transition-fast, background-color $transition-fast;
 
   &:focus-within {
-    border-color: $accent-primary;
+    border-color: rgba(#6dddff, 0.75);
+    box-shadow: 0 0 0 1px rgba(#6dddff, 0.3), 0 0 24px rgba(#6dddff, 0.12);
+    background: rgba(31, 39, 43, 0.52);
   }
 }
 
@@ -656,7 +658,8 @@ function isImage(type: string): boolean {
   justify-content: space-between;
   gap: 12px;
   font-size: 11px;
-  color: $text-muted;
+  color: rgba($text-muted, 0.95);
+  padding-inline: 4px;
 }
 
 // Drag-over state

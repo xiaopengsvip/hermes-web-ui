@@ -111,6 +111,18 @@ const activeStats = computed(() => {
   }
 })
 
+const streamPulse = computed(() => {
+  const now = Date.now()
+  const recent = chatStore.streamEvents.filter(e => now - e.timestamp <= 10_000)
+  const kbps = Math.min(9.9, recent.length * 0.18)
+  return `${kbps.toFixed(1)} MB/s`
+})
+
+const runtimeBadge = computed(() => {
+  if (isTerminalMode.value) return 'Terminal Hybrid'
+  return chatStore.activeSession?.model || appStore.selectedModel || 'Hermes Hybrid'
+})
+
 function setContentMode(mode: 'chat' | 'terminal') {
   const query = { ...route.query }
   if (mode === 'terminal') {
@@ -284,10 +296,11 @@ onMounted(async () => {
 <template>
   <div class="chat-panel-v2">
     <aside class="session-side" :class="{ collapsed: !showSessions }">
-      <header class="session-header">
-        <div>
-          <h3>会话中心</h3>
-          <p>默认显示全部：聊天 + 终端</p>
+      <header class="session-brand">
+        <div class="brand-icon">⌘</div>
+        <div v-if="showSessions" class="brand-copy">
+          <h3>工作站控制台</h3>
+          <p>系统就绪</p>
         </div>
         <NButton size="tiny" quaternary circle @click="showSessions = !showSessions">
           <template #icon>
@@ -298,6 +311,18 @@ onMounted(async () => {
           </template>
         </NButton>
       </header>
+
+      <div v-if="showSessions" class="workspace-nav">
+        <button class="workspace-nav-btn">
+          <span>主页</span>
+        </button>
+        <button class="workspace-nav-btn" :class="{ active: isTerminalMode }" @click="setContentMode('terminal')">
+          <span>终端</span>
+        </button>
+        <button class="workspace-nav-btn" :class="{ active: !isTerminalMode }" @click="setContentMode('chat')">
+          <span>聊天</span>
+        </button>
+      </div>
 
       <div v-if="showSessions" class="session-tools">
         <NInput v-model:value="sessionSearch" size="small" clearable :placeholder="t('chat.searchSessions')" />
@@ -343,6 +368,17 @@ onMounted(async () => {
     </aside>
 
     <section class="content-shell">
+      <header class="content-topbar">
+        <div class="topbar-left">
+          <strong>AI 混合工作站</strong>
+          <NInput v-model:value="sessionSearch" size="small" clearable placeholder="搜索会话/ID..." class="top-search" />
+        </div>
+        <div class="topbar-right">
+          <span class="meta-chip">{{ activeStats.primary }}</span>
+          <span class="meta-chip muted">{{ runtimeBadge }}</span>
+        </div>
+      </header>
+
       <header class="content-header">
         <div class="mode-switch">
           <button :class="{ active: !isTerminalMode }" @click="setContentMode('chat')">聊天</button>
@@ -351,8 +387,7 @@ onMounted(async () => {
 
         <div class="content-meta">
           <strong>{{ activeSessionLabel }}</strong>
-          <span>{{ activeStats.primary }}</span>
-          <span class="muted">{{ activeStats.model }}</span>
+          <span>{{ activeStats.secondary }}</span>
         </div>
 
         <div class="content-actions">
@@ -371,9 +406,19 @@ onMounted(async () => {
                 class="terminal-item"
                 :class="cmd.status"
               >
+                <div class="terminal-item-head">
+                  <span class="terminal-dot"></span>
+                  <span class="terminal-title">RUN: {{ cmd.command }}</span>
+                  <span class="terminal-duration">{{ cmd.duration }}ms</span>
+                </div>
                 <div class="terminal-command">$ {{ cmd.command }}</div>
                 <pre class="terminal-result">{{ cmd.output || '(no output)' }}</pre>
-                <div class="terminal-meta">{{ cmd.duration }}ms · code {{ cmd.exitCode ?? '-' }}</div>
+                <div class="terminal-meta">
+                  <span :class="['status', cmd.status === 'error' ? 'error' : cmd.exitCode === 0 ? 'ok' : 'run']">
+                    {{ cmd.status === 'running' ? '进行中' : cmd.exitCode === 0 ? '完成' : '失败' }}
+                  </span>
+                  <span>exit code {{ cmd.exitCode ?? '-' }}</span>
+                </div>
               </div>
               <div v-if="(terminalStore.activeSession?.commands.length || 0) === 0" class="terminal-empty">
                 这里显示终端会话输出，左侧会话列表保持不变。
@@ -401,6 +446,14 @@ onMounted(async () => {
 
     <ChatDataFlow :events="chatStore.streamEvents" :is-streaming="chatStore.isStreaming" @clear="chatStore.clearStreamEvents" />
 
+    <div class="floating-status">
+      <p>Network Traffic</p>
+      <strong>{{ streamPulse }}</strong>
+      <div class="bars">
+        <span></span><span></span><span></span><span></span><span></span>
+      </div>
+    </div>
+
     <NModal
       v-model:show="showRenameModal"
       preset="dialog"
@@ -422,52 +475,100 @@ onMounted(async () => {
   min-height: 0;
   display: grid;
   grid-template-columns: 300px minmax(0, 1fr) 320px;
-  background: radial-gradient(circle at 0% 0%, rgba($accent-primary, 0.08), transparent 42%);
+  position: relative;
+  background:
+    radial-gradient(circle at 18% 20%, rgba(#6dddff, 0.11), transparent 46%),
+    radial-gradient(circle at 82% 78%, rgba(#edb1ff, 0.1), transparent 48%),
+    linear-gradient(180deg, rgba($bg-primary, 0.96), rgba($bg-primary, 1));
 }
 
 .session-side {
-  border-right: 1px solid rgba($border-color, 0.65);
-  background: linear-gradient(180deg, rgba($bg-secondary, 0.78), rgba($bg-primary, 0.96));
+  border-right: 1px solid rgba(255, 255, 255, 0.09);
+  background: rgba(8, 14, 18, 0.66);
+  backdrop-filter: blur(20px);
   display: flex;
   flex-direction: column;
   min-width: 0;
 
   &.collapsed {
-    width: 56px;
-    min-width: 56px;
+    width: 58px;
+    min-width: 58px;
 
+    .workspace-nav,
     .session-tools,
     .session-list,
-    .session-header h3,
-    .session-header p {
+    .brand-copy {
       display: none;
     }
   }
 }
 
-.session-header {
-  padding: 12px;
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  border-bottom: 1px solid rgba($border-color, 0.5);
+.session-brand {
+  padding: 14px 12px;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.brand-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  color: #06222a;
+  font-weight: 800;
+  background: linear-gradient(145deg, #6dddff, #edb1ff);
+}
+
+.brand-copy {
+  min-width: 0;
 
   h3 {
     margin: 0;
-    font-size: 14px;
-    font-weight: 700;
+    font-size: 13px;
+    line-height: 1.2;
+    font-weight: 800;
   }
 
   p {
-    margin: 4px 0 0;
-    font-size: 11px;
-    color: $text-muted;
+    margin: 2px 0 0;
+    font-size: 10px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: rgba(#6dddff, 0.95);
+  }
+}
+
+.workspace-nav {
+  padding: 10px 10px 2px;
+  display: grid;
+  gap: 6px;
+}
+
+.workspace-nav-btn {
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.02);
+  color: $text-muted;
+  border-radius: 10px;
+  text-align: left;
+  padding: 8px 10px;
+  font-size: 12px;
+  cursor: pointer;
+
+  &.active,
+  &:hover {
+    color: #8be9ff;
+    background: rgba(#19d3ff, 0.14);
+    border-color: rgba(#19d3ff, 0.4);
   }
 }
 
 .session-tools {
   padding: 10px;
-  border-bottom: 1px solid rgba($border-color, 0.45);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .session-summary {
@@ -477,7 +578,7 @@ onMounted(async () => {
   flex-wrap: wrap;
 
   span {
-    font-size: 11px;
+    font-size: 10px;
     color: $text-secondary;
     border: 1px solid rgba($border-color, 0.6);
     border-radius: 999px;
@@ -497,36 +598,35 @@ onMounted(async () => {
 }
 
 .session-card {
-  border: 1px solid rgba($border-color, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.09);
   border-radius: 14px;
   padding: 12px;
-  background: linear-gradient(160deg, rgba($bg-primary, 0.95), rgba($bg-secondary, 0.55));
+  background: rgba(18, 25, 32, 0.55);
+  backdrop-filter: blur(10px);
   cursor: pointer;
-  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
 
   &:hover {
     transform: translateY(-1px);
-    border-color: rgba($accent-primary, 0.55);
-    box-shadow: 0 12px 22px rgba(0, 0, 0, 0.2);
+    border-color: rgba(#6dddff, 0.5);
+    box-shadow: 0 14px 22px rgba(4, 10, 14, 0.32);
   }
 
   &.active {
-    border-color: rgba($accent-primary, 0.95);
-    background: linear-gradient(145deg, rgba($accent-primary, 0.26), rgba($bg-secondary, 0.68));
-    box-shadow:
-      inset 0 0 0 1px rgba($accent-primary, 0.35),
-      0 16px 28px rgba($accent-primary, 0.2);
+    border-color: rgba(#6dddff, 0.9);
+    background: linear-gradient(145deg, rgba(#6dddff, 0.2), rgba(18, 25, 32, 0.55));
+    box-shadow: inset 0 0 0 1px rgba(#6dddff, 0.3);
   }
 
   &.terminal.active {
-    border-color: rgba(#4cc9f0, 0.95);
-    background: linear-gradient(145deg, rgba(#4cc9f0, 0.2), rgba($bg-secondary, 0.68));
+    border-color: rgba(#8bc5ff, 0.9);
+    background: linear-gradient(145deg, rgba(#8bc5ff, 0.2), rgba(18, 25, 32, 0.55));
   }
 
   h4 {
     margin: 8px 0 4px;
     font-size: 13px;
-    line-height: 1.4;
+    line-height: 1.35;
     word-break: break-word;
   }
 
@@ -548,15 +648,14 @@ onMounted(async () => {
   padding: 2px 8px;
   font-size: 10px;
   font-weight: 700;
-  letter-spacing: 0.5px;
-  border: 1px solid rgba($accent-primary, 0.5);
-  color: $accent-primary;
-  background: rgba($accent-primary, 0.12);
+  border: 1px solid rgba(#6dddff, 0.5);
+  color: #7ee7ff;
+  background: rgba(#6dddff, 0.15);
 
   &.terminal {
-    border-color: rgba(#4cc9f0, 0.6);
-    color: #7ad9ff;
-    background: rgba(#4cc9f0, 0.14);
+    border-color: rgba(#b0b4ff, 0.6);
+    color: #d8d7ff;
+    background: rgba(#b0b4ff, 0.15);
   }
 }
 
@@ -571,7 +670,7 @@ onMounted(async () => {
   margin-top: 10px;
 
   button {
-    border: 1px solid rgba($border-color, 0.7);
+    border: 1px solid rgba($border-color, 0.65);
     background: rgba($bg-secondary, 0.45);
     color: $text-secondary;
     border-radius: 999px;
@@ -579,11 +678,12 @@ onMounted(async () => {
     padding: 2px 8px;
     cursor: pointer;
 
-    &.danger { color: #ff909e; }
+    &.danger { color: #ff9aa5; }
+
     &.on {
-      color: $accent-primary;
-      border-color: rgba($accent-primary, 0.6);
-      background: rgba($accent-primary, 0.12);
+      color: #7ee7ff;
+      border-color: rgba(#6dddff, 0.56);
+      background: rgba(#6dddff, 0.15);
     }
   }
 }
@@ -601,19 +701,76 @@ onMounted(async () => {
   flex-direction: column;
 }
 
+.content-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  padding: 12px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  background: rgba(8, 14, 18, 0.48);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+
+  strong {
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: 0.2px;
+    background: linear-gradient(120deg, #77ecff, #e4b1ff);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+}
+
+.top-search {
+  width: 260px;
+}
+
+.topbar-right {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.meta-chip {
+  font-size: 11px;
+  color: $text-secondary;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  padding: 3px 9px;
+  background: rgba(255, 255, 255, 0.04);
+
+  &.muted {
+    color: $text-muted;
+  }
+}
+
 .content-header {
-  padding: 12px;
-  border-bottom: 1px solid rgba($border-color, 0.55);
+  margin: 12px 14px 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 10px;
   align-items: center;
-  background: linear-gradient(180deg, rgba($bg-secondary, 0.45), rgba($bg-primary, 0.18));
+  background: rgba(19, 26, 33, 0.56);
+  backdrop-filter: blur(16px);
 }
 
 .mode-switch {
   display: inline-flex;
-  border: 1px solid rgba($border-color, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.13);
   border-radius: 999px;
   padding: 3px;
   background: rgba($bg-primary, 0.58);
@@ -627,9 +784,10 @@ onMounted(async () => {
     cursor: pointer;
 
     &.active {
-      color: #fff;
-      background: linear-gradient(135deg, rgba($accent-primary, 0.92), rgba(#6f86ff, 0.92));
-      box-shadow: 0 6px 14px rgba($accent-primary, 0.35);
+      color: #021d2b;
+      font-weight: 700;
+      background: linear-gradient(130deg, #6dddff, #edb1ff);
+      box-shadow: 0 6px 14px rgba(#6dddff, 0.3);
     }
   }
 }
@@ -655,10 +813,6 @@ onMounted(async () => {
     border-radius: 999px;
     padding: 2px 8px;
     background: rgba($bg-secondary, 0.42);
-
-    &.muted {
-      color: $text-muted;
-    }
   }
 }
 
@@ -672,6 +826,7 @@ onMounted(async () => {
   min-height: 0;
   display: flex;
   flex-direction: column;
+  padding: 10px 14px 14px;
 }
 
 .terminal-shell {
@@ -679,33 +834,68 @@ onMounted(async () => {
   min-height: 0;
   display: flex;
   flex-direction: column;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  overflow: hidden;
+  background: rgba(13, 18, 24, 0.6);
+  backdrop-filter: blur(16px);
 }
 
 .terminal-output {
   flex: 1;
   min-height: 0;
   overflow: auto;
-  padding: 16px;
+  padding: 14px;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  background: radial-gradient(circle at 10% 0%, rgba(#4cc9f0, 0.08), transparent 28%);
 }
 
 .terminal-item {
-  border: 1px solid rgba($border-color, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
   padding: 10px;
-  background: rgba($bg-primary, 0.6);
+  background: rgba(5, 10, 14, 0.62);
+  box-shadow: 0 0 18px rgba(#6dddff, 0.08);
 
   &.error {
-    border-color: rgba(#ff6b78, 0.65);
+    border-color: rgba(#ff6b78, 0.7);
     background: rgba(#ff6b78, 0.08);
+  }
+}
+
+.terminal-item-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+
+  .terminal-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: #7cf2ff;
+    box-shadow: 0 0 12px rgba(#7cf2ff, 0.8);
+  }
+
+  .terminal-title {
+    font-size: 11px;
+    color: #aeeeff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .terminal-duration {
+    font-size: 10px;
+    color: $text-muted;
   }
 }
 
 .terminal-command {
   font-family: $font-code;
+  font-size: 12px;
   color: #7ad9ff;
   margin-bottom: 8px;
 }
@@ -723,26 +913,114 @@ onMounted(async () => {
   margin-top: 8px;
   font-size: 11px;
   color: $text-muted;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+
+  .status {
+    border-radius: 999px;
+    padding: 2px 8px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+
+    &.ok {
+      color: #8fffc6;
+      border-color: rgba(#8fffc6, 0.45);
+      background: rgba(#8fffc6, 0.12);
+    }
+
+    &.error {
+      color: #ffb1b8;
+      border-color: rgba(#ffb1b8, 0.45);
+      background: rgba(#ffb1b8, 0.12);
+    }
+
+    &.run {
+      color: #bde6ff;
+      border-color: rgba(#bde6ff, 0.45);
+      background: rgba(#bde6ff, 0.12);
+    }
+  }
 }
 
 .terminal-empty {
   text-align: center;
   color: $text-muted;
   font-size: 12px;
-  padding: 48px 0;
+  padding: 56px 0;
 }
 
 .terminal-input-row {
-  border-top: 1px solid rgba($border-color, 0.5);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
   padding: 10px;
   display: flex;
   gap: 8px;
   align-items: flex-end;
+  background: rgba(13, 18, 24, 0.75);
+}
+
+.floating-status {
+  position: fixed;
+  right: 18px;
+  bottom: 96px;
+  z-index: 12;
+  border: 1px solid rgba(#6dddff, 0.25);
+  background: rgba(11, 18, 24, 0.72);
+  backdrop-filter: blur(14px);
+  border-radius: 16px;
+  padding: 10px 12px;
+  min-width: 138px;
+
+  p {
+    margin: 0;
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: $text-muted;
+  }
+
+  strong {
+    display: block;
+    margin-top: 4px;
+    font-size: 13px;
+    color: #7ee7ff;
+    font-family: $font-code;
+  }
+
+  .bars {
+    margin-top: 8px;
+    display: flex;
+    gap: 3px;
+    align-items: flex-end;
+    height: 18px;
+
+    span {
+      display: block;
+      width: 3px;
+      border-radius: 99px 99px 0 0;
+      background: linear-gradient(180deg, #6dddff, #dcb3ff);
+      animation: pulse-bars 1.2s infinite ease-in-out;
+    }
+
+    span:nth-child(1) { height: 8px; }
+    span:nth-child(2) { height: 14px; animation-delay: 0.1s; }
+    span:nth-child(3) { height: 11px; animation-delay: 0.2s; }
+    span:nth-child(4) { height: 17px; animation-delay: 0.3s; }
+    span:nth-child(5) { height: 9px; animation-delay: 0.4s; }
+  }
+}
+
+@keyframes pulse-bars {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 1; }
 }
 
 @media (max-width: 1500px) {
   .chat-panel-v2 {
     grid-template-columns: 280px minmax(0, 1fr) 280px;
+  }
+
+  .top-search {
+    width: 220px;
   }
 }
 
@@ -751,8 +1029,32 @@ onMounted(async () => {
     grid-template-columns: 260px minmax(0, 1fr);
   }
 
-  .chat-panel-v2 :deep(.flow-rail) {
+  .chat-panel-v2 :deep(.flow-rail),
+  .floating-status {
     display: none;
+  }
+}
+
+@media (max-width: 860px) {
+  .chat-panel-v2 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .session-side {
+    display: none;
+  }
+
+  .content-topbar {
+    padding: 10px;
+  }
+
+  .topbar-left {
+    flex-direction: column;
+    align-items: flex-start;
+
+    strong {
+      font-size: 16px;
+    }
   }
 }
 </style>

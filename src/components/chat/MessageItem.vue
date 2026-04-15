@@ -18,6 +18,24 @@ const isSystem = computed(() => props.message.role === 'system')
 const isTool = computed(() => props.message.role === 'tool')
 const canResend = computed(() => props.message.role === 'user' && !chatStore.isStreaming)
 
+const relatedToolEvents = computed(() => {
+  if (!isTool.value) return [] as Array<{ id: string; event: string; label: string; timestamp: number; detail?: Record<string, any>; level?: 'info' | 'success' | 'error' }>
+
+  const name = props.message.toolName
+  const minTs = props.message.timestamp - 15000
+
+  return chatStore.streamEvents
+    .filter((evt) => {
+      if (evt.timestamp < minTs) return false
+      const detail = (evt.detail || {}) as Record<string, any>
+      const detailName = String(detail.toolName || detail.tool || detail.name || '')
+      const byMessage = detail.toolMessageId === props.message.id
+      const byName = Boolean(name && detailName && detailName === name)
+      return byMessage || (evt.event.startsWith('tool.') && byName)
+    })
+    .slice(0, 6)
+})
+
 const timeStr = computed(() => {
   const d = new Date(props.message.timestamp)
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -64,6 +82,19 @@ function toolStateLabel(status?: string) {
         </div>
 
         <p v-if="message.toolPreview" class="tool-preview">{{ message.toolPreview }}</p>
+
+        <div v-if="relatedToolEvents.length" class="tool-flow-inline">
+          <div
+            v-for="evt in relatedToolEvents"
+            :key="evt.id"
+            class="flow-line"
+            :class="evt.level || 'info'"
+          >
+            <span class="flow-dot"></span>
+            <span class="flow-label">{{ evt.label }}</span>
+            <time>{{ new Date(evt.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) }}</time>
+          </div>
+        </div>
 
         <div class="tool-actions">
           <button @click="showToolDetail = true">查看详情</button>
@@ -325,6 +356,58 @@ function toolStateLabel(status?: string) {
   margin: 8px 0 0;
   color: $text-secondary;
   font-size: 12px;
+}
+
+.tool-flow-inline {
+  margin-top: 8px;
+  border: 1px solid rgba($border-color, 0.5);
+  border-radius: 10px;
+  background: rgba($bg-primary, 0.5);
+  overflow: hidden;
+}
+
+.flow-line {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-top: 1px solid rgba($border-color, 0.35);
+
+  &:first-child {
+    border-top: none;
+  }
+
+  .flow-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: #6ea8ff;
+    box-shadow: 0 0 8px rgba(110, 168, 255, 0.6);
+  }
+
+  &.success .flow-dot {
+    background: #34d399;
+    box-shadow: 0 0 8px rgba(52, 211, 153, 0.65);
+  }
+
+  &.error .flow-dot {
+    background: #ff6b78;
+    box-shadow: 0 0 8px rgba(255, 107, 120, 0.65);
+  }
+
+  .flow-label {
+    font-size: 11px;
+    color: $text-secondary;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  time {
+    font-size: 10px;
+    color: $text-muted;
+  }
 }
 
 .tool-actions {

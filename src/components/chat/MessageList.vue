@@ -78,13 +78,17 @@ onMounted(() => {
 .message-list {
   height: 100%;
   overflow-y: auto;
-  padding: 24px 26px 20px;
+  padding: 20px 22px 18px;
   display: flex;
   flex-direction: column;
   gap: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
   background:
-    radial-gradient(circle at 0% 0%, rgba($accent-primary, 0.05) 0%, rgba($accent-primary, 0) 40%),
-    radial-gradient(circle at 100% 100%, rgba($accent-primary, 0.04) 0%, rgba($accent-primary, 0) 42%);
+    radial-gradient(circle at 0% 0%, rgba($accent-primary, 0.06) 0%, rgba($accent-primary, 0) 42%),
+    radial-gradient(circle at 100% 100%, rgba(#b68cff, 0.06) 0%, rgba(#b68cff, 0) 45%),
+    rgba(14, 20, 26, 0.58);
+  backdrop-filter: blur(14px);
 }
 
 .empty-state {

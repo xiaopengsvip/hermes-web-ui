@@ -411,10 +411,11 @@ export const useChatStore = defineStore('chat', () => {
         runId,
         // onEvent
         (evt: RunEvent) => {
-          pushStreamEvent(evt.event, evt as Record<string, any>, evt.event === 'run.failed' ? 'error' : 'info')
           switch (evt.event) {
-            case 'run.started':
+            case 'run.started': {
+              pushStreamEvent('run.started', { runId })
               break
+            }
 
             case 'message.delta': {
               const last = messages.value[messages.value.length - 1]
@@ -429,6 +430,10 @@ export const useChatStore = defineStore('chat', () => {
                   isStreaming: true,
                 })
               }
+              pushStreamEvent('message.delta', {
+                runId,
+                chars: (evt.delta || '').length,
+              })
               break
             }
 
@@ -437,30 +442,55 @@ export const useChatStore = defineStore('chat', () => {
               if (last?.isStreaming) {
                 updateMessage(last.id, { isStreaming: false })
               }
+
+              const toolName = evt.tool || evt.name || 'Tool'
+              const toolMessageId = uid()
+
               addMessage({
-                id: uid(),
+                id: toolMessageId,
                 role: 'tool',
                 content: '',
                 timestamp: Date.now(),
-                toolName: evt.tool || evt.name,
+                toolName,
                 toolPreview: evt.preview,
                 toolStatus: 'running',
+              })
+
+              pushStreamEvent('tool.started', {
+                runId,
+                toolName,
+                toolMessageId,
+                preview: evt.preview,
               })
               break
             }
 
             case 'tool.completed': {
-              const toolMsgs = messages.value.filter(
-                m => m.role === 'tool' && m.toolStatus === 'running',
-              )
-              if (toolMsgs.length > 0) {
-                const last = toolMsgs[toolMsgs.length - 1]
-                updateMessage(last.id, { toolStatus: 'done' })
+              const toolName = evt.tool || evt.name
+              const toolMsgs = messages.value
+                .filter(m => m.role === 'tool' && m.toolStatus === 'running')
+                .filter(m => (toolName ? m.toolName === toolName : true))
+
+              const fallback = messages.value.filter(m => m.role === 'tool' && m.toolStatus === 'running')
+              const target = toolMsgs[toolMsgs.length - 1] || fallback[fallback.length - 1]
+
+              if (target) {
+                updateMessage(target.id, {
+                  toolStatus: 'done',
+                  toolPreview: evt.preview || target.toolPreview,
+                })
               }
+
+              pushStreamEvent('tool.completed', {
+                runId,
+                toolName: toolName || target?.toolName,
+                toolMessageId: target?.id,
+                preview: evt.preview,
+              }, 'success')
               break
             }
 
-            case 'run.completed':
+            case 'run.completed': {
               const lastMsg = messages.value[messages.value.length - 1]
               if (lastMsg?.isStreaming) {
                 updateMessage(lastMsg.id, { isStreaming: false })
@@ -470,8 +500,9 @@ export const useChatStore = defineStore('chat', () => {
               updateSessionTitle()
               pushStreamEvent('run.completed', { runId }, 'success')
               break
+            }
 
-            case 'run.failed':
+            case 'run.failed': {
               const lastErr = messages.value[messages.value.length - 1]
               if (lastErr?.isStreaming) {
                 updateMessage(lastErr.id, {
@@ -496,6 +527,10 @@ export const useChatStore = defineStore('chat', () => {
               abortController.value = null
               pushStreamEvent('run.failed', { runId, error: evt.error }, 'error')
               break
+            }
+
+            default:
+              pushStreamEvent(evt.event, evt as Record<string, any>, evt.event.includes('failed') ? 'error' : 'info')
           }
         },
         // onDone
