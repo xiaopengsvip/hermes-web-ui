@@ -187,6 +187,10 @@ const groupedSessions = computed<SessionGroup[]>(() => {
 const chatSessionCount = computed(() => allSessions.value.filter(s => s.type === 'chat').length)
 const terminalSessionCount = computed(() => allSessions.value.filter(s => s.type === 'terminal').length)
 const displayedSessionCount = computed(() => filteredSessions.value.length)
+const showSessionGroupNav = computed(() => {
+  const hasSearchKeyword = sessionSearch.value.trim().length > 0
+  return hasSearchKeyword || displayedSessionCount.value > 14
+})
 const latestRuntimeNotifications = computed(() => runtimeJobNotifications.value.slice(0, 6))
 const runtimeNoticeBadge = computed(() => runtimeJobNotifications.value.length)
 
@@ -884,7 +888,7 @@ onBeforeUnmount(() => {
             </template>
           </NInput>
 
-          <div v-if="displayedSessionCount > 0" class="session-group-nav" role="tablist" :aria-label="t('chat.workspace.sessionDateGroups')">
+          <div v-if="showSessionGroupNav && displayedSessionCount > 0" class="session-group-nav" role="tablist" :aria-label="t('chat.workspace.sessionDateGroups')">
             <button
               v-for="group in groupedSessions"
               :key="`group-nav-${group.key}`"
@@ -1230,7 +1234,7 @@ onBeforeUnmount(() => {
 @use '@/styles/variables' as *;
 
 .chat-panel-v2 {
-  --session-side-width: 248px;
+  --session-side-width: 236px;
   --cp-accent-rgb: var(--theme-primary-rgb, 102, 126, 234);
   --cp-accent: rgba(var(--cp-accent-rgb), 0.92);
   --cp-accent-soft: rgba(var(--cp-accent-rgb), 0.16);
@@ -1363,14 +1367,14 @@ onBeforeUnmount(() => {
 
 .session-tools {
   flex-shrink: 0;
-  padding: 9px;
+  padding: 8px;
   border-bottom: 1px solid var(--cp-border);
 }
 
 .session-control-shell {
   border: 1px solid var(--cp-border);
   border-radius: 12px;
-  padding: 8px;
+  padding: 7px;
   background:
     linear-gradient(
       140deg,
@@ -1806,16 +1810,16 @@ onBeforeUnmount(() => {
 }
 
 .content-header {
-  margin-top: 12px;
+  margin-top: 8px;
   padding: 0 var(--content-padding-x);
 }
 
 .content-header-shell {
   width: var(--content-max-width);
   margin: 0;
-  padding: 10px 12px;
+  padding: 8px 10px;
   border: 1px solid var(--cp-border);
-  border-radius: 14px;
+  border-radius: 12px;
   background:
     linear-gradient(
       135deg,
@@ -2465,7 +2469,7 @@ onBeforeUnmount(() => {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: 12px var(--content-padding-x) 18px;
+  padding: 8px var(--content-padding-x) 14px;
   overflow: hidden;
 }
 
@@ -2538,11 +2542,6 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid var(--cp-border);
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--cp-surface-strong) 92%, transparent);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--theme-text, #fff) 7%, transparent);
-  padding: 8px;
 }
 
 .terminal-shell {
