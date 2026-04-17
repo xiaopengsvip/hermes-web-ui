@@ -1234,7 +1234,7 @@ onBeforeUnmount(() => {
 @use '@/styles/variables' as *;
 
 .chat-panel-v2 {
-  --session-side-width: 236px;
+  --session-side-width: clamp(248px, 20vw, 304px);
   --cp-accent-rgb: var(--theme-primary-rgb, 102, 126, 234);
   --cp-accent: rgba(var(--cp-accent-rgb), 0.92);
   --cp-accent-soft: rgba(var(--cp-accent-rgb), 0.16);
@@ -1367,14 +1367,14 @@ onBeforeUnmount(() => {
 
 .session-tools {
   flex-shrink: 0;
-  padding: 8px;
+  padding: clamp(8px, 0.8vw, 11px);
   border-bottom: 1px solid var(--cp-border);
 }
 
 .session-control-shell {
   border: 1px solid var(--cp-border);
   border-radius: 12px;
-  padding: 7px;
+  padding: clamp(7px, 0.7vw, 10px);
   background:
     linear-gradient(
       140deg,
@@ -2675,7 +2675,7 @@ onBeforeUnmount(() => {
 
 @media (max-width: 1500px) {
   .chat-panel-v2 {
-    --session-side-width: 236px;
+    --session-side-width: clamp(232px, 24vw, 280px);
   }
 
   .chat-panel-v2.sessions-collapsed {
@@ -2685,7 +2685,7 @@ onBeforeUnmount(() => {
 
 @media (max-width: 1200px) {
   .chat-panel-v2 {
-    --session-side-width: 220px;
+    --session-side-width: clamp(212px, 28vw, 248px);
   }
 
   .chat-panel-v2.sessions-collapsed {
