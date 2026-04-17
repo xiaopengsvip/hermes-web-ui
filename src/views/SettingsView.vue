@@ -36,16 +36,22 @@ const providerOptions = computed(() => authProviders.value.map(p => ({
   value: p.provider,
 })))
 
-const currentProviderAccounts = computed(() => authProviders.value.find(p => p.provider === selectedProvider.value)?.entries || [])
-const currentActiveAccount = computed(() => currentProviderAccounts.value.find(e => e.index === 1) || null)
+const currentProvider = computed(() => authProviders.value.find(p => p.provider === selectedProvider.value) || null)
+const currentProviderAccounts = computed(() => currentProvider.value?.entries || [])
+const currentActiveAccount = computed(() => {
+  if (!currentProvider.value) return null
+  const activeIndex = currentProvider.value.activeIndex || 1
+  return currentProviderAccounts.value.find(e => e.index === activeIndex) || null
+})
 
-const allAccounts = computed(() => authProviders.value.flatMap(provider =>
-  (provider.entries || []).map(entry => ({
+const allAccounts = computed(() => authProviders.value.flatMap(provider => {
+  const activeIndex = provider.activeIndex || 1
+  return (provider.entries || []).map(entry => ({
     provider: provider.provider,
     entry,
-    isCurrent: entry.index === 1,
-  })),
-))
+    isCurrent: entry.index === activeIndex,
+  }))
+}))
 
 function providerDisplayName(provider: string) {
   if (provider === 'openai-codex') return 'openai-codex（Codex）'
@@ -116,12 +122,12 @@ async function loadAuthAccounts() {
   }
 }
 
-async function handleSwitchAccount(provider: string, index: number) {
-  if (!provider) return
+async function handleSwitchAccount(provider: string, target: string | number) {
+  if (!provider || target === undefined || target === null || String(target).trim() === '') return
   selectedProvider.value = provider
   switchingAccount.value = true
   try {
-    const resp = await switchAuthCredential(provider, index)
+    const resp = await switchAuthCredential(provider, target)
     if (resp?.success) {
       message.success(t('settings.authSwitchSuccess'))
       await loadAuthAccounts()
@@ -137,11 +143,11 @@ async function handleSwitchAccount(provider: string, index: number) {
   }
 }
 
-function handleAccountRowKeydown(event: KeyboardEvent, provider: string, index: number, disabled: boolean) {
+function handleAccountRowKeydown(event: KeyboardEvent, provider: string, target: string | number, disabled: boolean) {
   if (disabled) return
   if (event.key !== 'Enter' && event.key !== ' ') return
   event.preventDefault()
-  handleSwitchAccount(provider, index)
+  handleSwitchAccount(provider, target)
 }
 
 async function handleAddAccount() {
@@ -492,9 +498,9 @@ onBeforeUnmount(() => {
               :class="{ clickable: !row.isCurrent, current: row.isCurrent }"
               role="button"
               tabindex="0"
-              :aria-label="`切换到 ${row.provider} ${row.entry.label}`"
-              @click="!row.isCurrent && handleSwitchAccount(row.provider, row.entry.index)"
-              @keydown="handleAccountRowKeydown($event, row.provider, row.entry.index, row.isCurrent)"
+              :aria-label="t('settings.switchToAccountAria', { provider: row.provider, label: row.entry.label })"
+              @click="!row.isCurrent && handleSwitchAccount(row.provider, row.entry.id || row.entry.label || row.entry.index)"
+              @keydown="handleAccountRowKeydown($event, row.provider, row.entry.id || row.entry.label || row.entry.index, row.isCurrent)"
             >
               <div class="auth-account-info">
                 <div class="auth-account-meta">
@@ -517,7 +523,7 @@ onBeforeUnmount(() => {
                 tertiary
                 :disabled="row.isCurrent"
                 :loading="switchingAccount"
-                @click.stop="handleSwitchAccount(row.provider, row.entry.index)"
+                @click.stop="handleSwitchAccount(row.provider, row.entry.id || row.entry.label || row.entry.index)"
               >
                 {{ row.isCurrent ? t('settings.authCurrent') : t('settings.authSwitchButton') }}
               </NButton>

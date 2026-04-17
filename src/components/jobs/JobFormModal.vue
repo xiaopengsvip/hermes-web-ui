@@ -24,7 +24,7 @@ const formData = ref({
   name: '',
   schedule: '',
   prompt: '',
-  deliver: 'origin',
+  deliver: 'local',
   repeat_times: null as number | null,
 })
 
@@ -47,6 +47,23 @@ const targetOptions = [
   { label: t('jobs.target.local'), value: 'local' },
 ]
 
+const cronSummary = computed(() => {
+  const v = formData.value.schedule.trim()
+  if (!v) return t('jobs.cronSummary.empty')
+  const hit = schedulePresets.find((item) => item.value === v)
+  if (hit) return t('jobs.cronSummary.fromPreset', { label: hit.label })
+  if (/^\* \* \* \* \*$/.test(v)) return t('jobs.cronSummary.everyMinute')
+  if (/^\*\/\d+ \* \* \* \*$/.test(v)) return t('jobs.cronSummary.everyNMinutes')
+  if (/^0 \* \* \* \*$/.test(v)) return t('jobs.cronSummary.everyHour')
+  return t('jobs.cronSummary.custom')
+})
+
+function applyPreset(value: string | null) {
+  if (!value) return
+  presetValue.value = value
+  formData.value.schedule = value
+}
+
 onMounted(async () => {
   if (props.jobId) {
     try {
@@ -56,7 +73,7 @@ onMounted(async () => {
         name: job.name,
         schedule: typeof job.schedule === 'string' ? job.schedule : (job.schedule?.expr || job.schedule_display || ''),
         prompt: job.prompt,
-        deliver: job.deliver || 'origin',
+        deliver: job.deliver || 'local',
         repeat_times: typeof job.repeat === 'number' ? job.repeat : (typeof job.repeat === 'object' ? job.repeat.times : null),
       }
     } catch (e: any) {
@@ -111,7 +128,7 @@ function handleClose() {
     v-model:show="showModal"
     preset="card"
     :title="isEdit ? t('jobs.editJob') : t('jobs.createJob')"
-    :style="{ width: '520px' }"
+    :style="{ width: 'min(520px, 94vw)' }"
     :mask-closable="!loading"
     @after-leave="emit('close')"
   >
@@ -130,6 +147,10 @@ function handleClose() {
           v-model:value="formData.schedule"
           :placeholder="t('jobs.placeholder.scheduleExample')"
         />
+        <div class="cron-helper">
+          <p>{{ t('jobs.cronGuide') }}</p>
+          <small>{{ cronSummary }}</small>
+        </div>
       </NFormItem>
 
       <NFormItem :label="t('jobs.quickPresets')">
@@ -137,8 +158,20 @@ function handleClose() {
           v-model:value="presetValue"
           :options="schedulePresets"
           :placeholder="t('jobs.placeholder.selectPreset')"
-          @update:value="v => formData.schedule = v"
+          @update:value="v => applyPreset(v)"
         />
+        <div class="preset-chip-row">
+          <button
+            v-for="item in schedulePresets"
+            :key="`chip-${item.value}`"
+            type="button"
+            class="preset-chip"
+            :class="{ active: formData.schedule === item.value }"
+            @click="applyPreset(item.value)"
+          >
+            {{ item.label }}
+          </button>
+        </div>
       </NFormItem>
 
       <NFormItem :label="t('jobs.jobPrompt')" required>
@@ -182,6 +215,57 @@ function handleClose() {
 </template>
 
 <style scoped lang="scss">
+.cron-helper {
+  margin-top: 6px;
+  border: 1px solid color-mix(in srgb, rgba(255, 255, 255, 0.2) 82%, transparent);
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: color-mix(in srgb, rgba(103, 166, 255, 0.14) 72%, transparent);
+  display: grid;
+  gap: 4px;
+
+  p {
+    margin: 0;
+    font-size: 12px;
+    color: rgba(223, 238, 255, 0.92);
+  }
+
+  small {
+    color: rgba(183, 211, 239, 0.88);
+    font-size: 11px;
+  }
+}
+
+.preset-chip-row {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.preset-chip {
+  border: 1px solid color-mix(in srgb, rgba(121, 194, 255, 0.36) 90%, transparent);
+  background: color-mix(in srgb, rgba(84, 149, 224, 0.18) 76%, transparent);
+  color: rgba(215, 234, 255, 0.92);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 11px;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: border-color 0.16s ease, background-color 0.16s ease, color 0.16s ease;
+
+  &:hover {
+    border-color: rgba(121, 194, 255, 0.66);
+    background: rgba(94, 166, 255, 0.24);
+  }
+
+  &.active {
+    border-color: rgba(116, 214, 255, 0.86);
+    background: rgba(86, 191, 255, 0.3);
+    color: #f4fbff;
+  }
+}
+
 .modal-footer {
   display: flex;
   justify-content: flex-end;

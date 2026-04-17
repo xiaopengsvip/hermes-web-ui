@@ -52,6 +52,10 @@ function setMotion(mode: 'low' | 'medium' | 'high') {
   themeStore.setMotion(mode)
 }
 
+function setFontMode(mode: 'auto' | 'balanced' | 'readable') {
+  themeStore.setFontMode(mode)
+}
+
 function getThemeName(theme: { name: string; nameZh: string }): string {
   return locale.value === 'zh-CN' ? theme.nameZh : theme.name
 }
@@ -130,6 +134,14 @@ function getThemePreviewStyle(themeId: string) {
             <button class="ux-btn" :class="{ active: themeStore.motionMode === 'low' }" @click="setMotion('low')">{{ t('theme.low') }}</button>
             <button class="ux-btn" :class="{ active: themeStore.motionMode === 'medium' }" @click="setMotion('medium')">{{ t('theme.medium') }}</button>
             <button class="ux-btn" :class="{ active: themeStore.motionMode === 'high' }" @click="setMotion('high')">{{ t('theme.high') }}</button>
+          </div>
+        </div>
+        <div class="ux-row">
+          <span class="ux-label">{{ t('theme.font') }}</span>
+          <div class="ux-actions">
+            <button class="ux-btn" :class="{ active: themeStore.fontMode === 'auto' }" @click="setFontMode('auto')">{{ t('theme.fontAuto') }}</button>
+            <button class="ux-btn" :class="{ active: themeStore.fontMode === 'balanced' }" @click="setFontMode('balanced')">{{ t('theme.fontBalanced') }}</button>
+            <button class="ux-btn" :class="{ active: themeStore.fontMode === 'readable' }" @click="setFontMode('readable')">{{ t('theme.fontReadable') }}</button>
           </div>
         </div>
       </div>
@@ -310,6 +322,8 @@ function getThemePreviewStyle(themeId: string) {
 .ux-actions {
   display: flex;
   gap: 4px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .ux-btn {

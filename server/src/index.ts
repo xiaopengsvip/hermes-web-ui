@@ -25,6 +25,7 @@ import { projectCenterRoutes } from './routes/project-center'
 import { configCenterRoutes } from './routes/config-center'
 import { securityCenterRoutes, initSecurityCenterScheduler } from './routes/security-center'
 import * as hermesCli from './services/hermes-cli'
+import { enforceAccessControl } from './middleware/access-control'
 const { restartGateway } = hermesCli
 
 let serverInstance: ReturnType<Koa['listen']> | null = null
@@ -41,6 +42,7 @@ export async function bootstrap() {
 
   app.use(cors({ origin: config.corsOrigins }))
   app.use(bodyParser())
+  app.use(enforceAccessControl)
 
   app.use(webhookRoutes.routes())
   app.use(logRoutes.routes())
@@ -81,8 +83,8 @@ export async function bootstrap() {
     }
   })
 
-  serverInstance = app.listen(config.port, '0.0.0.0', () => {
-    console.log(`  ➜  Hermes BFF Server: http://localhost:${config.port}`)
+  serverInstance = app.listen(config.port, config.host, () => {
+    console.log(`  ➜  Hermes BFF Server: http://${config.host}:${config.port}`)
     console.log(`  ➜  Upstream: ${config.upstream}`)
   })
 

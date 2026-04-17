@@ -2,12 +2,14 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
-  NButton, NSpin, NTag, NEmpty, NPopconfirm, useMessage, NCard, NStatistic, NGrid
+  NButton, NSpin, NTag, NEmpty, NPopconfirm, useMessage, NCard, NStatistic, NGrid, NInput
 } from 'naive-ui'
 import {
   fetchSystemStatus, wakeHermes, restartGateway, stopGateway,
   fetchActiveSessions, shutdownWebUI, restartWebUI,
-  type SystemStatus, type ActiveSession
+  fetchDashboardStatus, startDashboard,
+  fetchCloudflareTunnelStatus, startCloudflareTunnel, stopCloudflareTunnel,
+  type SystemStatus, type ActiveSession, type DashboardStatus, type CloudflareTunnelStatus
 } from '@/api/system'
 import { fetchLogs } from '@/api/logs'
 
@@ -15,6 +17,9 @@ const { t } = useI18n()
 const message = useMessage()
 
 const status = ref<SystemStatus | null>(null)
+const dashboard = ref<DashboardStatus | null>(null)
+const tunnel = ref<CloudflareTunnelStatus | null>(null)
+const tunnelTarget = ref('http://127.0.0.1:8650')
 const activeSessions = ref<ActiveSession[]>([])
 const loading = ref(true)
 const logsLoading = ref(false)
@@ -33,11 +38,34 @@ async function loadStatus() {
   try {
     const data = await fetchSystemStatus()
     status.value = data
+    dashboard.value = data.dashboard || null
+
+    if (!dashboard.value) {
+      try {
+        dashboard.value = await fetchDashboardStatus()
+      } catch {
+        // ignore dashboard fallback failure
+      }
+    }
+
     error.value = ''
   } catch (err: any) {
     error.value = err.message || t('services.messages.fetchStatusFailed')
   } finally {
     loading.value = false
+  }
+}
+
+async function loadTunnelStatus() {
+  try {
+    const data = await fetchCloudflareTunnelStatus()
+    tunnel.value = data
+    tunnelTarget.value = data.target_url || tunnelTarget.value
+  } catch (err: any) {
+    tunnel.value = null
+    if (!error.value) {
+      error.value = err.message || t('services.messages.fetchStatusFailed')
+    }
   }
 }
 
@@ -151,6 +179,72 @@ async function handleWebUIShutdown() {
   }
 }
 
+async function handleDashboardStart() {
+  actionLoading.value = 'dashboard-start'
+  try {
+    const res = await startDashboard()
+    if (res.success) {
+      message.success(t('services.messages.dashboardStarted'))
+    } else {
+      message.error(res.error || t('services.messages.dashboardStartFailed'))
+    }
+    await loadStatus()
+  } catch (err: any) {
+    message.error(err.message || t('services.messages.dashboardStartFailed'))
+  } finally {
+    actionLoading.value = ''
+  }
+}
+
+async function handleTunnelStart() {
+  actionLoading.value = 'tunnel-start'
+  try {
+    const res = await startCloudflareTunnel(tunnelTarget.value.trim())
+    if (!res.success) {
+      message.error(res.error || t('services.messages.tunnelStartFailed'))
+      return
+    }
+    message.success(t('services.messages.tunnelStarted'))
+    await loadTunnelStatus()
+  } catch (err: any) {
+    message.error(err.message || t('services.messages.tunnelStartFailed'))
+  } finally {
+    actionLoading.value = ''
+  }
+}
+
+async function handleTunnelStop() {
+  actionLoading.value = 'tunnel-stop'
+  try {
+    const res = await stopCloudflareTunnel()
+    if (!res.success) {
+      message.error(res.error || t('services.messages.tunnelStopFailed'))
+      return
+    }
+    message.success(t('services.messages.tunnelStopped'))
+    await loadTunnelStatus()
+  } catch (err: any) {
+    message.error(err.message || t('services.messages.tunnelStopFailed'))
+  } finally {
+    actionLoading.value = ''
+  }
+}
+
+async function copyTunnelUrl() {
+  if (!tunnel.value?.public_url) return
+  try {
+    await navigator.clipboard.writeText(tunnel.value.public_url)
+    message.success(t('services.messages.tunnelUrlCopied'))
+  } catch {
+    message.error(t('common.copyFailed'))
+  }
+}
+
+function handleDashboardOpen() {
+  const url = dashboard.value?.url || 'http://127.0.0.1:9119'
+  window.open(url, '_blank', 'noopener')
+}
+
 function getStatusType(st: string): 'success' | 'warning' | 'error' | 'default' {
   switch (st) {
     case 'running': return 'success'
@@ -165,6 +259,7 @@ function getServiceIcon(type: string): string {
     case 'agent': return '🤖'
     case 'gateway': return '🌐'
     case 'web-ui': return '🖥️'
+    case 'dashboard': return '📊'
     case 'hermes': return '⚡'
     default: return '📦'
   }
@@ -197,16 +292,19 @@ function refresh() {
   loadStatus()
   loadActiveSessions()
   loadServiceLogs()
+  loadTunnelStatus()
 }
 
 onMounted(() => {
   loadStatus()
   loadActiveSessions()
   loadServiceLogs()
+  loadTunnelStatus()
   pollTimer = setInterval(() => {
     loadStatus()
     loadActiveSessions()
     loadServiceLogs()
+    loadTunnelStatus()
   }, 15000)
 })
 
@@ -258,7 +356,7 @@ onUnmounted(() => {
         <section class="section">
           <h3>{{ t('services.legacyBrand.title') }}</h3>
           <div class="legacy-brand-card">
-            <img src="/assets/logo.png" alt="Hermes" class="legacy-brand-avatar" />
+            <img src="/hermes-avatar.webp" alt="Hermes" class="legacy-brand-avatar" loading="lazy" decoding="async" />
             <div class="legacy-brand-meta">
               <div class="legacy-brand-name">Hermes</div>
               <div class="legacy-brand-desc">{{ t('services.legacyBrand.description') }}</div>
@@ -266,64 +364,135 @@ onUnmounted(() => {
           </div>
         </section>
 
-        <!-- Gateway Actions -->
+        <!-- Unified Service Control -->
         <section class="section">
-          <h3>{{ t('services.gatewayControl') }}</h3>
-          <div class="action-bar">
-            <NButton
-              v-if="status.gateway_status !== 'running'"
-              type="primary"
-              size="small"
-              :loading="actionLoading === 'wake'"
-              @click="handleWake"
-            >
-              ▶ {{ t('services.actions.startGateway') }}
-            </NButton>
-            <NButton
-              v-if="status.gateway_status === 'running'"
-              size="small"
-              :loading="actionLoading === 'restart'"
-              @click="handleRestart"
-            >
-              ↻ {{ t('services.actions.restart') }}
-            </NButton>
-            <NPopconfirm
-              v-if="status.gateway_status === 'running'"
-              @positive-click="handleStop"
-            >
-              <template #trigger>
-                <NButton size="small" type="error" :loading="actionLoading === 'stop'">
-                  ■ {{ t('services.actions.stop') }}
-                </NButton>
-              </template>
-              {{ t('services.messages.stopGatewayConfirm') }}
-            </NPopconfirm>
-            <NTag :type="getStatusType(status.gateway_status)" size="small">
-              {{ t('services.gatewayStatus', { status: status.gateway_status }) }}
-            </NTag>
+          <div class="section-title-row section-title-row-top">
+            <h3>{{ t('services.unifiedControl.title') }}</h3>
+            <span class="control-subtitle">{{ t('services.unifiedControl.subtitle') }}</span>
           </div>
-        </section>
 
-        <!-- Web UI Control -->
-        <section class="section">
-          <h3>{{ t('services.webuiControl') }}</h3>
-          <div class="action-bar">
-            <NButton
-              size="small"
-              :loading="actionLoading === 'webui-restart'"
-              @click="handleWebUIRestart"
-            >
-              ↻ {{ t('services.actions.restartWebui') }}
-            </NButton>
-            <NPopconfirm @positive-click="handleWebUIShutdown">
-              <template #trigger>
-                <NButton size="small" type="error" :loading="actionLoading === 'webui-shutdown'">
-                  ■ {{ t('services.actions.stopWebui') }}
+          <div class="control-groups">
+            <div class="control-group">
+              <div class="control-group-title">{{ t('services.gatewayControl') }}</div>
+              <div class="action-bar">
+                <NButton
+                  v-if="status.gateway_status !== 'running'"
+                  type="primary"
+                  size="small"
+                  :loading="actionLoading === 'wake'"
+                  @click="handleWake"
+                >
+                  ▶ {{ t('services.actions.startGateway') }}
                 </NButton>
-              </template>
-              {{ t('services.messages.stopWebuiConfirm') }}
-            </NPopconfirm>
-            <NTag type="success" size="small">{{ t('services.webuiRunning') }}</NTag>
+                <NButton
+                  v-if="status.gateway_status === 'running'"
+                  size="small"
+                  :loading="actionLoading === 'restart'"
+                  @click="handleRestart"
+                >
+                  ↻ {{ t('services.actions.restart') }}
+                </NButton>
+                <NPopconfirm
+                  v-if="status.gateway_status === 'running'"
+                  @positive-click="handleStop"
+                >
+                  <template #trigger>
+                    <NButton size="small" type="error" :loading="actionLoading === 'stop'">
+                      ■ {{ t('services.actions.stop') }}
+                    </NButton>
+                  </template>
+                  {{ t('services.messages.stopGatewayConfirm') }}
+                </NPopconfirm>
+                <NTag :type="getStatusType(status.gateway_status)" size="small">
+                  {{ t('services.gatewayStatus', { status: status.gateway_status }) }}
+                </NTag>
+              </div>
+            </div>
+
+            <div class="control-group">
+              <div class="control-group-title">{{ t('services.webuiControl') }}</div>
+              <div class="action-bar">
+                <NButton
+                  size="small"
+                  :loading="actionLoading === 'webui-restart'"
+                  @click="handleWebUIRestart"
+                >
+                  ↻ {{ t('services.actions.restartWebui') }}
+                </NButton>
+                <NPopconfirm @positive-click="handleWebUIShutdown">
+                  <template #trigger>
+                    <NButton size="small" type="error" :loading="actionLoading === 'webui-shutdown'">
+                      ■ {{ t('services.actions.stopWebui') }}
+                    </NButton>
+                  </template>
+                  {{ t('services.messages.stopWebuiConfirm') }}
+                </NPopconfirm>
+                <NTag type="success" size="small">{{ t('services.webuiRunning') }}</NTag>
+              </div>
+            </div>
+
+            <div class="control-group">
+              <div class="control-group-title">{{ t('services.dashboardControl') }}</div>
+              <div class="action-bar">
+                <NButton
+                  v-if="dashboard?.status !== 'running'"
+                  type="primary"
+                  size="small"
+                  :loading="actionLoading === 'dashboard-start'"
+                  @click="handleDashboardStart"
+                >
+                  ▶ {{ t('services.actions.startDashboard') }}
+                </NButton>
+                <NButton size="small" @click="handleDashboardOpen">
+                  ↗ {{ t('services.actions.openDashboard') }}
+                </NButton>
+                <NTag :type="getStatusType(dashboard?.status || 'unknown')" size="small">
+                  {{ t('services.dashboardStatus', { status: dashboard?.status || 'unknown' }) }}
+                </NTag>
+                <span v-if="dashboard?.url" class="dashboard-url">{{ dashboard.url }}</span>
+              </div>
+            </div>
+
+            <div class="control-group control-group-tunnel">
+              <div class="control-group-title">{{ t('services.tunnelControl') }}</div>
+              <div class="action-bar tunnel-bar">
+                <NInput
+                  v-model:value="tunnelTarget"
+                  size="small"
+                  class="tunnel-target-input"
+                  :placeholder="t('services.tunnelTargetPlaceholder')"
+                />
+                <NButton
+                  size="small"
+                  type="primary"
+                  :loading="actionLoading === 'tunnel-start'"
+                  @click="handleTunnelStart"
+                >
+                  ▶ {{ t('services.actions.startTunnel') }}
+                </NButton>
+                <NPopconfirm @positive-click="handleTunnelStop">
+                  <template #trigger>
+                    <NButton
+                      size="small"
+                      type="error"
+                      :loading="actionLoading === 'tunnel-stop'"
+                    >
+                      ■ {{ t('services.actions.stopTunnel') }}
+                    </NButton>
+                  </template>
+                  {{ t('services.messages.stopTunnelConfirm') }}
+                </NPopconfirm>
+                <NTag :type="getStatusType(tunnel?.status || 'stopped')" size="small">
+                  {{ t('services.tunnelStatus', { status: tunnel?.status || 'stopped' }) }}
+                </NTag>
+              </div>
+              <div class="tunnel-url-row" v-if="tunnel?.public_url">
+                <code class="tunnel-url">{{ tunnel.public_url }}</code>
+                <NButton size="tiny" tertiary @click="copyTunnelUrl">{{ t('common.copy') }}</NButton>
+                <NButton size="tiny" tertiary tag="a" :href="tunnel.public_url" target="_blank" rel="noopener">{{ t('services.actions.openTunnel') }}</NButton>
+              </div>
+              <div class="tunnel-meta" v-if="tunnel?.error">{{ tunnel.error }}</div>
+            </div>
           </div>
         </section>
 
@@ -526,11 +695,91 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
+}
+
+.section-title-row-top {
+  align-items: flex-start;
+  flex-direction: column;
+}
+
+.control-subtitle {
+  font-size: 12px;
+  color: $text-muted;
+  line-height: 1.45;
+}
+
+.control-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.control-group {
+  padding: 12px;
+  border-radius: $radius-md;
+  border: 1px solid color-mix(in srgb, var(--theme-border, #fff) 82%, transparent);
+  background: color-mix(in srgb, var(--theme-card, rgba(255, 255, 255, 0.08)) 90%, transparent);
+}
+
+.control-group-title {
+  margin-bottom: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: $text-secondary;
+  text-transform: uppercase;
+  letter-spacing: 0.45px;
+}
+
+.control-group-tunnel {
+  border-style: dashed;
 }
 
 .logs-hint {
   font-size: 12px;
   color: $text-muted;
+}
+
+.dashboard-url {
+  font-size: 12px;
+  color: $text-muted;
+  font-family: $font-code;
+}
+
+.tunnel-bar {
+  align-items: center;
+}
+
+.tunnel-target-input {
+  min-width: 280px;
+  max-width: 480px;
+}
+
+.tunnel-url-row {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.tunnel-url {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 8px;
+  border: 1px solid $border-color;
+  background: $bg-secondary;
+  color: $text-primary;
+  font-family: $font-code;
+  font-size: 12px;
+}
+
+.tunnel-meta {
+  margin-top: 8px;
+  font-size: 12px;
+  color: $text-muted;
+  line-height: 1.5;
 }
 
 .logs-grid {

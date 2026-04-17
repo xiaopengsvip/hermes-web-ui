@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { startRun, streamRunEvents, type ChatMessage, type RunEvent } from '@/api/chat'
 import { fetchSessions, fetchSession, deleteSession as deleteSessionApi, type SessionSummary, type HermesMessage } from '@/api/sessions'
+import i18n from '@/i18n'
 import { useAppStore } from './app'
 import { useTerminalStore } from './terminal'
 
@@ -46,21 +47,98 @@ export interface StreamEventItem {
   level?: 'info' | 'success' | 'error'
 }
 
-const EVENT_LABELS: Record<string, string> = {
-  'run.queued': '任务已入队',
-  'run.started': '任务开始',
-  'message.delta': '模型增量输出',
-  'tool.started': '工具开始执行',
-  'tool.completed': '工具执行完成',
-  'run.completed': '任务完成',
-  'run.failed': '任务失败',
-  'run.done': '流结束',
-  'run.error': '流错误',
-  'run.stopped': '手动停止',
+const EVENT_LABEL_KEYS: Record<string, string> = {
+  'run.queued': 'chat.events.runQueued',
+  'run.started': 'chat.events.runStarted',
+  'message.delta': 'chat.events.messageDelta',
+  'tool.started': 'chat.events.toolStarted',
+  'tool.completed': 'chat.events.toolCompleted',
+  'run.completed': 'chat.events.runCompleted',
+  'run.failed': 'chat.events.runFailed',
+  'run.done': 'chat.events.runDone',
+  'run.error': 'chat.events.runError',
+  'run.stopped': 'chat.events.runStopped',
 }
+
+function resolveEventLabel(event: string): string {
+  const key = EVENT_LABEL_KEYS[event]
+  if (!key) return event
+  const label = i18n.global.t(key)
+  return typeof label === 'string' && label !== key ? label : event
+}
+
+function getDefaultSessionTitle(): string {
+  const title = i18n.global.t('chat.defaultSessionTitle')
+  return typeof title === 'string' && title ? title : 'New Chat'
+}
+
+function escapeRegExp(source: string): string {
+  return source.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function getLegacyUntitledBaseTitles(): string[] {
+  const titles = new Set<string>()
+
+  for (const locale of ['zh-CN', 'en-US'] as const) {
+    const message = i18n.global.getLocaleMessage(locale) as any
+    const defaultTitle = message?.chat?.defaultSessionTitle
+    const newChatTitle = message?.chat?.newChat
+
+    if (typeof defaultTitle === 'string' && defaultTitle.trim()) {
+      titles.add(defaultTitle.trim())
+    }
+    if (typeof newChatTitle === 'string' && newChatTitle.trim()) {
+      titles.add(newChatTitle.trim())
+    }
+  }
+
+  // Ensure at least one safe fallback exists.
+  if (titles.size === 0) titles.add('New Chat')
+
+  return [...titles]
+}
+
+const LEGACY_UNTITLED_BASE_TITLES = getLegacyUntitledBaseTitles()
+const LEGACY_UNTITLED_TITLE_PATTERNS = LEGACY_UNTITLED_BASE_TITLES.map(
+  (title) => new RegExp(`^${escapeRegExp(title)}(?:\\s*#\\d+)?$`, 'i'),
+)
 
 function uid(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8)
+}
+
+function isUntitledSessionTitle(title?: string | null): boolean {
+  const normalized = (title || '').trim()
+  if (!normalized) return true
+  return LEGACY_UNTITLED_TITLE_PATTERNS.some((pattern) => pattern.test(normalized))
+}
+
+function getNextUntitledSessionTitle(existing: Session[]): string {
+  const base = getDefaultSessionTitle()
+  let maxIndex = 0
+
+  for (const session of existing) {
+    const raw = (session.title || '').trim()
+    if (!raw) continue
+
+    const normalizedRaw = raw.toLowerCase()
+    const isBaseTitle = LEGACY_UNTITLED_BASE_TITLES.some((title) => normalizedRaw === title.toLowerCase())
+    if (isBaseTitle) {
+      maxIndex = Math.max(maxIndex, 1)
+      continue
+    }
+
+    for (const baseTitle of LEGACY_UNTITLED_BASE_TITLES) {
+      const match = raw.match(new RegExp(`^${escapeRegExp(baseTitle)}\\s*#(\\d+)$`, 'i'))
+      if (!match) continue
+      const index = Number(match[1])
+      if (Number.isFinite(index)) maxIndex = Math.max(maxIndex, index)
+      break
+    }
+  }
+
+  if (maxIndex <= 0) return base
+  return `${base} #${maxIndex + 1}`
 }
 
 async function uploadFiles(attachments: Attachment[]): Promise<{ name: string; path: string }[]> {
@@ -144,12 +222,18 @@ function mapHermesMessages(msgs: HermesMessage[]): Message[] {
 }
 
 function mapHermesSession(s: SessionSummary): Session {
+  const updatedAtSeconds = Number.isFinite(s.last_active)
+    ? s.last_active
+    : (s.ended_at || s.started_at)
+
+  const fallbackTitle = `${getDefaultSessionTitle()} · ${s.id.slice(0, 8)}`
+
   return {
     id: s.id,
-    title: s.title || 'New Chat',
+    title: (s.title || '').trim() || fallbackTitle,
     messages: [],
     createdAt: Math.round(s.started_at * 1000),
-    updatedAt: Math.round((s.ended_at || s.started_at) * 1000),
+    updatedAt: Math.round(updatedAtSeconds * 1000),
     model: s.model,
     provider: (s as any).billing_provider || '',
     messageCount: s.message_count,
@@ -165,7 +249,7 @@ export const useChatStore = defineStore('chat', () => {
   const isLoadingMessages = ref(false)
   const streamEvents = ref<StreamEventItem[]>([])
   const lastDeltaEventTs = ref(0)
-
+  const draftAttachmentsBySession = ref<Record<string, Attachment[]>>({})
 
   const activeSession = ref<Session | null>(null)
   const messages = ref<Message[]>([])
@@ -180,7 +264,7 @@ export const useChatStore = defineStore('chat', () => {
     streamEvents.value.unshift({
       id: uid(),
       event,
-      label: EVENT_LABELS[event] || event,
+      label: resolveEventLabel(event),
       timestamp: Date.now(),
       detail,
       level,
@@ -196,27 +280,33 @@ export const useChatStore = defineStore('chat', () => {
     lastDeltaEventTs.value = 0
   }
 
+  function getAttachmentDraft(sessionKey?: string | null): Attachment[] {
+    const key = (sessionKey || 'new').trim() || 'new'
+    const list = draftAttachmentsBySession.value[key] || []
+    return list.map((item) => ({ ...item }))
+  }
+
+  function setAttachmentDraft(sessionKey: string | null | undefined, attachments: Attachment[]) {
+    const key = (sessionKey || 'new').trim() || 'new'
+    if (!attachments.length) {
+      delete draftAttachmentsBySession.value[key]
+      return
+    }
+    draftAttachmentsBySession.value[key] = attachments.map((item) => ({ ...item }))
+  }
+
+  function clearAttachmentDraft(sessionKey?: string | null) {
+    const key = (sessionKey || 'new').trim() || 'new'
+    delete draftAttachmentsBySession.value[key]
+  }
+
   async function loadSessions() {
     isLoadingSessions.value = true
     try {
-      const list = await fetchSessions('api_server')
+      // Load all Hermes chat sources so history is complete (cli/api_server/cron/telegram...).
+      const list = await fetchSessions()
       sessions.value = list.map(mapHermesSession)
-      // Backfill titles from first user message for sessions with null title
-      const nullTitleSessions = sessions.value.filter(s => s.title === 'New Chat')
-      if (nullTitleSessions.length > 0) {
-        await Promise.allSettled(
-          nullTitleSessions.map(async (s) => {
-            const detail = await fetchSession(s.id)
-            if (detail?.messages) {
-              const firstUser = detail.messages.find(m => m.role === 'user')
-              if (firstUser) {
-                const t = firstUser.content.slice(0, 40)
-                s.title = t + (firstUser.content.length > 40 ? '...' : '')
-              }
-            }
-          })
-        )
-      }
+
       // Auto-select the most recent session
       if (!activeSessionId.value && sessions.value.length > 0) {
         await switchSession(sessions.value[0].id)
@@ -231,7 +321,7 @@ export const useChatStore = defineStore('chat', () => {
   function createSession(): Session {
     const session: Session = {
       id: uid(),
-      title: 'New Chat',
+      title: getNextUntitledSessionTitle(sessions.value),
       messages: [],
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -276,9 +366,22 @@ export const useChatStore = defineStore('chat', () => {
 
   function newChat() {
     if (isStreaming.value) return
+
+    const appStore = useAppStore()
+    const current = activeSession.value
+    const canReuseCurrentUntitled = !!current
+      && isUntitledSessionTitle(current.title)
+      && current.messages.length === 0
+      && (current.messageCount ?? 0) === 0
+
+    if (canReuseCurrentUntitled) {
+      current.model = appStore.selectedModel || undefined
+      switchSession(current.id)
+      return
+    }
+
     const session = createSession()
     // Inherit current global model
-    const appStore = useAppStore()
     session.model = appStore.selectedModel || undefined
     switchSession(session.id)
   }
@@ -296,6 +399,7 @@ export const useChatStore = defineStore('chat', () => {
 
   async function deleteSession(sessionId: string) {
     await deleteSessionApi(sessionId)
+    clearAttachmentDraft(sessionId)
     sessions.value = sessions.value.filter(s => s.id !== sessionId)
     if (activeSessionId.value === sessionId) {
       if (sessions.value.length > 0) {
@@ -341,7 +445,7 @@ export const useChatStore = defineStore('chat', () => {
       return
     }
     if (!activeSession.value) return
-    if (activeSession.value.title === 'New Chat') {
+    if (isUntitledSessionTitle(activeSession.value.title)) {
       const firstUser = messages.value.find(m => m.role === 'user')
       if (firstUser) {
         const title = firstUser.attachments?.length
@@ -765,6 +869,9 @@ export const useChatStore = defineStore('chat', () => {
     isLoadingMessages,
     streamEvents,
     clearStreamEvents,
+    getAttachmentDraft,
+    setAttachmentDraft,
+    clearAttachmentDraft,
     newChat,
     switchSession,
     switchSessionModel,

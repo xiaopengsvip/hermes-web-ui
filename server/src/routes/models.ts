@@ -46,12 +46,9 @@ const KNOWN_MODELS: Record<string, string[]> = {
     'meta-llama/llama-4-maverick',
     'qwen/qwen-2.5-72b-instruct',
   ],
-  openai: [
-    'gpt-4o',
-    'gpt-4o-mini',
-    'o1',
-    'o1-mini',
-    'o3-mini',
+  'openai-codex': [
+    'gpt-5.3-codex',
+    'gpt-5.4-codex',
   ],
   anthropic: [
     'claude-sonnet-4-20250514',
@@ -59,6 +56,21 @@ const KNOWN_MODELS: Record<string, string[]> = {
     'claude-3-5-sonnet-20241022',
     'claude-3-5-haiku-20241022',
   ],
+}
+
+const PROVIDER_ALIAS: Record<string, string> = {
+  openai: 'openai-codex',
+}
+
+function normalizeProvider(provider?: string): string {
+  if (!provider) return ''
+  return PROVIDER_ALIAS[provider] || provider
+}
+
+function normalizeModelForProvider(provider: string, model: string): string {
+  if (provider !== 'openai-codex') return model
+  const known = KNOWN_MODELS['openai-codex'] || []
+  return known.includes(model) ? model : 'gpt-5.3-codex'
 }
 
 async function getProviders(): Promise<AvailableModelGroup[]> {
@@ -272,6 +284,9 @@ modelRoutes.put('/api/config/model', async (ctx) => {
       actualProvider = parts[0]
       actualModel = parts.slice(1).join('/')
     }
+
+    actualProvider = normalizeProvider(actualProvider)
+    actualModel = normalizeModelForProvider(actualProvider, actualModel)
 
     if (actualProvider) {
       config.model.provider = actualProvider

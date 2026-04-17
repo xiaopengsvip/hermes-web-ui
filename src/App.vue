@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, computed } from 'vue'
+import { onMounted, onUnmounted, computed, ref } from 'vue'
 import { NConfigProvider, NMessageProvider, NDialogProvider, NNotificationProvider } from 'naive-ui'
 import AppSidebar from '@/components/layout/AppSidebar.vue'
+import RouteMetaHeader from '@/components/layout/RouteMetaHeader.vue'
 import { useKeyboard } from '@/composables/useKeyboard'
 import { useAppStore } from '@/stores/app'
 import { useThemeStore } from '@/stores/theme'
@@ -10,14 +11,27 @@ const appStore = useAppStore()
 const themeStore = useThemeStore()
 
 const themeOverrides = computed(() => themeStore.currentTheme.naiveOverrides)
+const mobileMenuOpen = ref(false)
+
+function closeMobileMenu() {
+  mobileMenuOpen.value = false
+}
+
+function handleWindowKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape') {
+    closeMobileMenu()
+  }
+}
 
 onMounted(() => {
+  window.addEventListener('keydown', handleWindowKeydown)
   themeStore.initTheme()
   appStore.loadModels()
   appStore.startHealthPolling()
 })
 
 onUnmounted(() => {
+  window.removeEventListener('keydown', handleWindowKeydown)
   appStore.stopHealthPolling()
 })
 
@@ -29,11 +43,22 @@ useKeyboard()
     <NMessageProvider>
       <NDialogProvider>
         <NNotificationProvider>
-          <div class="app-layout">
-            <AppSidebar />
+          <div class="app-layout" :class="{ 'mobile-menu-open': mobileMenuOpen }">
+            <button class="mobile-menu-toggle" type="button" @click="mobileMenuOpen = true" aria-label="Open menu">
+              <span></span>
+              <span></span>
+              <span></span>
+            </button>
+            <button v-if="mobileMenuOpen" class="mobile-sidebar-backdrop" type="button" @click="closeMobileMenu" aria-label="Close menu overlay"></button>
+            <AppSidebar :mobile-open="mobileMenuOpen" @close-mobile="closeMobileMenu" />
             <main class="app-main">
               <div class="view-shell">
-                <router-view />
+                <div class="route-shell">
+                  <RouteMetaHeader />
+                  <div class="route-content">
+                    <router-view />
+                  </div>
+                </div>
               </div>
             </main>
           </div>
@@ -51,6 +76,15 @@ useKeyboard()
   height: 100vh;
   width: 100vw;
   overflow: hidden;
+  position: relative;
+}
+
+.mobile-menu-toggle {
+  display: none;
+}
+
+.mobile-sidebar-backdrop {
+  display: none;
 }
 
 .app-main {
@@ -85,8 +119,25 @@ useKeyboard()
   transition: border-radius var(--ui-motion-normal) ease, box-shadow var(--ui-motion-normal) ease;
 }
 
-.view-shell > * {
+.route-shell {
   height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.route-content {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  padding: 8px 8px 10px;
+}
+
+.route-content > * {
+  height: 100%;
+  min-height: 0;
+  border-radius: 12px;
+  overflow: hidden;
 }
 
 .app-main :is(
@@ -160,6 +211,78 @@ useKeyboard()
 .app-main :is(.section, .tab-content, .repo-card, .project-card, .zone-card, .worker-card, .service-card) {
   border-radius: var(--panel-radius);
   box-shadow: var(--panel-shadow);
+  border: 1px solid color-mix(in srgb, var(--theme-border, #fff) 78%, transparent);
+  background: color-mix(in srgb, var(--theme-card, rgba(255, 255, 255, 0.08)) 92%, transparent);
+}
+
+.app-main :is(.n-tabs-tab, .n-button, .n-input, .n-base-selection, .n-card) {
+  transition:
+    border-color var(--ui-motion-fast) ease,
+    background-color var(--ui-motion-fast) ease,
+    color var(--ui-motion-fast) ease,
+    box-shadow var(--ui-motion-fast) ease;
+}
+
+.app-main :is(.n-card, .n-modal, .n-popover) {
+  border-color: color-mix(in srgb, var(--theme-border, #fff) 82%, transparent);
+}
+
+@media (max-width: 900px) {
+  .mobile-menu-toggle {
+    position: fixed;
+    top: 18px;
+    left: 14px;
+    z-index: 260;
+    width: 38px;
+    height: 38px;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    border-radius: 12px;
+    border: 1px solid color-mix(in srgb, var(--theme-border, #fff) 76%, transparent);
+    background: color-mix(in srgb, var(--theme-card, rgba(255, 255, 255, 0.12)) 90%, transparent);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.22);
+    cursor: pointer;
+  }
+
+  .mobile-menu-toggle span {
+    width: 16px;
+    height: 2px;
+    border-radius: 999px;
+    background: var(--theme-text, #fff);
+  }
+
+  .mobile-menu-open .mobile-menu-toggle {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .mobile-sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    display: block;
+    z-index: 230;
+    border: 0;
+    margin: 0;
+    padding: 0;
+    background: rgba(2, 6, 23, 0.56);
+    backdrop-filter: blur(2px);
+  }
+
+  .app-main {
+    padding: 8px;
+  }
+
+  .route-shell {
+    padding-top: 44px;
+  }
+
+  .route-content {
+    padding: 6px 6px 8px;
+  }
 }
 
 @media (max-width: 768px) {
@@ -167,12 +290,30 @@ useKeyboard()
     --layout-header-min-height: 52px;
     --layout-header-padding-y: 10px;
     --layout-header-padding-x: 12px;
+    --page-content-padding-y: 14px;
+    --page-content-padding-x: 10px;
 
     padding: 8px;
   }
 
   .view-shell {
     border-radius: 14px;
+  }
+
+  .route-shell {
+    padding-top: 40px;
+  }
+
+  .route-content {
+    padding: 4px 4px 6px;
+  }
+
+  .route-content > * {
+    border-radius: 10px;
+  }
+
+  .app-main :is(.header-actions, .section-actions, .action-bar) {
+    width: 100%;
   }
 }
 </style>

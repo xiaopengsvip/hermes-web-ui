@@ -109,7 +109,17 @@ export interface ServiceStatus {
   pid?: number
   uptime?: string
   details?: string
-  type: 'hermes' | 'gateway' | 'web-ui' | 'agent' | 'other'
+  type: 'hermes' | 'gateway' | 'web-ui' | 'agent' | 'dashboard' | 'other'
+}
+
+export interface DashboardStatus {
+  running: boolean
+  status: 'running' | 'stopped'
+  host: string
+  port: number
+  url: string
+  pid?: number
+  details?: string
 }
 
 export interface SystemStatus {
@@ -120,6 +130,7 @@ export interface SystemStatus {
   active_children: number
   uptime: number
   timestamp: number
+  dashboard?: DashboardStatus
 }
 
 export interface ActiveSession {
@@ -156,6 +167,42 @@ export async function fetchActiveSessions(): Promise<{ sessions: ActiveSession[]
 
 export async function fetchSystemProcesses(): Promise<{ processes: Array<{ pid: number; command: string; elapsed: string }> }> {
   return request('/api/system/processes')
+}
+
+export async function fetchDashboardStatus(): Promise<DashboardStatus> {
+  return request('/api/system/dashboard/status')
+}
+
+export async function startDashboard(): Promise<{ success: boolean; status?: DashboardStatus; message?: string; error?: string }> {
+  return request('/api/system/dashboard/start', { method: 'POST' })
+}
+
+export interface CloudflareTunnelStatus {
+  running: boolean
+  pid?: number
+  target_url: string
+  public_url?: string
+  status: 'running' | 'stopped' | 'error'
+  updated_at: string
+  started_at?: string
+  error?: string
+}
+
+export async function fetchCloudflareTunnelStatus(): Promise<CloudflareTunnelStatus> {
+  return request('/api/system/cloudflare-tunnel/status')
+}
+
+export async function startCloudflareTunnel(target_url: string): Promise<{ success: boolean; tunnel?: CloudflareTunnelStatus; error?: string }> {
+  return request('/api/system/cloudflare-tunnel/start', {
+    method: 'POST',
+    body: JSON.stringify({ target_url }),
+  })
+}
+
+export async function stopCloudflareTunnel(): Promise<{ success: boolean; tunnel?: CloudflareTunnelStatus; error?: string }> {
+  return request('/api/system/cloudflare-tunnel/stop', {
+    method: 'POST',
+  })
 }
 
 export async function shutdownWebUI(): Promise<{ success: boolean; message?: string }> {

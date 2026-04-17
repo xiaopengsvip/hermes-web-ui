@@ -42,20 +42,112 @@
     "securityCenter": "安全中心",
     "settings": "设置",
     "authSwitch": "登录/切换账号",
-    "github": "GitHub",
-    "vercel": "Vercel",
+    "github": "GitHub（代码托管）",
+    "vercel": "Vercel（部署）",
     "services": "服务",
     "version": "版本",
     "disconnected": "未连接",
     "connected": "已连接",
-    "cloudflare": "Cloudflare",
+    "cloudflare": "Cloudflare（网络）",
     "terminal": "终端",
     "expand": "展开",
     "collapse": "收起"
   },
+  "routeMeta": {
+    "common": {
+      "connection": "连接状态",
+      "online": "在线",
+      "offline": "离线",
+      "availableModels": "可用模型",
+      "currentModel": "当前模型",
+      "notConfigured": "未配置",
+      "expandIntro": "展开介绍",
+      "collapseIntro": "收起介绍"
+    },
+    "chat": {
+      "subtitle": "对话、工具调用与终端协作入口",
+      "description": "用于与 Hermes Agent 进行连续会话，可切换聊天/终端模式，查看工具执行轨迹并沉淀素材。"
+    },
+    "jobs": {
+      "subtitle": "定时任务与自动投递编排",
+      "description": "在这里配置 Cron 任务、投递目标和执行状态，适合日报、巡检、自动审计等持续任务。"
+    },
+    "materials": {
+      "subtitle": "会话素材与附件统一管理",
+      "description": "按来源、类型、会话归类素材，支持快速预览、筛选和回溯到具体聊天上下文。"
+    },
+    "projectCenter": {
+      "subtitle": "多系统联动的项目调度中枢",
+      "description": "集成 GitHub / Vercel / Cloudflare / Relay 能力，支持项目级自动化执行与实时状态监控。"
+    },
+    "configCenter": {
+      "subtitle": "平台配置与密钥策略集中管理",
+      "description": "集中维护目标仓库、域名、密钥与审计策略，确保全链路配置可追踪且一致。"
+    },
+    "insights": {
+      "subtitle": "审计洞察与安全结果汇总",
+      "description": "集中展示审计、报告、安全巡检结果，帮助快速发现高风险变更并制定修复路径。"
+    },
+    "skills": {
+      "subtitle": "技能资产与流程模板库",
+      "description": "管理可复用技能和操作范式，减少重复工作并提升复杂任务执行稳定性。"
+    },
+    "memory": {
+      "subtitle": "长期记忆与用户偏好管理",
+      "description": "查看与维护记忆条目，保证跨会话上下文连续、用户偏好一致。"
+    },
+    "logs": {
+      "subtitle": "系统日志与运行排障入口",
+      "description": "聚合 agent/gateway/web-ui 关键日志，便于快速定位异常与回放现场。"
+    },
+    "github": {
+      "subtitle": "仓库、PR、Issue 的统一操作台",
+      "description": "在 Web UI 内执行 GitHub 常用运维动作，配合自动化任务形成闭环交付。"
+    },
+    "vercel": {
+      "subtitle": "部署状态与域名绑定控制面板",
+      "description": "查看项目部署、触发重部署并管理域名状态，快速闭环上线流程。"
+    },
+    "cloudflare": {
+      "subtitle": "DNS 与边缘网络管理入口",
+      "description": "集中处理 Zone、DNS、Worker 与缓存操作，保障域名解析与边缘可用性。"
+    },
+    "services": {
+      "subtitle": "服务健康与依赖状态总览",
+      "description": "统一查看 Hermes、Gateway、BFF 等服务状态，并执行启停与诊断动作。"
+    },
+    "settings": {
+      "subtitle": "客户端行为与体验偏好设置",
+      "description": "管理账号切换、交互偏好与显示配置，确保使用体验与工作流一致。"
+    },
+    "version": {
+      "subtitle": "版本信息与能力矩阵说明",
+      "description": "汇总当前平台版本、能力清单与关键接口，便于发布校验和审计留档。"
+    }
+  },
   "theme": {
     "title": "主题设置",
     "subtitle": "选择你喜欢的主题风格",
+    "random": "随机",
+    "featured": "推荐",
+    "all": "全部",
+    "dark": "深色",
+    "light": "浅色",
+    "styleAll": "全部风格",
+    "styleMinimal": "极简",
+    "styleTech": "科技",
+    "styleNeon": "霓虹",
+    "density": "密度",
+    "compact": "紧凑",
+    "comfortable": "舒适",
+    "motion": "动效",
+    "low": "低",
+    "medium": "中",
+    "high": "高",
+    "font": "字体适配",
+    "fontAuto": "自动",
+    "fontBalanced": "均衡",
+    "fontReadable": "易读",
     "liquid-glass": "液态玻璃",
     "pure-ink": "纯墨",
     "ocean-blue": "海洋蓝",
@@ -74,6 +166,21 @@
     "inputPlaceholder": "输入消息...",
     "send": "发送",
     "attachFiles": "附件",
+    "addAlbum": "添加相册",
+    "albumAdded": "已添加 {count} 张图片到相册",
+    "albumSummary": "当前相册：{count} 张图片",
+    "albumPreviewTitle": "图片预览",
+    "albumPreviewIndex": "第 {index}/{total} 张",
+    "prevImage": "上一张",
+    "nextImage": "下一张",
+    "archiveTag": "压缩包",
+    "previewArchive": "预览",
+    "archivePreviewTitle": "压缩包预览：{name}",
+    "archivePreviewFailed": "压缩包预览失败",
+    "archivePreviewUnavailable": "当前文件无法预览",
+    "archivePreviewZipOnly": "当前仅支持 ZIP 压缩包预览",
+    "archivePreviewEmpty": "压缩包内容为空",
+    "archiveDirectory": "目录",
     "startRecording": "开始录音",
     "stopRecording": "停止录音",
     "files": "文件",
@@ -110,9 +217,14 @@
     "voiceRecordErrorLog": "语音录制错误:",
     "inputHint": "Enter 发送 · Shift+Enter 换行",
     "attachmentUsage": "{count} 个文件 · {size}",
-    "dropHint": "拖拽文件到这里即可添加附件",
+    "imageCount": "图片 {count}",
+    "fileCount": "文件 {count}",
+    "dropHint": "拖拽文件（支持压缩包/图片）到这里即可添加附件",
     "jumpToLatest": "跳到最新消息",
     "youLabel": "你",
+    "roleAssistant": "助手",
+    "roleSystem": "系统",
+    "roleMessage": "消息",
     "sendFailed": "发送消息失败",
     "maxFilesExceeded": "最多允许 {max} 个文件",
     "fileTooLarge": "文件过大（上限 {size}）",
@@ -131,6 +243,31 @@
     "modeTerminalDescription": "终端命令与输出会话",
     "showTerminal": "打开终端面板",
     "hideTerminal": "关闭终端面板",
+    "tool": {
+      "running": "执行中",
+      "failed": "失败",
+      "done": "完成",
+      "defaultName": "工具调用",
+      "output": "工具输出",
+      "collapseOutput": "收起输出",
+      "expandOutput": "展开输出（{lines} 行）",
+      "viewDetail": "查看详情",
+      "detailTitle": "工具调用详情",
+      "label": "工具：",
+      "statusLabel": "状态："
+    },
+    "toolGroup": {
+      "title": "工具调用已合并（{count}）",
+      "swipeHint": "左右滑动查看每次调用",
+      "prev": "上一个",
+      "next": "下一个",
+      "detailTitle": "工具调用详情（合并视图）",
+      "clusterLabel": "按工具聚类",
+      "all": "全部",
+      "failedOnly": "只看失败",
+      "failedOnlyOn": "仅失败中",
+      "emptyFiltered": "当前筛选下没有工具调用"
+    },
     "command": {
       "newDone": "已新建聊天",
       "clearDone": "已清空当前聊天",
@@ -138,6 +275,122 @@
       "modelNotFound": "未找到匹配模型：{keyword}",
       "modelSwitched": "已切换模型为 {model}",
       "unknown": "未知命令：/{command}"
+    },
+    "defaultSessionTitle": "新对话",
+    "events": {
+      "runQueued": "任务已入队",
+      "runStarted": "任务开始",
+      "messageDelta": "模型增量输出",
+      "toolStarted": "工具开始执行",
+      "toolCompleted": "工具执行完成",
+      "runCompleted": "任务完成",
+      "runFailed": "任务失败",
+      "runDone": "流结束",
+      "runError": "流错误",
+      "runStopped": "手动停止"
+    },
+    "workspace": {
+      "terminalSession": "终端会话",
+      "workingDirectory": "工作目录",
+      "sessionId": "会话 ID",
+      "none": "暂无",
+      "collapseSessions": "收起会话列表",
+      "expandSessions": "展开会话列表",
+      "sessionModeFilter": "会话模式与筛选",
+      "sessionDateGroups": "会话日期分组",
+      "groupToday": "今天",
+      "groupYesterday": "昨天",
+      "groupEarlier": "更早",
+      "currentCount": "当前 {count}",
+      "searchByTitleOrId": "搜索标题或会话 ID",
+      "openSessionAria": "打开 {title}",
+      "commandCountLabel": "{count} 条命令",
+      "messageCountLabel": "{count} 条消息",
+      "pin": "置顶",
+      "rename": "重命名",
+      "viewSessionData": "查看本会话数据",
+      "hideSessionData": "隐藏本会话数据",
+      "newTerminal": "新建终端",
+      "scopeCurrentSession": "统计范围（当前会话）",
+      "terminalCommands": "终端命令",
+      "chatMessages": "聊天消息",
+      "toolCalls": "工具调用",
+      "materialsTotal": "素材总数",
+      "runtimeNotificationsTitle": "定时任务通知（聊天联动）",
+      "clear": "清空",
+      "runtimeNotificationsEmpty": "暂时没有定时任务通知，去 Jobs 执行一次后会同步到这里。",
+      "materialsCurrentSession": "素材库（当前会话）",
+      "viewAll": "查看全部",
+      "imagesCount": "图片 {count}",
+      "filesCount": "其他 {count}",
+      "view": "查看",
+      "noMaterials": "当前会话还没有素材文件",
+      "sessionSummary": "本次会话总结",
+      "summaryRegionAria": "会话总结内容",
+      "suggestedRename": "建议重命名",
+      "renamePlaceholder": "输入新标题并应用",
+      "apply": "应用",
+      "terminalOutputHint": "这里显示终端会话输出，左侧会话列表保持不变。",
+      "terminalInputPlaceholder": "输入命令，Enter 执行，Shift+Enter 换行",
+      "execute": "执行",
+      "zoomView": "放大查看",
+      "sourceLabel": "来源：",
+      "sourceAttachment": "消息附件",
+      "sourceContent": "消息内容",
+      "imagePreview": "图片预览",
+      "noPreviewImages": "当前会话暂无可预览图片",
+      "previewIndicator": "{index} / {total} · 会话 ID {sessionId}",
+      "unknownError": "未知错误",
+      "expand": "展开",
+      "collapse": "收起",
+      "status": {
+        "running": "进行中",
+        "done": "完成",
+        "failed": "失败"
+      },
+      "summary": {
+        "terminalTotal": "本次终端会话共执行 {total} 条命令。",
+        "terminalLastCommand": "最近命令：{command}",
+        "terminalNoCommand": "当前尚无命令记录。",
+        "renameAdvice": "建议将会话名改为“任务 + 日期”结构，便于后续回溯与复用。",
+        "noUserTopic": "暂无用户输入主题",
+        "noAssistantDigest": "暂无模型回复摘要。",
+        "partialStats": "消息详情加载中，请稍候…",
+        "pendingCount": "待加载",
+        "stats": "会话统计：用户输入 {turns} 轮，工具调用 {tools} 次，素材 {materials} 项（图片 {imageCount} / 其他 {fileCount}）。",
+        "currentTopic": "当前主题：{topic}",
+        "replyDigest": "回复摘要：{digest}",
+        "scrollTipExpanded": "支持滑动查看全文",
+        "scrollTipCollapsed": "已精简显示"
+      },
+      "renameSuggestion": {
+        "terminalTask": "终端任务 · {day}",
+        "terminalOps": "{base} · 运维记录",
+        "terminalTroubleshoot": "排障会话 · {id}",
+        "defaultCommand": "命令执行",
+        "defaultSession": "会话",
+        "chatSummary": "{base} · 总结版",
+        "chatMaterials": "{base} · 素材整理",
+        "imageMaterials": "图像素材",
+        "dialogue": "对话",
+        "chatByType": "{type} · {day}"
+      },
+      "messages": {
+        "terminalRenamed": "终端会话已重命名",
+        "renameFailed": "会话重命名失败",
+        "sessionRenamed": "会话已重命名",
+        "runtimeCleared": "已清空定时任务通知",
+        "jobNotified": "定时任务已通知聊天：{name}",
+        "jobNotifyFailed": "定时任务通知失败：{name}",
+        "jobNotifyUpdated": "定时任务状态更新：{name}"
+      },
+      "runtime": {
+        "success": "✅ {name} 已推送到 {target}",
+        "failed": "⚠️ {name} 推送失败：{error}",
+        "updated": "ℹ️ {name} 状态更新：{error}",
+        "originMissing": "原始会话缺失",
+        "localStorage": "本地存储"
+      }
     }
   },
   "projectCenter": {
@@ -158,7 +411,7 @@
     "ownerPlaceholder": "GitHub owner（例如 xiaopengsvip）",
     "repoPlaceholder": "GitHub repo（例如 allapple.new）",
     "projectIdPlaceholder": "Vercel 项目 ID/名称",
-    "zoneIdPlaceholder": "Cloudflare Zone ID",
+    "zoneIdPlaceholder": "Cloudflare 区域 ID",
     "noAuditRisk": "当前未发现高优先级风险聚类",
     "oneClickFixIssue": "一键生成修复 Issue",
     "oneClickRedeploy": "一键自动部署",
@@ -215,6 +468,13 @@
       "one": "建议将高频项目配置模板化，减少重复配置时间。",
       "two": "建议启用发布前自动检查链路（构建/环境变量/域名冲突）。",
       "three": "建议按项目维度做持续审计，聚焦失败率最高的自动化步骤。"
+    },
+    "errors": {
+      "notFound": "目标资源不存在（404），请先检查项目/仓库/域名是否正确。",
+      "auth": "鉴权失败（401/403），请检查 API Key 或平台权限。",
+      "server": "服务端异常（500），请稍后重试或查看后端日志。",
+      "network": "网络连接异常，请检查代理/隧道/目标服务可达性。",
+      "unknown": "请求失败，请检查参数或稍后重试。"
     }
   },
   "configCenter": {
@@ -281,6 +541,7 @@
     "lastRun": "上次运行",
     "nextRun": "下次运行",
     "delivery": "通知方式",
+    "deliveryError": "推送错误",
     "repeat": "重复",
     "status": {
       "running": "运行中",
@@ -302,7 +563,10 @@
       "jobDeleted": "任务已删除",
       "jobCreated": "任务已创建",
       "jobUpdated": "任务已更新",
-      "failedLoadJob": "加载任务失败"
+      "failedLoadJob": "加载任务失败",
+      "jobDelivered": "任务“{name}”执行成功，已推送到 {target}",
+      "jobDeliveryFailed": "任务“{name}”执行后推送失败：{error}",
+      "jobRunStateChanged": "任务“{name}”执行状态变更：{status}"
     },
     "presets": {
       "everyMinute": "每分钟",
@@ -315,7 +579,9 @@
     },
     "target": {
       "origin": "原始会话",
-      "local": "仅本地"
+      "local": "仅本地",
+      "originResolved": "原始会话（{platform} / {chat} / 主题 {thread}）",
+      "originMissing": "原始会话丢失（建议改为明确目标）"
     },
     "validation": {
       "nameRequired": "任务名称不能为空",
@@ -331,7 +597,17 @@
     "scheduleCron": "调度（Cron 表达式）",
     "quickPresets": "快捷预设",
     "deliverTarget": "投递目标",
-    "repeatCountOptional": "重复次数（可选）"
+    "repeatCountOptional": "重复次数（可选）",
+    "originHelp": "说明：原始会话 = 任务创建时所在会话/话题。页面会在任务执行后弹出本地通知，并显示实际推送去向。",
+    "cronGuide": "Cron 格式：分 时 日 月 周（例如：0 9 * * * 表示每天 09:00）",
+    "cronSummary": {
+      "empty": "请先输入 Cron 表达式",
+      "fromPreset": "当前使用预设：{label}",
+      "everyMinute": "每分钟执行一次",
+      "everyNMinutes": "按分钟间隔循环执行",
+      "everyHour": "每小时执行一次",
+      "custom": "自定义 Cron 表达式"
+    }
   },
   "insights": {
     "cockpitTitle": "运营驾驶舱",
@@ -470,7 +746,8 @@
       "foldViewTitle": "会话折叠视图",
       "useAsFilter": "按此会话筛选",
       "openChat": "打开会话",
-      "noSessionGroups": "暂无可折叠会话分组"
+      "noSessionGroups": "暂无可折叠会话分组",
+      "groupCount": "{count} 组"
     },
     "smartReuse": {
       "title": "智能复用",
@@ -494,7 +771,8 @@
       "uploadDate": "上传日期",
       "lastModified": "最后修改",
       "noPreview": "暂无预览",
-      "downloadToView": "请下载后查看"
+      "downloadToView": "请下载后查看",
+      "loadFailed": "（预览加载失败）{error}"
     },
     "actions": {
       "view": "查看",
@@ -509,6 +787,9 @@
       "deleteConfirm": "确定要删除这个素材吗？",
       "deleteSuccess": "删除成功",
       "deleteFailed": "删除失败",
+      "loadFailed": "加载素材失败",
+      "uploadFailed": "上传失败",
+      "openSessionFailed": "打开会话失败",
       "copySuccess": "链接已复制",
       "copyFailed": "复制失败",
       "renameSuccess": "重命名成功",
@@ -524,7 +805,7 @@
     "selectSkill": "从列表中选择一个技能",
     "noSkills": "暂无技能",
     "skillFiles": "附加文件",
-    "skillMd": "SKILL.md",
+    "skillMd": "技能说明文件（SKILL.md）",
     "category": {
       "devops": "运维",
       "data-science": "数据科学",
@@ -644,7 +925,7 @@
     "authAddHint": "支持直接添加 API Key 账号并可立即切换为当前账号。",
     "authAddProviderPlaceholder": "provider（如 openrouter / openai-codex）",
     "authAddLabelPlaceholder": "标签（可选）",
-    "authAddApiKeyPlaceholder": "API Key",
+    "authAddApiKeyPlaceholder": "请输入 API Key",
     "authAddSetActive": "添加后立即切换",
     "authAddButton": "添加并登录",
     "authAddSuccess": "新账号已添加",
@@ -660,7 +941,8 @@
     "authOAuthFailed": "OAuth 登录失败",
     "authOAuthStartFailed": "无法启动 OAuth 登录",
     "authOAuthCancelFailed": "取消 OAuth 登录失败",
-    "authOAuthProviderRequired": "请选择 OAuth 提供商"
+    "authOAuthProviderRequired": "请选择 OAuth 提供商",
+    "switchToAccountAria": "切换到 {provider} {label}"
   },
   "modelSelector": {
     "title": "模型",
@@ -674,8 +956,8 @@
   },
   "version": {
     "title": "版本信息",
-    "webUi": "Web UI",
-    "hermesAgent": "Hermes Agent",
+    "webUi": "Web 界面",
+    "hermesAgent": "Hermes 代理",
     "uptime": "运行时间",
     "systemInfo": "系统信息",
     "platform": "平台",
@@ -703,7 +985,16 @@
   "services": {
     "gatewayControl": "网关控制",
     "webuiControl": "Web UI 控制",
+    "dashboardControl": "Hermes Dashboard 控制",
+    "tunnelControl": "Cloudflare Tunnel 控制",
+    "unifiedControl": {
+      "title": "统一服务控制中心",
+      "subtitle": "融合原有控制项与新隧道能力：网关 / Web UI / Dashboard / Cloudflare Tunnel"
+    },
+    "tunnelTargetPlaceholder": "隧道目标地址（例如 http://127.0.0.1:8650）",
     "gatewayStatus": "网关：{status}",
+    "dashboardStatus": "Dashboard：{status}",
+    "tunnelStatus": "隧道：{status}",
     "webuiRunning": "Web UI：运行中",
     "servicesCount": "服务（{count}）",
     "serviceLogs": "服务日志",
@@ -714,7 +1005,7 @@
     "noActiveSessions": "暂无活跃会话",
     "msgCount": "{count} 条消息",
     "toolCount": "{count} 次工具调用",
-    "pidLabel": "PID {pid}",
+    "pidLabel": "进程 PID {pid}",
     "legacyBrand": {
       "title": "平台原始标识",
       "description": "原平台名称与头像已迁移到服务板块。"
@@ -730,7 +1021,12 @@
       "restart": "重启",
       "stop": "停止",
       "restartWebui": "重启 Web UI",
-      "stopWebui": "停止 Web UI"
+      "stopWebui": "停止 Web UI",
+      "startDashboard": "启动 Dashboard",
+      "openDashboard": "打开 Dashboard",
+      "startTunnel": "启动隧道",
+      "stopTunnel": "停止隧道",
+      "openTunnel": "打开公网链接"
     },
     "messages": {
       "fetchStatusFailed": "获取状态失败",
@@ -740,18 +1036,26 @@
       "gatewayStarted": "Hermes 网关已启动",
       "gatewayRestarted": "网关已重启",
       "gatewayStopped": "网关已停止",
+      "dashboardStarted": "Hermes Dashboard 已启动",
+      "dashboardStartFailed": "Hermes Dashboard 启动失败",
+      "tunnelStarted": "Cloudflare Tunnel 已启动",
+      "tunnelStopped": "Cloudflare Tunnel 已停止",
+      "tunnelStartFailed": "Cloudflare Tunnel 启动失败",
+      "tunnelStopFailed": "Cloudflare Tunnel 停止失败",
+      "tunnelUrlCopied": "隧道公网链接已复制",
       "webuiRestarting": "Web UI 重启中...",
       "webuiShuttingDown": "Web UI 正在关闭...",
       "stopGatewayConfirm": "停止网关？活跃会话将被中断。",
       "stopWebuiConfirm": "停止 Web UI 服务？之后需要手动重启。",
+      "stopTunnelConfirm": "停止 Cloudflare Tunnel？手机端公网访问会中断。",
       "noLogs": "（暂无日志）",
       "loadLogsFailed": "（加载失败）",
       "unknownError": "未知错误"
     },
     "logTarget": {
-      "agent": "Agent",
-      "gateway": "Gateway",
-      "errors": "Errors"
+      "agent": "Agent 服务",
+      "gateway": "网关",
+      "errors": "错误日志"
     },
     "time": {
       "minutesAgo": "{value} 分钟前",
@@ -766,7 +1070,7 @@
     "tabs": {
       "zones": "域名区域",
       "dns": "DNS",
-      "workers": "Workers"
+      "workers": "Workers（边缘函数）"
     },
     "actions": {
       "purgeCache": "清理缓存",
@@ -782,7 +1086,7 @@
       "proxied": "代理",
       "ttl": "TTL",
       "auto": "自动",
-      "ttlSeconds": "{value}s"
+      "ttlSeconds": "{value} 秒"
     },
     "units": {
       "byte": "{value} B",
@@ -860,13 +1164,13 @@
       "description": "描述",
       "privateRepo": "私有仓库",
       "branch": "分支",
-      "issues": "Issues",
+      "issues": "议题",
       "updated": "更新"
     },
     "placeholder": {
       "token": "***",
       "searchRepos": "搜索仓库...",
-      "repoName": "repository-name",
+      "repoName": "仓库名称（英文）",
       "repoDesc": "可选描述"
     },
     "messages": {

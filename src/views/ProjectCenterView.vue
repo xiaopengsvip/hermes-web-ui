@@ -100,6 +100,23 @@ const suggestions = computed(() => [
 
 const clusters = computed<AuditCluster[]>(() => overview.value?.clusters || [])
 
+function humanizeProjectCenterError(raw: string): string {
+  const text = raw.toLowerCase()
+  if (text.includes('404') || text.includes('not found')) {
+    return t('projectCenter.errors.notFound')
+  }
+  if (text.includes('401') || text.includes('403') || text.includes('unauthorized') || text.includes('forbidden')) {
+    return t('projectCenter.errors.auth')
+  }
+  if (text.includes('500') || text.includes('internal server error')) {
+    return t('projectCenter.errors.server')
+  }
+  if (text.includes('timeout') || text.includes('etimedout') || text.includes('econnreset')) {
+    return t('projectCenter.errors.network')
+  }
+  return t('projectCenter.errors.unknown')
+}
+
 function go(routeName: string) {
   router.push({ name: routeName })
 }
@@ -184,8 +201,9 @@ async function loadOverview() {
     pushLog('status', t('projectCenter.overviewLoaded'))
   } catch (err: any) {
     const msg = err?.message || String(err)
-    pushLog('error', msg)
-    message.error(msg)
+    const friendly = humanizeProjectCenterError(msg)
+    pushLog('error', `${friendly} · ${msg}`)
+    message.error(friendly)
   } finally {
     isLoadingOverview.value = false
   }

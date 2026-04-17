@@ -49,7 +49,7 @@ async function load() {
 function copyVersion() {
   if (!info.value) return
   const text = [
-    `EVR-AI开发工作系统 v1`,
+    `${t('sidebar.logo')} v1`,
     `Hermes Agent: ${info.value.hermes.version}`,
     `Node.js: ${info.value.runtime.node}`,
     `Platform: ${info.value.runtime.platform}/${info.value.runtime.arch}`,
@@ -507,5 +507,30 @@ onMounted(load)
   font-size: 11px;
   color: $text-muted;
   border-top: 1px solid $border-color;
+}
+
+@media (max-width: 768px) {
+  .feature-list,
+  .info-grid,
+  .dep-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .feature-card,
+  .info-item,
+  .route-item {
+    padding-inline: 10px;
+  }
+
+  .info-item,
+  .route-item {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .route-path {
+    word-break: break-all;
+  }
 }
 </style>

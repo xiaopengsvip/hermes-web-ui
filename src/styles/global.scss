@@ -13,6 +13,18 @@
   --layout-header-padding-y: 12px;
   --layout-header-padding-x: 16px;
   --layout-header-radius: 14px;
+
+  // 全站内容栅格与双语排版 token
+  --page-content-max-width: 1180px;
+  --page-content-wide-width: 1320px;
+  --page-content-padding-inline: 16px;
+  --font-ui-latin: 'Inter', 'Segoe UI', 'SF Pro Text', system-ui, -apple-system, sans-serif;
+  --font-ui-cjk: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei UI', 'Noto Sans SC', var(--font-ui-latin);
+  --font-code-stack: 'JetBrains Mono', 'Fira Code', 'Consolas', 'Cascadia Mono', monospace;
+  --font-ui-active: var(--font-ui-cjk);
+  --font-size-base: 14px;
+  --font-line-height: 1.62;
+  --font-letter-spacing: 0.01em;
 }
 
 *,
@@ -32,15 +44,72 @@ html, body, #app {
 }
 
 body {
-  font-family: $font-ui;
-  font-size: 14px;
-  line-height: 1.6;
+  font-family: var(--font-ui-active, var(--font-ui-cjk, $font-ui));
+  font-size: var(--font-size-base, 14px);
+  line-height: var(--font-line-height, 1.62);
+  letter-spacing: var(--font-letter-spacing, 0.01em);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body[data-font-mode='auto'] {
+  font-family: var(--font-ui-cjk, $font-ui);
+}
+
+:root[data-locale='en-US'] body[data-font-mode='auto'] {
+  font-family: var(--font-ui-latin, $font-ui);
+  letter-spacing: 0.004em;
+  line-height: 1.58;
+}
+
+:root[data-locale='zh-CN'] body[data-font-mode='auto'] {
+  font-family: var(--font-ui-cjk, $font-ui);
+  letter-spacing: 0.012em;
+  line-height: 1.68;
+}
+
+body[data-font-mode='balanced'] {
+  font-family: var(--font-ui-cjk, $font-ui);
+  line-height: max(var(--font-line-height, 1.66), 1.66);
+  letter-spacing: clamp(0.006em, var(--font-letter-spacing, 0.008em), 0.014em);
+}
+
+:root[data-locale='en-US'] body[data-font-mode='balanced'] {
+  font-family: var(--font-ui-latin, $font-ui);
+  letter-spacing: clamp(0.003em, var(--font-letter-spacing, 0.008em), 0.01em);
+}
+
+body[data-font-mode='readable'] {
+  font-family: var(--font-ui-cjk, $font-ui);
+  font-size: max(var(--font-size-base, 15px), 15px);
+  line-height: max(var(--font-line-height, 1.74), 1.74);
+  letter-spacing: clamp(0.01em, var(--font-letter-spacing, 0.012em), 0.018em);
+}
+
+:root[data-locale='en-US'] body[data-font-mode='readable'] {
+  font-family: var(--font-ui-latin, $font-ui);
+  letter-spacing: clamp(0.004em, var(--font-letter-spacing, 0.01em), 0.012em);
 }
 
 code, pre, .mono {
-  font-family: $font-code;
+  font-family: var(--font-code-stack, $font-code);
+  letter-spacing: 0;
+}
+
+.text-balance {
+  text-wrap: balance;
+}
+
+.cjk-wrap {
+  line-break: loose;
+  word-break: break-word;
+}
+
+.en-wrap {
+  line-break: auto;
+  word-break: normal;
+  overflow-wrap: anywhere;
 }
 
 a {
@@ -86,15 +155,32 @@ a {
   cursor: not-allowed;
 }
 
-// 主题过渡动画
-.theme-transition,
-.theme-transition *,
-.theme-transition *::before,
-.theme-transition *::after {
-  transition: background-color var(--ui-motion-normal) ease,
+// 主题过渡动画（限制作用域，避免全局 * 触发重排）
+.theme-transition .app-main,
+.theme-transition .app-main :is(
+  .n-card,
+  .panel-card,
+  .session-item,
+  .nav-item,
+  .n-button,
+  .n-base-selection,
+  .theme-switcher,
+  .theme-card,
+  .message-bubble,
+  .tool-card
+) {
+  transition:
+    background-color var(--ui-motion-normal) ease,
     color var(--ui-motion-normal) ease,
     border-color var(--ui-motion-normal) ease,
-    box-shadow var(--ui-motion-normal) ease !important;
+    box-shadow var(--ui-motion-normal) ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-transition .app-main,
+  .theme-transition .app-main * {
+    transition: none !important;
+  }
 }
 
 body[data-density='compact'] .app-main {
@@ -109,4 +195,39 @@ body[data-motion='low'] .app-main :is(button, a, .n-card, .n-button, .n-base-sel
 body[data-motion='medium'] .app-main :is(button, a, .n-card, .n-button, .n-base-selection, .nav-item, .session-item),
 body[data-motion='high'] .app-main :is(button, a, .n-card, .n-button, .n-base-selection, .nav-item, .session-item) {
   transition-duration: var(--ui-motion-normal) !important;
+}
+
+.app-main :is(
+  .services-scroll,
+  .github-content,
+  .vercel-content,
+  .cloudflare-content,
+  .settings-scroll,
+  .materials-content,
+  .logs-content,
+  .skills-content,
+  .memory-content,
+  .jobs-content,
+  .version-content,
+  .project-center-content,
+  .insights-content,
+  .config-center-content
+) {
+  width: 100%;
+  max-width: var(--page-content-wide-width);
+  margin: 0 auto;
+  padding-inline: var(--page-content-padding-inline);
+}
+
+.app-main :is(.section-title, .header-title, h1, h2, h3) {
+  line-height: 1.35;
+  text-wrap: balance;
+}
+
+:root[data-locale='zh-CN'] .app-main :is(.section-title, .header-title, h1, h2, h3) {
+  letter-spacing: 0.015em;
+}
+
+:root[data-locale='en-US'] .app-main :is(.section-title, .header-title, h1, h2, h3) {
+  letter-spacing: 0.004em;
 }

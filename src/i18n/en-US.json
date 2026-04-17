@@ -27,7 +27,7 @@
     "no": "No"
   },
   "sidebar": {
-    "logo": "EVR-AI开发工作系统",
+    "logo": "EVR-AI Development Workspace",
     "chat": "Chat",
     "jobs": "Jobs",
     "materials": "Materials",
@@ -53,9 +53,101 @@
     "expand": "Expand",
     "collapse": "Collapse"
   },
+  "routeMeta": {
+    "common": {
+      "connection": "Connection",
+      "online": "Online",
+      "offline": "Offline",
+      "availableModels": "Available Models",
+      "currentModel": "Current Model",
+      "notConfigured": "Not configured",
+      "expandIntro": "Expand intro",
+      "collapseIntro": "Collapse intro"
+    },
+    "chat": {
+      "subtitle": "Conversation, tool calls, and terminal collaboration",
+      "description": "Use this workspace for continuous chat with Hermes Agent, switch between chat and terminal panels, and track tool execution context."
+    },
+    "jobs": {
+      "subtitle": "Scheduled jobs and delivery orchestration",
+      "description": "Configure cron jobs, destinations, and runtime status for recurring workflows such as reports, audits, and monitoring."
+    },
+    "materials": {
+      "subtitle": "Unified materials and attachments management",
+      "description": "Browse, filter, and preview generated files by source/type/session, then jump back to their related chat context."
+    },
+    "projectCenter": {
+      "subtitle": "Project-level orchestration hub",
+      "description": "Coordinate GitHub, Vercel, Cloudflare, and relay operations from one control plane with real-time operational feedback."
+    },
+    "configCenter": {
+      "subtitle": "Centralized configuration and secrets strategy",
+      "description": "Manage repository targets, domains, credentials, and audit policies in one place for consistent operations."
+    },
+    "insights": {
+      "subtitle": "Audit insights and security summaries",
+      "description": "Review audit findings, reports, and security checks to identify risk clusters and prioritize remediation."
+    },
+    "skills": {
+      "subtitle": "Reusable skills and workflow templates",
+      "description": "Maintain reusable execution playbooks to reduce repetition and improve reliability for complex tasks."
+    },
+    "memory": {
+      "subtitle": "Long-term memory and preferences",
+      "description": "Inspect and maintain durable memory entries to keep cross-session context stable and user preferences aligned."
+    },
+    "logs": {
+      "subtitle": "Logs and troubleshooting entry",
+      "description": "Inspect key logs from agent, gateway, and web-ui processes to quickly locate runtime failures."
+    },
+    "github": {
+      "subtitle": "Unified GitHub operation console",
+      "description": "Operate repositories, issues, and pull requests directly in Web UI and integrate with automation workflows."
+    },
+    "vercel": {
+      "subtitle": "Deployment and domain control",
+      "description": "Track deployment status, trigger redeployments, and manage domain bindings for release workflows."
+    },
+    "cloudflare": {
+      "subtitle": "DNS and edge network management",
+      "description": "Manage zones, DNS records, workers, and cache operations to keep edge routing and resolution healthy."
+    },
+    "services": {
+      "subtitle": "Service health and dependency status",
+      "description": "Monitor Hermes, Gateway, and BFF runtime health, then execute start/stop/restart and diagnostics."
+    },
+    "settings": {
+      "subtitle": "Client behavior and experience preferences",
+      "description": "Tune account switching, interaction behavior, and display preferences for a stable daily workflow."
+    },
+    "version": {
+      "subtitle": "Version information and capability matrix",
+      "description": "Review platform version, feature coverage, and critical endpoints for release checks and audit records."
+    }
+  },
   "theme": {
     "title": "Theme Settings",
     "subtitle": "Choose your preferred theme style",
+    "random": "Random",
+    "featured": "Featured",
+    "all": "All",
+    "dark": "Dark",
+    "light": "Light",
+    "styleAll": "All styles",
+    "styleMinimal": "Minimal",
+    "styleTech": "Tech",
+    "styleNeon": "Neon",
+    "density": "Density",
+    "compact": "Compact",
+    "comfortable": "Comfortable",
+    "motion": "Motion",
+    "low": "Low",
+    "medium": "Medium",
+    "high": "High",
+    "font": "Typography",
+    "fontAuto": "Auto",
+    "fontBalanced": "Balanced",
+    "fontReadable": "Readable",
     "liquid-glass": "Liquid Glass",
     "pure-ink": "Pure Ink",
     "ocean-blue": "Ocean Blue",
@@ -74,6 +166,21 @@
     "inputPlaceholder": "Type a message...",
     "send": "Send",
     "attachFiles": "Attach files",
+    "addAlbum": "Add album",
+    "albumAdded": "Added {count} images to album",
+    "albumSummary": "Album in composer: {count} images",
+    "albumPreviewTitle": "Image Preview",
+    "albumPreviewIndex": "Image {index}/{total}",
+    "prevImage": "Previous",
+    "nextImage": "Next",
+    "archiveTag": "Archive",
+    "previewArchive": "Preview",
+    "archivePreviewTitle": "Archive Preview: {name}",
+    "archivePreviewFailed": "Failed to preview archive",
+    "archivePreviewUnavailable": "This file cannot be previewed",
+    "archivePreviewZipOnly": "Only ZIP archives are supported for preview",
+    "archivePreviewEmpty": "Archive is empty",
+    "archiveDirectory": "Directory",
     "startRecording": "Start recording",
     "stopRecording": "Stop recording",
     "files": "Files",
@@ -110,9 +217,14 @@
     "voiceRecordErrorLog": "Voice recording error:",
     "inputHint": "Enter to send · Shift+Enter for newline",
     "attachmentUsage": "{count} files · {size}",
-    "dropHint": "Drop files to attach",
+    "imageCount": "images {count}",
+    "fileCount": "files {count}",
+    "dropHint": "Drop files here (archives/images supported)",
     "jumpToLatest": "Jump to latest",
     "youLabel": "You",
+    "roleAssistant": "Assistant",
+    "roleSystem": "System",
+    "roleMessage": "Message",
     "sendFailed": "Failed to send message",
     "maxFilesExceeded": "Maximum {max} files allowed",
     "fileTooLarge": "File is too large (max {size})",
@@ -131,6 +243,31 @@
     "modeTerminalDescription": "Terminal commands and output sessions",
     "showTerminal": "Open Terminal Panel",
     "hideTerminal": "Hide Terminal Panel",
+    "tool": {
+      "running": "Running",
+      "failed": "Failed",
+      "done": "Done",
+      "defaultName": "Tool call",
+      "output": "Tool output",
+      "collapseOutput": "Collapse output",
+      "expandOutput": "Expand output ({lines} lines)",
+      "viewDetail": "View detail",
+      "detailTitle": "Tool call detail",
+      "label": "Tool: ",
+      "statusLabel": "Status: "
+    },
+    "toolGroup": {
+      "title": "Merged tool calls ({count})",
+      "swipeHint": "Swipe horizontally to inspect each call",
+      "prev": "Prev",
+      "next": "Next",
+      "detailTitle": "Tool call detail (merged view)",
+      "clusterLabel": "Cluster by tool",
+      "all": "All",
+      "failedOnly": "Failed only",
+      "failedOnlyOn": "Failed-only ON",
+      "emptyFiltered": "No tool calls under current filters"
+    },
     "command": {
       "newDone": "Started a new chat",
       "clearDone": "Cleared current chat",
@@ -138,6 +275,122 @@
       "modelNotFound": "No model matched: {keyword}",
       "modelSwitched": "Switched model to {model}",
       "unknown": "Unknown command: /{command}"
+    },
+    "defaultSessionTitle": "New Chat",
+    "events": {
+      "runQueued": "Run queued",
+      "runStarted": "Run started",
+      "messageDelta": "Model streaming output",
+      "toolStarted": "Tool execution started",
+      "toolCompleted": "Tool execution completed",
+      "runCompleted": "Run completed",
+      "runFailed": "Run failed",
+      "runDone": "Stream ended",
+      "runError": "Stream error",
+      "runStopped": "Stopped manually"
+    },
+    "workspace": {
+      "terminalSession": "Terminal Session",
+      "workingDirectory": "Working Dir",
+      "sessionId": "Session ID",
+      "none": "None",
+      "collapseSessions": "Collapse session list",
+      "expandSessions": "Expand session list",
+      "sessionModeFilter": "Session mode and filter",
+      "sessionDateGroups": "Session date groups",
+      "groupToday": "Today",
+      "groupYesterday": "Yesterday",
+      "groupEarlier": "Earlier",
+      "currentCount": "Current {count}",
+      "searchByTitleOrId": "Search by title or session ID",
+      "openSessionAria": "Open {title}",
+      "commandCountLabel": "{count} commands",
+      "messageCountLabel": "{count} messages",
+      "pin": "Pin",
+      "rename": "Rename",
+      "viewSessionData": "View this session data",
+      "hideSessionData": "Hide this session data",
+      "newTerminal": "New Terminal",
+      "scopeCurrentSession": "Scope: current session only",
+      "terminalCommands": "Terminal commands",
+      "chatMessages": "Chat messages",
+      "toolCalls": "Tool calls",
+      "materialsTotal": "Total materials",
+      "runtimeNotificationsTitle": "Scheduled-job notifications (chat linked)",
+      "clear": "Clear",
+      "runtimeNotificationsEmpty": "No scheduled-job notifications yet. Run one in Jobs and it will sync here.",
+      "materialsCurrentSession": "Material Library (Current Session)",
+      "viewAll": "View all",
+      "imagesCount": "Images {count}",
+      "filesCount": "Others {count}",
+      "view": "View",
+      "noMaterials": "No materials in current session yet",
+      "sessionSummary": "Session summary",
+      "summaryRegionAria": "Session summary content",
+      "suggestedRename": "Suggested rename",
+      "renamePlaceholder": "Enter a new title and apply",
+      "apply": "Apply",
+      "terminalOutputHint": "Terminal output is shown here. The session list on the left stays fixed.",
+      "terminalInputPlaceholder": "Type command, Enter to run, Shift+Enter for newline",
+      "execute": "Execute",
+      "zoomView": "Zoom",
+      "sourceLabel": "Source: ",
+      "sourceAttachment": "Message attachment",
+      "sourceContent": "Message content",
+      "imagePreview": "Image preview",
+      "noPreviewImages": "No previewable images in current session",
+      "previewIndicator": "{index} / {total} · Session ID {sessionId}",
+      "unknownError": "Unknown error",
+      "expand": "Expand",
+      "collapse": "Collapse",
+      "status": {
+        "running": "Running",
+        "done": "Done",
+        "failed": "Failed"
+      },
+      "summary": {
+        "terminalTotal": "This terminal session executed {total} commands.",
+        "terminalLastCommand": "Last command: {command}",
+        "terminalNoCommand": "No command has been executed yet.",
+        "renameAdvice": "Consider naming with “task + date” for easier tracing and reuse.",
+        "noUserTopic": "No user topic yet",
+        "noAssistantDigest": "No assistant digest yet.",
+        "partialStats": "Message details are loading…",
+        "pendingCount": "pending",
+        "stats": "Session stats: user turns {turns}, tool calls {tools}, materials {materials} (images {imageCount} / files {fileCount}).",
+        "currentTopic": "Current topic: {topic}",
+        "replyDigest": "Reply digest: {digest}",
+        "scrollTipExpanded": "Scrollable full content enabled",
+        "scrollTipCollapsed": "Showing condensed summary"
+      },
+      "renameSuggestion": {
+        "terminalTask": "Terminal task · {day}",
+        "terminalOps": "{base} · Ops log",
+        "terminalTroubleshoot": "Troubleshooting · {id}",
+        "defaultCommand": "Command run",
+        "defaultSession": "Session",
+        "chatSummary": "{base} · Summary",
+        "chatMaterials": "{base} · Materials",
+        "imageMaterials": "Image assets",
+        "dialogue": "Dialogue",
+        "chatByType": "{type} · {day}"
+      },
+      "messages": {
+        "terminalRenamed": "Terminal session renamed",
+        "renameFailed": "Failed to rename session",
+        "sessionRenamed": "Session renamed",
+        "runtimeCleared": "Cleared scheduled-job notifications",
+        "jobNotified": "Scheduled job posted to chat: {name}",
+        "jobNotifyFailed": "Scheduled job notification failed: {name}",
+        "jobNotifyUpdated": "Scheduled job status updated: {name}"
+      },
+      "runtime": {
+        "success": "✅ {name} pushed to {target}",
+        "failed": "⚠️ {name} push failed: {error}",
+        "updated": "ℹ️ {name} status updated: {error}",
+        "originMissing": "Origin session missing",
+        "localStorage": "Local storage"
+      }
     }
   },
   "projectCenter": {
@@ -215,6 +468,13 @@
       "one": "Template high-frequency project configs to reduce repetitive setup time.",
       "two": "Enable pre-release automatic checks (build/env/domain conflicts).",
       "three": "Run continuous project-level audits and focus on highest-failure automation steps."
+    },
+    "errors": {
+      "notFound": "Resource not found (404). Check project/repo/domain identifiers first.",
+      "auth": "Authorization failed (401/403). Verify API key and platform permissions.",
+      "server": "Server error (500). Please retry later or inspect backend logs.",
+      "network": "Network connectivity issue. Check proxy/tunnel/target reachability.",
+      "unknown": "Request failed. Please verify parameters and retry."
     }
   },
   "configCenter": {
@@ -281,6 +541,7 @@
     "lastRun": "Last Run",
     "nextRun": "Next Run",
     "delivery": "Delivery",
+    "deliveryError": "Delivery Error",
     "repeat": "Repeat",
     "status": {
       "running": "Running",
@@ -302,7 +563,10 @@
       "jobDeleted": "Job deleted",
       "jobCreated": "Job created",
       "jobUpdated": "Job updated",
-      "failedLoadJob": "Failed to load job"
+      "failedLoadJob": "Failed to load job",
+      "jobDelivered": "Job \"{name}\" ran successfully and was delivered to {target}",
+      "jobDeliveryFailed": "Job \"{name}\" delivery failed after run: {error}",
+      "jobRunStateChanged": "Job \"{name}\" run status changed: {status}"
     },
     "presets": {
       "everyMinute": "Every minute",
@@ -315,7 +579,9 @@
     },
     "target": {
       "origin": "Origin",
-      "local": "Local"
+      "local": "Local",
+      "originResolved": "Origin ({platform} / {chat} / thread {thread})",
+      "originMissing": "Origin missing (use an explicit target)"
     },
     "validation": {
       "nameRequired": "Name is required",
@@ -331,7 +597,17 @@
     "scheduleCron": "Schedule (Cron Expression)",
     "quickPresets": "Quick Presets",
     "deliverTarget": "Deliver Target",
-    "repeatCountOptional": "Repeat Count (optional)"
+    "repeatCountOptional": "Repeat Count (optional)",
+    "originHelp": "Origin means the exact chat/topic where the job was created. This page now shows in-app notifications after each run and the resolved delivery destination.",
+    "cronGuide": "Cron format: minute hour day month weekday (e.g. 0 9 * * * runs at 09:00 every day).",
+    "cronSummary": {
+      "empty": "Enter a cron expression first",
+      "fromPreset": "Using preset: {label}",
+      "everyMinute": "Runs every minute",
+      "everyNMinutes": "Runs at minute intervals",
+      "everyHour": "Runs once every hour",
+      "custom": "Custom cron expression"
+    }
   },
   "insights": {
     "cockpitTitle": "Operations Cockpit",
@@ -470,7 +746,8 @@
       "foldViewTitle": "Session fold view",
       "useAsFilter": "Use as filter",
       "openChat": "Open chat",
-      "noSessionGroups": "No collapsible session groups"
+      "noSessionGroups": "No collapsible session groups",
+      "groupCount": "{count} groups"
     },
     "smartReuse": {
       "title": "Smart Reuse",
@@ -494,7 +771,8 @@
       "uploadDate": "Upload date",
       "lastModified": "Last modified",
       "noPreview": "No preview available",
-      "downloadToView": "Please download to view"
+      "downloadToView": "Please download to view",
+      "loadFailed": "(preview load failed) {error}"
     },
     "actions": {
       "view": "View",
@@ -509,6 +787,9 @@
       "deleteConfirm": "Are you sure you want to delete this material?",
       "deleteSuccess": "Deleted successfully",
       "deleteFailed": "Delete failed",
+      "loadFailed": "Failed to load materials",
+      "uploadFailed": "Upload failed",
+      "openSessionFailed": "Failed to open session",
       "copySuccess": "Link copied",
       "copyFailed": "Copy failed",
       "renameSuccess": "Renamed successfully",
@@ -660,7 +941,8 @@
     "authOAuthFailed": "OAuth login failed",
     "authOAuthStartFailed": "Failed to start OAuth login",
     "authOAuthCancelFailed": "Failed to cancel OAuth login",
-    "authOAuthProviderRequired": "Please select an OAuth provider"
+    "authOAuthProviderRequired": "Please select an OAuth provider",
+    "switchToAccountAria": "Switch to {provider} {label}"
   },
   "modelSelector": {
     "title": "Model",
@@ -675,7 +957,16 @@
   "services": {
     "gatewayControl": "Gateway Control",
     "webuiControl": "Web UI Control",
+    "dashboardControl": "Hermes Dashboard Control",
+    "tunnelControl": "Cloudflare Tunnel Control",
+    "unifiedControl": {
+      "title": "Unified Service Control Center",
+      "subtitle": "Combines original controls with the new tunnel capability: Gateway / Web UI / Dashboard / Cloudflare Tunnel"
+    },
+    "tunnelTargetPlaceholder": "Tunnel target URL (e.g. http://127.0.0.1:8650)",
     "gatewayStatus": "Gateway: {status}",
+    "dashboardStatus": "Dashboard: {status}",
+    "tunnelStatus": "Tunnel: {status}",
     "webuiRunning": "Web UI: running",
     "servicesCount": "Services ({count})",
     "serviceLogs": "Service Logs",
@@ -702,7 +993,12 @@
       "restart": "Restart",
       "stop": "Stop",
       "restartWebui": "Restart Web UI",
-      "stopWebui": "Stop Web UI"
+      "stopWebui": "Stop Web UI",
+      "startDashboard": "Start Dashboard",
+      "openDashboard": "Open Dashboard",
+      "startTunnel": "Start Tunnel",
+      "stopTunnel": "Stop Tunnel",
+      "openTunnel": "Open Public URL"
     },
     "messages": {
       "fetchStatusFailed": "Failed to fetch status",
@@ -712,10 +1008,18 @@
       "gatewayStarted": "Hermes gateway started",
       "gatewayRestarted": "Gateway restarted",
       "gatewayStopped": "Gateway stopped",
+      "dashboardStarted": "Hermes Dashboard started",
+      "dashboardStartFailed": "Failed to start Hermes Dashboard",
+      "tunnelStarted": "Cloudflare Tunnel started",
+      "tunnelStopped": "Cloudflare Tunnel stopped",
+      "tunnelStartFailed": "Failed to start Cloudflare Tunnel",
+      "tunnelStopFailed": "Failed to stop Cloudflare Tunnel",
+      "tunnelUrlCopied": "Tunnel public URL copied",
       "webuiRestarting": "Web UI restarting...",
       "webuiShuttingDown": "Web UI shutting down...",
       "stopGatewayConfirm": "Stop the gateway? Active sessions will be interrupted.",
       "stopWebuiConfirm": "Stop the Web UI server? You will need to restart it manually.",
+      "stopTunnelConfirm": "Stop Cloudflare Tunnel? Public mobile access will be interrupted.",
       "noLogs": "(no logs)",
       "loadLogsFailed": "(load failed)",
       "unknownError": "unknown error"

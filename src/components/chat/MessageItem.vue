@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, defineAsyncComponent, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { NModal, useMessage } from 'naive-ui'
 import { useChatStore } from '@/stores/chat'
 import type { Message } from '@/stores/chat'
-import MarkdownRenderer from './MarkdownRenderer.vue'
+const MarkdownRenderer = defineAsyncComponent(() => import('./MarkdownRenderer.vue'))
 
 const props = defineProps<{ message: Message }>()
 
@@ -75,9 +75,21 @@ async function resendMessage() {
 }
 
 function toolStateLabel(status?: string) {
-  if (status === 'running') return '执行中'
-  if (status === 'error') return '失败'
-  return '完成'
+  if (status === 'running') return t('chat.tool.running')
+  if (status === 'error') return t('chat.tool.failed')
+  return t('chat.tool.done')
+}
+
+function tSafe(key: string, fallback: string): string {
+  const value = t(key)
+  return value === key ? fallback : value
+}
+
+function roleLabel(role: Message['role']): string {
+  if (role === 'user') return tSafe('chat.youLabel', 'You')
+  if (role === 'assistant') return tSafe('chat.roleAssistant', 'Assistant')
+  if (role === 'system') return tSafe('chat.roleSystem', 'System')
+  return tSafe('chat.roleMessage', 'Message')
 }
 </script>
 
@@ -88,7 +100,7 @@ function toolStateLabel(status?: string) {
         <div class="tool-card-head">
           <div class="tool-left">
             <span class="tool-chip">TOOL</span>
-            <strong>{{ message.toolName || 'Tool' }}</strong>
+            <strong>{{ message.toolName || t('chat.tool.defaultName') }}</strong>
           </div>
           <span class="tool-status">{{ toolStateLabel(message.toolStatus) }}</span>
         </div>
@@ -111,31 +123,38 @@ function toolStateLabel(status?: string) {
         <div v-if="message.content" class="tool-output-wrap">
           <div class="tool-output-head">
             <span class="terminal-mark">terminal</span>
-            <span class="tool-output-hint">输出</span>
+            <span class="tool-output-hint">{{ t('chat.tool.output') }}</span>
           </div>
           <pre class="tool-output" :class="[{ error: message.toolStatus === 'error' }, { clamp: shouldClampToolOutput }]">{{ message.content }}</pre>
           <div v-if="toolOutputLineCount > 10" class="tool-output-actions">
             <button @click="isToolOutputExpanded = !isToolOutputExpanded">
-              {{ isToolOutputExpanded ? '收起输出' : `展开输出（${toolOutputLineCount} 行）` }}
+              {{ isToolOutputExpanded ? t('chat.tool.collapseOutput') : t('chat.tool.expandOutput', { lines: toolOutputLineCount }) }}
             </button>
           </div>
         </div>
 
         <div class="tool-actions">
-          <button @click="showToolDetail = true">查看详情</button>
+          <button @click="showToolDetail = true">{{ t('chat.tool.viewDetail') }}</button>
         </div>
       </div>
     </template>
 
     <template v-else>
       <div class="message-row" :class="message.role">
-        <img v-if="message.role === 'assistant'" src="/assets/logo.png" alt="Hermes" class="avatar assistant" />
+        <img v-if="message.role === 'assistant'" src="/hermes-avatar.webp" alt="Hermes" class="avatar assistant" loading="lazy" decoding="async" />
 
         <div class="bubble-wrap" :class="message.role">
           <div class="bubble" :class="{ system: isSystem }">
+            <div class="bubble-head">
+              <span class="bubble-role" :class="message.role">
+                {{ roleLabel(message.role) }}
+              </span>
+              <span class="bubble-head-time">{{ timeStr }}</span>
+            </div>
+
             <div v-if="message.attachments?.length" class="attachments">
               <div v-for="att in message.attachments" :key="att.id" class="attachment" :class="{ image: isImage(att.type) }">
-                <img v-if="isImage(att.type) && att.url" :src="att.url" :alt="att.name" class="attachment-thumb" />
+                <img v-if="isImage(att.type) && att.url" :src="att.url" :alt="att.name" class="attachment-thumb" loading="lazy" decoding="async" />
                 <div v-else class="attachment-file">
                   <span>{{ att.name }}</span>
                   <small>{{ formatSize(att.size) }}</small>
@@ -152,20 +171,20 @@ function toolStateLabel(status?: string) {
           </div>
 
           <div class="bubble-meta">
-            <span>{{ timeStr }}</span>
+            <span class="bubble-meta-time">{{ timeStr }}</span>
             <button v-if="message.content" @click="copyMessage">{{ t('common.copy') }}</button>
             <button v-if="message.role === 'user'" :disabled="!canResend" @click="resendMessage">{{ t('chat.resend') }}</button>
           </div>
         </div>
 
-        <img v-if="message.role === 'user'" src="/everettlogo.jpg" :alt="t('chat.youLabel')" class="avatar user" />
+        <img v-if="message.role === 'user'" src="/everettlogo.jpg" :alt="t('chat.youLabel')" class="avatar user" loading="lazy" decoding="async" />
       </div>
     </template>
 
-    <NModal v-model:show="showToolDetail" preset="card" title="工具调用详情" style="width: min(860px, 95vw)">
+    <NModal v-model:show="showToolDetail" preset="card" :title="t('chat.tool.detailTitle')" style="width: min(860px, 95vw)">
       <div class="tool-modal-body">
-        <p><strong>工具：</strong>{{ message.toolName || 'Tool' }}</p>
-        <p><strong>状态：</strong>{{ toolStateLabel(message.toolStatus) }}</p>
+        <p><strong>{{ t('chat.tool.label') }}</strong>{{ message.toolName || t('chat.tool.defaultName') }}</p>
+        <p><strong>{{ t('chat.tool.statusLabel') }}</strong>{{ toolStateLabel(message.toolStatus) }}</p>
         <pre>{{ JSON.stringify(message, null, 2) }}</pre>
       </div>
     </NModal>
@@ -176,6 +195,9 @@ function toolStateLabel(status?: string) {
 @use '@/styles/variables' as *;
 
 .message-v2 {
+  --msg-accent-rgb: var(--theme-primary-rgb, 102, 126, 234);
+  --msg-border: color-mix(in srgb, var(--theme-border, rgba(255, 255, 255, 0.15)) 84%, transparent);
+  --msg-surface: color-mix(in srgb, var(--theme-card, rgba(255, 255, 255, 0.08)) 86%, transparent);
   display: flex;
   flex-direction: column;
 
@@ -223,18 +245,29 @@ function toolStateLabel(status?: string) {
 .bubble-wrap {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  max-width: min(78%, 860px);
+  gap: 7px;
+  max-width: min(98%, 1380px);
 }
 
 .bubble {
-  border: 1px solid rgba($border-color, 0.6);
+  border: 1px solid var(--msg-border);
   border-radius: 18px;
-  padding: 12px 14px;
-  background: linear-gradient(160deg, rgba($bg-secondary, 0.85), rgba($bg-primary, 0.9));
+  padding: 12px 14px 13px;
+  background:
+    linear-gradient(
+      162deg,
+      color-mix(in srgb, var(--theme-background-secondary, #12121a) 86%, transparent),
+      color-mix(in srgb, var(--theme-background, #0a0a0f) 94%, transparent)
+    ),
+    radial-gradient(circle at 92% 8%, rgba(var(--msg-accent-rgb), 0.12), transparent 42%);
+  backdrop-filter: blur(10px);
   font-size: 14px;
-  line-height: 1.7;
+  line-height: 1.72;
   word-break: break-word;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 -1px 0 rgba(147, 190, 235, 0.08),
+    0 12px 26px rgba(5, 11, 18, 0.3);
 
   :deep(p) {
     margin: 0;
@@ -242,19 +275,77 @@ function toolStateLabel(status?: string) {
 }
 
 .user .bubble {
-  background: linear-gradient(150deg, rgba($accent-primary, 0.33), rgba(#8364ff, 0.28));
-  border-color: rgba($accent-primary, 0.75);
-  box-shadow: 0 12px 24px rgba($accent-primary, 0.2);
+  background:
+    linear-gradient(148deg, rgba(var(--msg-accent-rgb), 0.38), rgba(var(--msg-accent-rgb), 0.26)),
+    radial-gradient(circle at 12% 10%, rgba(var(--msg-accent-rgb), 0.22), transparent 46%);
+  border-color: rgba(var(--msg-accent-rgb), 0.82);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--theme-text, #fff) 20%, transparent),
+    inset 0 -1px 0 rgba(var(--msg-accent-rgb), 0.18),
+    0 16px 30px rgba(var(--msg-accent-rgb), 0.22);
 }
 
 .assistant .bubble {
-  background: linear-gradient(160deg, rgba($bg-secondary, 0.9), rgba($bg-primary, 0.95));
+  background:
+    linear-gradient(
+      162deg,
+      color-mix(in srgb, var(--theme-background-secondary, #12121a) 92%, transparent),
+      color-mix(in srgb, var(--theme-background, #0a0a0f) 96%, transparent)
+    ),
+    radial-gradient(circle at 10% 8%, rgba(var(--msg-accent-rgb), 0.14), transparent 44%);
+  border-color: rgba(var(--msg-accent-rgb), 0.34);
 }
 
 .system .bubble,
 .bubble.system {
   border-left: 3px solid $warning;
-  background: rgba($warning, 0.08);
+  background: rgba($warning, 0.09);
+}
+
+.bubble-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.bubble-role {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 0 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(140, 199, 255, 0.32);
+  background: rgba(86, 152, 218, 0.14);
+  color: #cce8ff;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.28px;
+
+  &.assistant {
+    color: #8cefff;
+    border-color: rgba(120, 222, 255, 0.48);
+    background: rgba(120, 222, 255, 0.16);
+  }
+
+  &.user {
+    color: #f2f5ff;
+    border-color: rgba(190, 181, 255, 0.5);
+    background: rgba(146, 136, 255, 0.2);
+  }
+
+  &.system {
+    color: #ffe2b8;
+    border-color: rgba(255, 193, 116, 0.44);
+    background: rgba(255, 186, 96, 0.16);
+  }
+}
+
+.bubble-head-time {
+  font-size: 10px;
+  color: rgba(178, 207, 236, 0.82);
+  font-variant-numeric: tabular-nums;
 }
 
 .bubble-meta {
@@ -262,16 +353,22 @@ function toolStateLabel(status?: string) {
   align-items: center;
   gap: 8px;
   font-size: 11px;
-  color: $text-muted;
+  color: rgba($text-muted, 0.95);
+
+  .bubble-meta-time {
+    font-variant-numeric: tabular-nums;
+    color: rgba(184, 211, 237, 0.84);
+  }
 
   button {
-    border: 1px solid rgba($border-color, 0.75);
-    background: rgba($bg-secondary, 0.55);
+    border: 1px solid rgba($border-color, 0.72);
+    background: rgba($bg-secondary, 0.5);
     color: $text-secondary;
     border-radius: 999px;
-    padding: 2px 8px;
+    padding: 2px 9px;
     cursor: pointer;
     font-size: 11px;
+    transition: border-color 0.16s ease, color 0.16s ease, background-color 0.16s ease;
 
     &:disabled {
       opacity: 0.5;
@@ -279,8 +376,9 @@ function toolStateLabel(status?: string) {
     }
 
     &:hover:not(:disabled) {
-      border-color: rgba($accent-primary, 0.6);
-      color: $accent-primary;
+      border-color: rgba($accent-primary, 0.64);
+      color: #9fe8ff;
+      background: rgba($accent-primary, 0.12);
     }
   }
 }
@@ -323,15 +421,20 @@ function toolStateLabel(status?: string) {
 }
 
 .tool-card {
-  width: min(86%, 920px);
-  border: 1px solid rgba($border-color, 0.65);
+  width: min(98%, 1420px);
+  border: 1px solid rgba($border-color, 0.62);
   border-radius: 14px;
-  background: linear-gradient(140deg, rgba($bg-secondary, 0.8), rgba($bg-primary, 0.95));
+  background: linear-gradient(140deg, rgba($bg-secondary, 0.82), rgba($bg-primary, 0.95));
   padding: 10px 12px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 10px 24px rgba(5, 11, 18, 0.28);
 
   &.running {
     border-color: rgba(#ffe082, 0.8);
-    box-shadow: 0 0 0 1px rgba(#ffe082, 0.3) inset;
+    box-shadow:
+      inset 0 0 0 1px rgba(#ffe082, 0.3),
+      0 0 20px rgba(#ffe082, 0.15);
   }
 
   &.done {

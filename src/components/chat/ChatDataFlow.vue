@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { NButton, NModal } from 'naive-ui'
+import { useI18n } from 'vue-i18n'
 import type { StreamEventItem } from '@/stores/chat'
 
 const props = defineProps<{
@@ -11,6 +12,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   clear: []
 }>()
+
+const { t } = useI18n()
 
 const showFullscreen = ref(false)
 const selected = ref<StreamEventItem | null>(null)
@@ -41,12 +44,12 @@ function eventToolName(event: StreamEventItem): string {
   <aside class="flow-rail">
     <header class="flow-header">
       <div>
-        <h4>实时数据流</h4>
-        <p>{{ isStreaming ? '运行中 · 持续更新' : '等待新任务' }}</p>
+        <h4>{{ t('chat.dataFlow.title') }}</h4>
+        <p>{{ isStreaming ? t('chat.dataFlow.streaming') : t('chat.dataFlow.idle') }}</p>
       </div>
       <div class="flow-actions">
-        <NButton size="tiny" quaternary @click="emit('clear')">清空</NButton>
-        <NButton size="tiny" @click="showFullscreen = true">全屏</NButton>
+        <NButton size="tiny" quaternary @click="emit('clear')">{{ t('chat.dataFlow.clear') }}</NButton>
+        <NButton size="tiny" @click="showFullscreen = true">{{ t('chat.dataFlow.fullscreen') }}</NButton>
       </div>
     </header>
 
@@ -62,22 +65,22 @@ function eventToolName(event: StreamEventItem): string {
         <div class="flow-item-main">
           <strong>{{ event.label }}</strong>
           <small>{{ event.event }}</small>
-          <small v-if="eventToolName(event)" class="tool-binding">工具：{{ eventToolName(event) }}</small>
+          <small v-if="eventToolName(event)" class="tool-binding">{{ t('chat.dataFlow.toolPrefix') }}{{ eventToolName(event) }}</small>
         </div>
         <time>{{ formatTime(event.timestamp) }}</time>
       </button>
-      <div v-if="latestEvents.length === 0" class="flow-empty">暂无流数据</div>
+      <div v-if="latestEvents.length === 0" class="flow-empty">{{ t('chat.dataFlow.empty') }}</div>
     </div>
 
     <div v-if="selected" class="flow-detail">
       <div class="detail-head">
-        <strong>详情</strong>
+        <strong>{{ t('chat.dataFlow.detail') }}</strong>
         <button class="detail-close" @click="selected = null">×</button>
       </div>
       <pre>{{ JSON.stringify(selected.detail || {}, null, 2) }}</pre>
     </div>
 
-    <NModal v-model:show="showFullscreen" preset="card" title="数据流全屏视图" style="width: min(1100px, 96vw)">
+    <NModal v-model:show="showFullscreen" preset="card" :title="t('chat.dataFlow.fullscreenTitle')" style="width: min(1100px, 96vw)">
       <div class="flow-fullscreen">
         <button
           v-for="event in events"
@@ -90,7 +93,7 @@ function eventToolName(event: StreamEventItem): string {
           <div class="flow-item-main">
             <strong>{{ event.label }}</strong>
             <small>{{ event.event }}</small>
-            <small v-if="eventToolName(event)" class="tool-binding">工具：{{ eventToolName(event) }}</small>
+            <small v-if="eventToolName(event)" class="tool-binding">{{ t('chat.dataFlow.toolPrefix') }}{{ eventToolName(event) }}</small>
           </div>
           <time>{{ formatTime(event.timestamp) }}</time>
         </button>

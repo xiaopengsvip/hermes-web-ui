@@ -3,6 +3,45 @@ import { promisify } from 'util'
 
 const execFileAsync = promisify(execFile)
 
+function normalizeTimestamp(value: unknown, fallback = 0): number {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    if (value > 1e12) return value / 1000
+    if (value > 0) return value
+    return fallback
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) return fallback
+
+    const numeric = Number(trimmed)
+    if (Number.isFinite(numeric)) {
+      if (numeric > 1e12) return numeric / 1000
+      if (numeric > 0) return numeric
+    }
+
+    const parsed = Date.parse(trimmed)
+    if (!Number.isNaN(parsed) && parsed > 0) {
+      return parsed / 1000
+    }
+  }
+
+  return fallback
+}
+
+function deriveSessionTitle(raw: HermesSessionFull): string | null {
+  const explicit = typeof raw.title === 'string' ? raw.title.trim() : ''
+  if (explicit) return explicit
+
+  if (!Array.isArray(raw.messages)) return null
+  const firstUser = raw.messages.find((msg: any) => msg?.role === 'user' && typeof msg?.content === 'string' && msg.content.trim())
+  if (!firstUser) return null
+
+  const content = firstUser.content.trim().replace(/\s+/g, ' ')
+  if (!content) return null
+  return content.length > 48 ? `${content.slice(0, 48)}…` : content
+}
+
 export interface HermesSession {
   id: string
   source: string
@@ -11,6 +50,7 @@ export interface HermesSession {
   title: string | null
   started_at: number
   ended_at: number | null
+  last_active: number
   end_reason: string | null
   message_count: number
   tool_call_count: number
@@ -53,14 +93,26 @@ export async function listSessions(source?: string, limit?: number): Promise<Her
     for (const line of lines) {
       try {
         const raw: HermesSessionFull = JSON.parse(line)
+        const startedAt = normalizeTimestamp(raw.started_at)
+        const endedAt = raw.ended_at == null ? null : normalizeTimestamp(raw.ended_at, startedAt)
+
+        let lastActive = endedAt || startedAt
+        if (Array.isArray(raw.messages)) {
+          for (const msg of raw.messages) {
+            const ts = normalizeTimestamp((msg as any)?.timestamp, 0)
+            if (ts > lastActive) lastActive = ts
+          }
+        }
+
         sessions.push({
           id: raw.id,
           source: raw.source,
           user_id: raw.user_id,
           model: raw.model,
-          title: raw.title,
-          started_at: raw.started_at,
-          ended_at: raw.ended_at,
+          title: deriveSessionTitle(raw),
+          started_at: startedAt,
+          ended_at: endedAt,
+          last_active: lastActive,
           end_reason: raw.end_reason,
           message_count: raw.message_count,
           tool_call_count: raw.tool_call_count,
@@ -72,8 +124,8 @@ export async function listSessions(source?: string, limit?: number): Promise<Her
       } catch { /* skip malformed lines */ }
     }
 
-    // Sort by started_at descending
-    sessions.sort((a, b) => b.started_at - a.started_at)
+    // Sort by latest activity first so today's active chats always surface.
+    sessions.sort((a, b) => (b.last_active - a.last_active) || (b.started_at - a.started_at))
 
     if (limit && limit > 0) {
       return sessions.slice(0, limit)
@@ -101,14 +153,26 @@ export async function getSession(id: string): Promise<HermesSession | null> {
     if (lines.length === 0) return null
 
     const raw: HermesSessionFull = JSON.parse(lines[0])
+    const startedAt = normalizeTimestamp(raw.started_at)
+    const endedAt = raw.ended_at == null ? null : normalizeTimestamp(raw.ended_at, startedAt)
+
+    let lastActive = endedAt || startedAt
+    if (Array.isArray(raw.messages)) {
+      for (const msg of raw.messages) {
+        const ts = normalizeTimestamp((msg as any)?.timestamp, 0)
+        if (ts > lastActive) lastActive = ts
+      }
+    }
+
     return {
       id: raw.id,
       source: raw.source,
       user_id: raw.user_id,
       model: raw.model,
-      title: raw.title,
-      started_at: raw.started_at,
-      ended_at: raw.ended_at,
+      title: deriveSessionTitle(raw),
+      started_at: startedAt,
+      ended_at: endedAt,
+      last_active: lastActive,
       end_reason: raw.end_reason,
       message_count: raw.message_count,
       tool_call_count: raw.tool_call_count,

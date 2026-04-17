@@ -624,6 +624,13 @@ export const useThemeStore = defineStore('theme', () => {
     savedMotion === 'low' || savedMotion === 'high' || savedMotion === 'medium' ? savedMotion : 'medium',
   )
 
+  const savedFontMode = localStorage.getItem('hermes_font_mode')
+  const fontMode = ref<'auto' | 'balanced' | 'readable'>(
+    savedFontMode === 'auto' || savedFontMode === 'readable' || savedFontMode === 'balanced'
+      ? savedFontMode
+      : 'auto',
+  )
+
   watch(currentThemeId, (newId) => {
     const theme = themes.find(t => t.id === newId)
     if (theme) {
@@ -641,6 +648,11 @@ export const useThemeStore = defineStore('theme', () => {
   watch(motionMode, (mode) => {
     localStorage.setItem('hermes_motion', mode)
     applyMotion(mode)
+  })
+
+  watch(fontMode, (mode) => {
+    localStorage.setItem('hermes_font_mode', mode)
+    applyTypography(mode)
   })
 
   function applyTheme(theme: Theme) {
@@ -742,6 +754,22 @@ export const useThemeStore = defineStore('theme', () => {
     document.body.setAttribute('data-motion', mode)
   }
 
+  function applyTypography(mode: 'auto' | 'balanced' | 'readable') {
+    const root = document.documentElement
+    const body = document.body
+    const mapping = {
+      auto: { size: '14px', line: '1.62', letter: '0.01em' },
+      balanced: { size: '14px', line: '1.66', letter: '0.008em' },
+      readable: { size: '15px', line: '1.74', letter: '0.012em' },
+    } as const
+
+    const selected = mapping[mode]
+    root.style.setProperty('--font-size-base', selected.size)
+    root.style.setProperty('--font-line-height', selected.line)
+    root.style.setProperty('--font-letter-spacing', selected.letter)
+    body.setAttribute('data-font-mode', mode)
+  }
+
   function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
     const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
     return result ? {
@@ -780,6 +808,10 @@ export const useThemeStore = defineStore('theme', () => {
     motionMode.value = mode
   }
 
+  function setFontMode(mode: 'auto' | 'balanced' | 'readable') {
+    fontMode.value = mode
+  }
+
   function getThemeById(themeId: string): Theme | undefined {
     return themes.find(t => t.id === themeId)
   }
@@ -788,6 +820,7 @@ export const useThemeStore = defineStore('theme', () => {
     applyTheme(currentTheme.value)
     applyDensity(densityMode.value)
     applyMotion(motionMode.value)
+    applyTypography(fontMode.value)
   }
 
   return {
@@ -796,9 +829,11 @@ export const useThemeStore = defineStore('theme', () => {
     themes,
     densityMode,
     motionMode,
+    fontMode,
     setTheme,
     setDensity,
     setMotion,
+    setFontMode,
     getThemeById,
     initTheme,
   }

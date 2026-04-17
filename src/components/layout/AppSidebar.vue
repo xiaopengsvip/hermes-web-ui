@@ -7,6 +7,14 @@ import ModelSelector from './ModelSelector.vue'
 import LanguageSwitcher from './LanguageSwitcher.vue'
 import ThemeSwitcher from './ThemeSwitcher.vue'
 
+const props = withDefaults(defineProps<{ mobileOpen?: boolean }>(), {
+  mobileOpen: false,
+})
+
+const emit = defineEmits<{
+  (event: 'close-mobile'): void
+}>()
+
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
@@ -17,9 +25,14 @@ const selectedKey = computed(() => route.name as string)
 
 function handleNav(key: string) {
   router.push({ name: key })
+  emit('close-mobile')
 }
 
 function toggleCollapse() {
+  if (props.mobileOpen) {
+    emit('close-mobile')
+    return
+  }
   collapsed.value = !collapsed.value
 }
 
@@ -27,9 +40,9 @@ defineExpose({ collapsed })
 </script>
 
 <template>
-  <aside class="sidebar" :class="{ collapsed }">
+  <aside class="sidebar" :class="{ collapsed, 'mobile-open': props.mobileOpen }">
     <div class="sidebar-header">
-      <div class="sidebar-logo" @click="router.push('/')">
+      <div class="sidebar-logo" @click="handleNav('chat')">
         <img src="/everettlogo.jpg" :alt="t('sidebar.logo')" class="logo-img" />
         <span v-if="!collapsed" class="logo-text">{{ t('sidebar.logo') }}</span>
       </div>
@@ -264,33 +277,48 @@ defineExpose({ collapsed })
 @use '@/styles/variables' as *;
 
 .sidebar {
-  width: $sidebar-width;
+  --sb-accent-rgb: var(--theme-primary-rgb, 102, 126, 234);
+  --sb-border: color-mix(in srgb, var(--theme-border, rgba(255, 255, 255, 0.15)) 84%, transparent);
+
+  width: 224px;
   height: 100vh;
   background:
-    radial-gradient(circle at 10% 0%, rgba(88, 124, 255, 0.18), transparent 35%),
-    radial-gradient(circle at 100% 20%, rgba(55, 200, 170, 0.12), transparent 32%),
+    radial-gradient(circle at 10% 0%, rgba(var(--sb-accent-rgb), 0.16), transparent 35%),
+    radial-gradient(circle at 100% 20%, rgba(var(--sb-accent-rgb), 0.1), transparent 32%),
     var(--theme-sidebar, $bg-sidebar);
   backdrop-filter: blur(var(--theme-blur, $blur-md));
   -webkit-backdrop-filter: blur(var(--theme-blur, $blur-md));
-  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  border-right: 1px solid var(--sb-border);
   display: flex;
   flex-direction: column;
-  padding: 16px 12px;
+  padding: 14px 10px;
   flex-shrink: 0;
-  transition: all $transition-normal;
+  overflow: hidden;
+  transition:
+    width 0.26s cubic-bezier(0.22, 1, 0.36, 1),
+    padding 0.26s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color $transition-normal,
+    background-color $transition-normal;
 
   &.collapsed {
     width: 68px;
-    padding: 16px 8px;
+    padding: 14px 8px;
+
+    .sidebar-header {
+      justify-content: center;
+      gap: 6px;
+    }
 
     .sidebar-logo {
       justify-content: center;
-      padding: 4px 0 16px;
+      padding: 4px 0 12px;
     }
 
     .nav-item {
       justify-content: center;
-      padding: 10px 8px;
+      min-height: 40px;
+      padding: 0;
+      border-radius: 12px;
 
       span {
         display: none;
@@ -316,7 +344,9 @@ defineExpose({ collapsed })
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 0;
+  gap: 8px;
+  min-height: 32px;
+  margin-bottom: 2px;
 }
 
 .collapse-btn {
@@ -326,7 +356,7 @@ defineExpose({ collapsed })
   width: 28px;
   height: 28px;
   border: none;
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--theme-card, rgba(255, 255, 255, 0.08)) 74%, transparent);
   color: var(--theme-text-secondary, $text-secondary);
   cursor: pointer;
   border-radius: 8px;
@@ -334,7 +364,7 @@ defineExpose({ collapsed })
   flex-shrink: 0;
 
   &:hover {
-    background: linear-gradient(135deg, rgba(96, 129, 255, 0.24), rgba(92, 221, 195, 0.2));
+    background: rgba(var(--sb-accent-rgb), 0.24);
     color: var(--theme-text, $text-primary);
   }
 }
@@ -345,8 +375,8 @@ defineExpose({ collapsed })
   border-radius: 10px;
   flex-shrink: 0;
   box-shadow:
-    0 0 0 2px rgba(255, 255, 255, 0.2),
-    0 0 18px rgba(134, 59, 255, 0.38);
+    0 0 0 2px color-mix(in srgb, var(--theme-border, #fff) 70%, transparent),
+    0 0 18px rgba(var(--sb-accent-rgb), 0.34);
 }
 
 .sidebar-logo {
@@ -358,9 +388,9 @@ defineExpose({ collapsed })
   cursor: pointer;
 
   .logo-text {
-    font-size: 18px;
+    font-size: 15px;
     font-weight: 600;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.4px;
   }
 }
 
@@ -369,23 +399,23 @@ defineExpose({ collapsed })
   display: flex;
   flex-direction: column;
   gap: 6px;
-  margin-top: 8px;
+  margin-top: 6px;
   overflow-y: auto;
   padding-right: 2px;
 }
 
 .nav-item {
-  --nav-accent: #7c8dff;
-  --nav-accent-2: #4ecbff;
+  --nav-accent: rgba(var(--sb-accent-rgb), 0.82);
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 9px 10px;
+  gap: 8px;
+  min-height: 40px;
+  padding: 8px 10px;
   border: 1px solid transparent;
-  background: rgba(255, 255, 255, 0.02);
-  color: var(--theme-text-secondary, $text-secondary);
+  background: transparent;
+  color: color-mix(in srgb, var(--theme-text-secondary, #c6d4e8) 92%, transparent);
   font-size: 13px;
-  border-radius: 10px;
+  border-radius: 11px;
   cursor: pointer;
   transition: all $transition-fast;
   width: 100%;
@@ -394,55 +424,43 @@ defineExpose({ collapsed })
   svg {
     width: 16px;
     height: 16px;
-    padding: 5px;
-    border-radius: 8px;
-    background: linear-gradient(
-      135deg,
-      color-mix(in srgb, var(--nav-accent) 78%, #ffffff 8%),
-      color-mix(in srgb, var(--nav-accent-2) 82%, #ffffff 6%)
-    );
-    color: #ffffff;
+    color: currentColor;
     stroke: currentColor;
-    box-shadow:
-      0 8px 16px color-mix(in srgb, var(--nav-accent) 38%, transparent),
-      inset 0 1px 0 rgba(255, 255, 255, 0.34);
+    stroke-width: 1.75;
     flex-shrink: 0;
+    transition: color $transition-fast, filter $transition-fast;
   }
 
   &:hover {
-    background: rgba(255, 255, 255, 0.06);
-    border-color: color-mix(in srgb, var(--nav-accent) 45%, transparent);
-    color: var(--theme-text, $text-primary);
+    background: rgba(var(--sb-accent-rgb), 0.1);
+    border-color: rgba(var(--sb-accent-rgb), 0.32);
+    color: var(--theme-text, #e4f0ff);
     transform: translateX(2px);
+
+    svg {
+      filter: drop-shadow(0 0 6px rgba(var(--sb-accent-rgb), 0.28));
+    }
+  }
+
+  &:focus-visible {
+    outline: none;
+    border-color: rgba(var(--sb-accent-rgb), 0.65);
+    box-shadow: 0 0 0 2px rgba(var(--sb-accent-rgb), 0.2);
   }
 
   &.active {
-    background: linear-gradient(
-      90deg,
-      color-mix(in srgb, var(--nav-accent) 24%, transparent),
-      rgba(255, 255, 255, 0.03)
-    );
-    border-color: color-mix(in srgb, var(--nav-accent) 58%, transparent);
-    color: var(--theme-text, $text-primary);
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--nav-accent) 24%, transparent);
+    background: linear-gradient(120deg, rgba(var(--sb-accent-rgb), 0.2), rgba(var(--sb-accent-rgb), 0.1));
+    border-color: rgba(var(--sb-accent-rgb), 0.48);
+    color: color-mix(in srgb, var(--theme-primary, #7dd3ff) 86%, #ffffff 14%);
+    box-shadow:
+      inset 0 0 0 1px rgba(var(--sb-accent-rgb), 0.2),
+      0 6px 16px rgba(24, 76, 128, 0.16);
+
+    svg {
+      filter: drop-shadow(0 0 8px rgba(var(--sb-accent-rgb), 0.36));
+    }
   }
 }
-
-.sidebar-nav .nav-item:nth-child(1) { --nav-accent: #4f9dff; --nav-accent-2: #2ee6d6; }
-.sidebar-nav .nav-item:nth-child(2) { --nav-accent: #8a5bff; --nav-accent-2: #d17dff; }
-.sidebar-nav .nav-item:nth-child(3) { --nav-accent: #ff9f43; --nav-accent-2: #ffd166; }
-.sidebar-nav .nav-item:nth-child(4) { --nav-accent: #2ecc71; --nav-accent-2: #00d2d3; }
-.sidebar-nav .nav-item:nth-child(5) { --nav-accent: #ff6b81; --nav-accent-2: #ff8ec7; }
-.sidebar-nav .nav-item:nth-child(6) { --nav-accent: #feca57; --nav-accent-2: #ff9ff3; }
-.sidebar-nav .nav-item:nth-child(7) { --nav-accent: #1dd1a1; --nav-accent-2: #48dbfb; }
-.sidebar-nav .nav-item:nth-child(8) { --nav-accent: #54a0ff; --nav-accent-2: #5f27cd; }
-.sidebar-nav .nav-item:nth-child(9) { --nav-accent: #00d2d3; --nav-accent-2: #0984e3; }
-.sidebar-nav .nav-item:nth-child(10) { --nav-accent: #576574; --nav-accent-2: #8395a7; }
-.sidebar-nav .nav-item:nth-child(11) { --nav-accent: #24292f; --nav-accent-2: #6e7681; }
-.sidebar-nav .nav-item:nth-child(12) { --nav-accent: #000000; --nav-accent-2: #555555; }
-.sidebar-nav .nav-item:nth-child(13) { --nav-accent: #f38020; --nav-accent-2: #faae40; }
-.sidebar-nav .nav-item:nth-child(14) { --nav-accent: #10ac84; --nav-accent-2: #2ed573; }
-.sidebar-nav .nav-item:nth-child(15) { --nav-accent: #8395a7; --nav-accent-2: #c8d6e5; }
 
 .sidebar-footer {
   margin-top: auto;
@@ -498,5 +516,52 @@ defineExpose({ collapsed })
   padding: 2px 12px 8px;
   font-size: 11px;
   color: var(--theme-text-muted, $text-muted);
+}
+
+@media (max-width: 900px) {
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: min(82vw, 320px);
+    max-width: 320px;
+    z-index: 240;
+    transform: translateX(-108%);
+    transition: transform 0.24s ease;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
+
+    &.mobile-open {
+      transform: translateX(0);
+    }
+
+    &.collapsed {
+      width: min(82vw, 320px);
+      padding: 14px 10px;
+
+      .sidebar-header {
+        justify-content: space-between;
+      }
+
+      .sidebar-logo {
+        justify-content: flex-start;
+        padding: 4px 12px 20px;
+      }
+
+      .nav-item {
+        justify-content: flex-start;
+        padding: 8px 10px;
+
+        span {
+          display: inline;
+        }
+      }
+
+      .status-row {
+        justify-content: space-between;
+        padding: 8px 12px;
+      }
+    }
+  }
 }
 </style>

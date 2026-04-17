@@ -32,7 +32,15 @@ const relayDefaults: RelayConfig = {
 
 function toError(ctx: any, err: any) {
   const msg = err?.message || String(err)
-  ctx.status = msg.includes('No ') ? 401 : 500
+  if (msg.includes('No ')) {
+    ctx.status = 401
+  } else if (msg.includes('Vercel API 404') || msg.includes('"code":"not_found"') || msg.includes('"code": "not_found"')) {
+    ctx.status = 404
+  } else if (msg.includes('Vercel API 400')) {
+    ctx.status = 400
+  } else {
+    ctx.status = 500
+  }
   ctx.body = { error: msg }
 }
 
@@ -276,12 +284,12 @@ projectCenterRoutes.get('/api/project-center/relay/stream', async (ctx) => {
 })
 
 projectCenterRoutes.get('/api/project-center/overview', async (ctx) => {
-  try {
-    const owner = String(ctx.query.owner || '')
-    const repo = String(ctx.query.repo || '')
-    const projectId = String(ctx.query.projectId || '')
-    const zoneId = String(ctx.query.zoneId || '')
+  const owner = String(ctx.query.owner || '')
+  const repo = String(ctx.query.repo || '')
+  const projectId = String(ctx.query.projectId || '')
+  const zoneId = String(ctx.query.zoneId || '')
 
+  try {
     const tasks: Promise<any>[] = []
     const key: string[] = []
 
@@ -347,6 +355,31 @@ projectCenterRoutes.get('/api/project-center/overview', async (ctx) => {
       },
     }
   } catch (err: any) {
+    const errMsg = String(err?.message || err)
+    if (projectId && (errMsg.includes('Vercel API 404') || errMsg.includes('"code":"not_found"'))) {
+      try {
+        const projects = await vercel.listProjects(100)
+        const candidateNames = projects
+          .map((item) => String(item.name || "").trim())
+          .filter(Boolean)
+          .slice(0, 20)
+        const normalized = projectId.trim().toLowerCase()
+        const similar = candidateNames
+          .filter((name) => name.toLowerCase().includes(normalized) || normalized.includes(name.toLowerCase()))
+          .slice(0, 6)
+
+        ctx.status = 404
+        ctx.body = {
+          error: errMsg,
+          hint: "Vercel 项目不存在或当前 token 无权限。请核对 projectId/name 与账号作用域。",
+          projectId,
+          suggestedProjects: similar.length ? similar : candidateNames.slice(0, 6),
+        }
+        return
+      } catch {
+        // ignore suggestion lookup failure and fall through to generic handler
+      }
+    }
     toError(ctx, err)
   }
 })

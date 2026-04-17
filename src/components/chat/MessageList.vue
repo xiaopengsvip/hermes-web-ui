@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { ref, watch, nextTick, onMounted } from 'vue'
+import { computed, ref, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import MessageItem from './MessageItem.vue'
+import ToolCallGroupCard from './ToolCallGroupCard.vue'
 import { useChatStore } from '@/stores/chat'
+import type { Message } from '@/stores/chat'
 
 const { t } = useI18n()
 const chatStore = useChatStore()
@@ -10,6 +12,50 @@ const listRef = ref<HTMLElement>()
 const isNearBottom = ref(true)
 const BOTTOM_THRESHOLD = 120
 const CHAT_SCROLL_MEMORY_PREFIX = 'chat:message-scroll:'
+const SCROLL_PERSIST_THROTTLE_MS = 140
+let persistScrollTimer: number | null = null
+
+type RenderMessageItem =
+  | { type: 'message'; id: string; message: Message }
+  | { type: 'tool-group'; id: string; messages: Message[] }
+
+const renderedItems = computed<RenderMessageItem[]>(() => {
+  const source = chatStore.messages
+  if (!source.length) return []
+
+  const result: RenderMessageItem[] = []
+
+  for (let i = 0; i < source.length; i++) {
+    const current = source[i]
+
+    if (current.role !== 'tool') {
+      result.push({ type: 'message', id: current.id, message: current })
+      continue
+    }
+
+    const group: Message[] = [current]
+    let cursor = i + 1
+
+    while (cursor < source.length && source[cursor].role === 'tool') {
+      group.push(source[cursor])
+      cursor += 1
+    }
+
+    if (group.length > 1) {
+      result.push({
+        type: 'tool-group',
+        id: `tool-group:${group[0].id}:${group[group.length - 1].id}:${group.length}`,
+        messages: group,
+      })
+    } else {
+      result.push({ type: 'message', id: current.id, message: current })
+    }
+
+    i = cursor - 1
+  }
+
+  return result
+})
 
 function getScrollMemoryKey() {
   return `${CHAT_SCROLL_MEMORY_PREFIX}${chatStore.activeSessionId || 'new'}`
@@ -17,7 +63,19 @@ function getScrollMemoryKey() {
 
 function persistScrollPosition() {
   if (!listRef.value) return
-  localStorage.setItem(getScrollMemoryKey(), String(listRef.value.scrollTop))
+  try {
+    localStorage.setItem(getScrollMemoryKey(), String(listRef.value.scrollTop))
+  } catch {
+    // ignore quota/storage exceptions
+  }
+}
+
+function schedulePersistScrollPosition() {
+  if (persistScrollTimer) return
+  persistScrollTimer = window.setTimeout(() => {
+    persistScrollTimer = null
+    persistScrollPosition()
+  }, SCROLL_PERSIST_THROTTLE_MS)
 }
 
 function restoreScrollPosition() {
@@ -49,7 +107,7 @@ function scrollToBottom(force = false) {
 
 function handleScroll() {
   updateNearBottom()
-  persistScrollPosition()
+  schedulePersistScrollPosition()
 }
 
 watch(() => chatStore.messages.length, () => scrollToBottom(false))
@@ -66,20 +124,36 @@ onMounted(() => {
     restoreScrollPosition()
   })
 })
+
+onBeforeUnmount(() => {
+  if (persistScrollTimer) {
+    window.clearTimeout(persistScrollTimer)
+    persistScrollTimer = null
+  }
+  persistScrollPosition()
+})
 </script>
 
 <template>
   <div class="message-list-wrap">
     <div ref="listRef" class="message-list" @scroll="handleScroll">
       <div v-if="chatStore.messages.length === 0" class="empty-state">
-        <img src="/assets/logo.png" alt="Hermes" class="empty-logo" />
+        <img src="/hermes-avatar.webp" alt="Hermes" class="empty-logo" loading="lazy" decoding="async" />
         <p>{{ t('chat.startConversation') }}</p>
       </div>
-      <MessageItem
-        v-for="msg in chatStore.messages"
-        :key="msg.id"
-        :message="msg"
-      />
+      <template
+        v-for="item in renderedItems"
+        :key="item.id"
+      >
+        <MessageItem
+          v-if="item.type === 'message'"
+          :message="item.message"
+        />
+        <ToolCallGroupCard
+          v-else
+          :messages="item.messages"
+        />
+      </template>
       <div v-if="chatStore.isStreaming" class="streaming-indicator">
         <span></span><span></span><span></span>
       </div>
@@ -111,7 +185,7 @@ onMounted(() => {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 20px 22px 18px;
+  padding: 18px 16px 16px;
   display: flex;
   flex-direction: column;
   gap: 16px;

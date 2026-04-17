@@ -111,6 +111,39 @@ async function vercelApi(path: string, options: { method?: string; body?: any } 
   return res.json()
 }
 
+function seemsProjectId(value: string): boolean {
+  const normalized = String(value || '').trim()
+  // Vercel project IDs are typically 20+ alphanumeric chars and do not contain dots.
+  return /^[A-Za-z0-9_-]{16,}$/.test(normalized) && !normalized.includes('.')
+}
+
+async function resolveProjectId(projectIdOrName?: string): Promise<string | undefined> {
+  const raw = String(projectIdOrName || '').trim()
+  if (!raw) return undefined
+
+  if (seemsProjectId(raw)) {
+    return raw
+  }
+
+  try {
+    const project = await getProject(raw)
+    if (project?.id) return project.id
+  } catch (err: any) {
+    const msg = String(err?.message || '')
+    // For project names under different scopes, direct GET may return 404.
+    // Fallback to list+match so UI can keep using human-friendly names.
+    if (!msg.includes('Vercel API 404')) {
+      throw err
+    }
+  }
+
+  const projects = await listProjects(100)
+  const matched = projects.find((project) => project.id === raw || project.name === raw)
+  if (matched?.id) return matched.id
+
+  throw new Error(`Vercel API 404: {"error":{"code":"not_found","message":"Project not found."}}`)
+}
+
 /**
  * List projects
  */
@@ -133,7 +166,8 @@ export async function listDeployments(options: { projectId?: string; limit?: num
   const params = new URLSearchParams({
     limit: String(options.limit || 20),
   })
-  if (options.projectId) params.set('projectId', options.projectId)
+  const resolvedProjectId = await resolveProjectId(options.projectId)
+  if (resolvedProjectId) params.set('projectId', resolvedProjectId)
   const data = await vercelApi(`/v6/deployments?${params}`)
   return data.deployments || []
 }
@@ -148,7 +182,9 @@ export async function getDeployment(deploymentId: string): Promise<VercelDeploym
 /**
  * Trigger a new deployment (redeploy)
  */
-export async function redeploy(projectId: string): Promise<any> {
+export async function redeploy(projectIdOrName: string): Promise<any> {
+  const projectId = await resolveProjectId(projectIdOrName)
+  if (!projectId) throw new Error('projectId is required')
   return vercelApi(`/v13/deployments`, {
     method: 'POST',
     body: { projectId, name: projectId },
@@ -158,7 +194,9 @@ export async function redeploy(projectId: string): Promise<any> {
 /**
  * List domains for a project
  */
-export async function listDomains(projectId: string): Promise<VercelDomain[]> {
+export async function listDomains(projectIdOrName: string): Promise<VercelDomain[]> {
+  const projectId = await resolveProjectId(projectIdOrName)
+  if (!projectId) throw new Error('projectId is required')
   const data = await vercelApi(`/v9/projects/${projectId}/domains`)
   return data.domains || []
 }

@@ -36,6 +36,19 @@ const scheduleExpr = computed(() => {
   return s?.expr || props.job.schedule_display || '—'
 })
 
+const deliveryDisplay = computed(() => {
+  if (props.job.deliver === 'origin') {
+    if (!props.job.origin) return t('jobs.target.originMissing')
+    return t('jobs.target.originResolved', {
+      platform: props.job.origin.platform,
+      chat: props.job.origin.chat_name || props.job.origin.chat_id,
+      thread: props.job.origin.thread_id || '—',
+    })
+  }
+  if (props.job.deliver === 'local') return t('jobs.target.local')
+  return props.job.deliver
+})
+
 const formatTime = (t?: string | null) => {
   if (!t) return '—'
   return new Date(t).toLocaleString()
@@ -105,7 +118,11 @@ async function handleDelete() {
       </div>
       <div class="info-row">
         <span class="info-label">{{ t('jobs.delivery') }}</span>
-        <span class="info-value">{{ job.deliver }}<template v-if="job.origin"> ({{ job.origin.platform }})</template></span>
+        <span class="info-value" :title="deliveryDisplay">{{ deliveryDisplay }}</span>
+      </div>
+      <div v-if="job.last_delivery_error" class="info-row">
+        <span class="info-label">{{ t('jobs.deliveryError') }}</span>
+        <span class="info-value delivery-error" :title="job.last_delivery_error">{{ job.last_delivery_error }}</span>
       </div>
       <div v-if="job.repeat" class="info-row">
         <span class="info-label">{{ t('jobs.repeat') }}</span>
@@ -131,7 +148,7 @@ async function handleDelete() {
       </NTooltip>
       <NTooltip>
         <template #trigger>
-          <NButton size="tiny" quaternary @click="handleRun">{{ t('jobs.actions.runNow') }}</NButton>
+          <NButton size="tiny" type="primary" ghost class="run-now-btn" @click="handleRun">{{ t('jobs.actions.runNow') }}</NButton>
         </template>
         {{ t('jobs.actions.runNow') }}
       </NTooltip>
@@ -145,14 +162,21 @@ async function handleDelete() {
 @use '@/styles/variables' as *;
 
 .job-card {
-  background-color: $bg-card;
-  border: 1px solid $border-color;
-  border-radius: $radius-md;
-  padding: 16px;
-  transition: border-color $transition-fast;
+  background:
+    linear-gradient(
+      150deg,
+      color-mix(in srgb, $bg-card 88%, transparent),
+      color-mix(in srgb, $bg-secondary 82%, transparent)
+    );
+  border: 1px solid color-mix(in srgb, $border-color 84%, transparent);
+  border-radius: 14px;
+  padding: 14px;
+  transition: border-color $transition-fast, box-shadow $transition-fast, transform $transition-fast;
 
   &:hover {
-    border-color: rgba($accent-primary, 0.3);
+    border-color: rgba($accent-primary, 0.42);
+    box-shadow: 0 14px 24px rgba(6, 14, 22, 0.24);
+    transform: translateY(-1px);
   }
 }
 
@@ -165,12 +189,14 @@ async function handleDelete() {
 
 .job-name {
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 700;
   color: $text-primary;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 70%;
+  max-width: 72%;
 }
 
 .status-badge {
@@ -210,17 +236,28 @@ async function handleDelete() {
 .info-row {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
+  gap: 10px;
 }
 
 .info-label {
   font-size: 12px;
-  color: $text-muted;
+  color: color-mix(in srgb, $text-muted 94%, transparent);
+  min-width: 72px;
 }
 
 .info-value {
   font-size: 12px;
-  color: $text-secondary;
+  color: color-mix(in srgb, $text-secondary 96%, transparent);
+  max-width: 68%;
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.delivery-error {
+  color: $error;
 }
 
 .run-status {
@@ -239,8 +276,13 @@ async function handleDelete() {
 
 .card-actions {
   display: flex;
-  gap: 4px;
-  border-top: 1px solid $border-light;
+  flex-wrap: wrap;
+  gap: 6px;
+  border-top: 1px solid color-mix(in srgb, $border-light 86%, transparent);
   padding-top: 10px;
+}
+
+.run-now-btn {
+  font-weight: 700;
 }
 </style>

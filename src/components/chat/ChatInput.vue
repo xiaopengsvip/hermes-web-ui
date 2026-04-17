@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { NButton, NTooltip, useMessage } from 'naive-ui'
+import { NButton, NTooltip, NModal, useMessage } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 import type { Attachment } from '@/stores/chat'
 import { useChatStore } from '@/stores/chat'
@@ -13,6 +13,7 @@ const appStore = useAppStore()
 const inputText = ref('')
 const textareaRef = ref<HTMLTextAreaElement>()
 const fileInputRef = ref<HTMLInputElement>()
+const albumInputRef = ref<HTMLInputElement>()
 const attachments = ref<Attachment[]>([])
 const isDragging = ref(false)
 const dragCounter = ref(0)
@@ -20,9 +21,9 @@ const isComposing = ref(false)
 const isPreparing = ref(false)
 const inputError = ref<string | null>(null)
 
-const MAX_FILES = 8
+const MAX_FILES = 99
 const MAX_FILE_SIZE = 20 * 1024 * 1024
-const MAX_TOTAL_SIZE = 50 * 1024 * 1024
+const MAX_TOTAL_SIZE = 500 * 1024 * 1024
 
 // Voice recording state
 const isRecording = ref(false)
@@ -31,14 +32,36 @@ const voiceError = ref<string | null>(null)
 let mediaRecorder: MediaRecorder | null = null
 let audioChunks: Blob[] = []
 
+interface ArchiveEntrySummary {
+  name: string
+  size?: number
+  isDir: boolean
+}
+
+const showImagePreview = ref(false)
+const imagePreviewIndex = ref(0)
+const showArchivePreview = ref(false)
+const archiveLoading = ref(false)
+const archivePreviewTitle = ref('')
+const archiveEntries = ref<ArchiveEntrySummary[]>([])
+const archivePreviewError = ref('')
+
 const totalAttachmentSize = computed(() => attachments.value.reduce((sum, a) => sum + a.size, 0))
+const imageAttachments = computed(() => attachments.value.filter((item) => isImage(item.type)))
+const imageAttachmentCount = computed(() => imageAttachments.value.length)
+const fileAttachmentCount = computed(() => attachments.value.length - imageAttachmentCount.value)
+const currentPreviewImage = computed(() => imageAttachments.value[imagePreviewIndex.value] || null)
+const canPreviewPrevImage = computed(() => imagePreviewIndex.value > 0)
+const canPreviewNextImage = computed(() => imagePreviewIndex.value < imageAttachments.value.length - 1)
 const canSend = computed(() => (inputText.value.trim() || attachments.value.length > 0) && !isPreparing.value)
 const draftKey = computed(() => `chat:draft:${chatStore.activeSessionId || 'new'}`)
+const sessionAttachmentKey = computed(() => chatStore.activeSessionId || 'new')
 
 // Check voice support on mount
 onMounted(() => {
   isVoiceSupported.value = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)
   inputText.value = localStorage.getItem(draftKey.value) || ''
+  attachments.value = chatStore.getAttachmentDraft(sessionAttachmentKey.value)
   requestAnimationFrame(() => {
     if (textareaRef.value) {
       textareaRef.value.style.height = 'auto'
@@ -57,11 +80,33 @@ watch(draftKey, (nextKey) => {
   })
 })
 
+watch(sessionAttachmentKey, (nextKey, prevKey) => {
+  if (prevKey) {
+    chatStore.setAttachmentDraft(prevKey, attachments.value)
+  }
+  attachments.value = chatStore.getAttachmentDraft(nextKey)
+})
+
 watch(inputText, (value) => {
   if (value.trim()) {
     localStorage.setItem(draftKey.value, value)
   } else {
     localStorage.removeItem(draftKey.value)
+  }
+})
+
+watch(attachments, (value) => {
+  chatStore.setAttachmentDraft(sessionAttachmentKey.value, value)
+}, { deep: true })
+
+watch(imageAttachments, (list) => {
+  if (!list.length) {
+    imagePreviewIndex.value = 0
+    showImagePreview.value = false
+    return
+  }
+  if (imagePreviewIndex.value > list.length - 1) {
+    imagePreviewIndex.value = list.length - 1
   }
 })
 
@@ -85,7 +130,7 @@ onUnmounted(() => {
   if (mediaRecorder && mediaRecorder.state !== 'inactive') {
     mediaRecorder.stop()
   }
-  clearAttachments()
+  chatStore.setAttachmentDraft(sessionAttachmentKey.value, attachments.value)
 })
 
 // --- Voice recording ---
@@ -184,14 +229,33 @@ function addFile(file: File) {
   })
 }
 
+function addFiles(files: File[]) {
+  for (const file of files) addFile(file)
+}
+
 function handleAttachClick() {
   fileInputRef.value?.click()
+}
+
+function handleAlbumClick() {
+  albumInputRef.value?.click()
 }
 
 function handleFileChange(e: Event) {
   const input = e.target as HTMLInputElement
   if (!input.files) return
-  for (const file of input.files) addFile(file)
+  addFiles(Array.from(input.files))
+  input.value = ''
+}
+
+function handleAlbumChange(e: Event) {
+  const input = e.target as HTMLInputElement
+  if (!input.files) return
+  const files = Array.from(input.files)
+  addFiles(files)
+  if (files.length > 0) {
+    toast.success(t('chat.albumAdded', { count: files.length }))
+  }
   input.value = ''
 }
 
@@ -201,13 +265,14 @@ function handlePaste(e: ClipboardEvent) {
   const imageItems = items.filter(i => i.type.startsWith('image/'))
   if (!imageItems.length) return
   e.preventDefault()
+  const files: File[] = []
   for (const item of imageItems) {
     const blob = item.getAsFile()
     if (!blob) continue
     const ext = item.type.split('/')[1] || 'png'
-    const file = new File([blob], `pasted-${Date.now()}.${ext}`, { type: item.type })
-    addFile(file)
+    files.push(new File([blob], `pasted-${Date.now()}.${ext}`, { type: item.type }))
   }
+  addFiles(files)
 }
 
 // --- Drag and drop ---
@@ -237,7 +302,7 @@ function handleDrop(e: DragEvent) {
   isDragging.value = false
   const files = Array.from(e.dataTransfer?.files || [])
   if (!files.length) return
-  for (const file of files) addFile(file)
+  addFiles(files)
   textareaRef.value?.focus()
 }
 
@@ -258,6 +323,7 @@ async function executeSlashCommand(raw: string): Promise<boolean> {
       chatStore.clearCurrentSessionMessages()
       inputText.value = ''
       clearAttachments()
+      chatStore.clearAttachmentDraft(sessionAttachmentKey.value)
       localStorage.removeItem(draftKey.value)
       toast.success(t('chat.command.clearDone'))
       return true
@@ -302,6 +368,7 @@ async function handleSend() {
     inputText.value = ''
     localStorage.removeItem(draftKey.value)
     clearAttachments()
+    chatStore.clearAttachmentDraft(sessionAttachmentKey.value)
 
     if (textareaRef.value) {
       textareaRef.value.style.height = 'auto'
@@ -351,6 +418,66 @@ function removeAttachment(id: string) {
   }
 }
 
+function openImagePreviewByAttachment(attachmentId: string) {
+  const index = imageAttachments.value.findIndex((item) => item.id === attachmentId)
+  if (index < 0) return
+  imagePreviewIndex.value = index
+  showImagePreview.value = true
+}
+
+function closeImagePreview() {
+  showImagePreview.value = false
+}
+
+function previewPrevImage() {
+  if (!canPreviewPrevImage.value) return
+  imagePreviewIndex.value -= 1
+}
+
+function previewNextImage() {
+  if (!canPreviewNextImage.value) return
+  imagePreviewIndex.value += 1
+}
+
+async function openArchivePreview(att: Attachment) {
+  archivePreviewTitle.value = att.name
+  archiveEntries.value = []
+  archivePreviewError.value = ''
+  showArchivePreview.value = true
+  archiveLoading.value = true
+
+  try {
+    if (!att.file) {
+      throw new Error(t('chat.archivePreviewUnavailable'))
+    }
+
+    const lower = att.name.toLowerCase()
+    if (!lower.endsWith('.zip')) {
+      throw new Error(t('chat.archivePreviewZipOnly'))
+    }
+
+    const { default: JSZip } = await import('jszip')
+    const zip = await JSZip.loadAsync(att.file)
+    const entries = Object.values(zip.files).map((entry) => {
+      const rawEntry = entry as any
+      return {
+        name: entry.name,
+        size: rawEntry?._data?.uncompressedSize,
+        isDir: entry.dir,
+      }
+    })
+
+    archiveEntries.value = entries.slice(0, 200)
+    if (!archiveEntries.value.length) {
+      archivePreviewError.value = t('chat.archivePreviewEmpty')
+    }
+  } catch (err: any) {
+    archivePreviewError.value = err?.message || t('chat.archivePreviewFailed')
+  } finally {
+    archiveLoading.value = false
+  }
+}
+
 function formatSize(bytes: number): string {
   if (bytes < 1024) return t('chat.size.byte', { value: bytes })
   if (bytes < 1024 * 1024) return t('chat.size.kb', { value: (bytes / 1024).toFixed(1) })
@@ -359,6 +486,23 @@ function formatSize(bytes: number): string {
 
 function isImage(type: string): boolean {
   return type.startsWith('image/')
+}
+
+function isArchiveFile(name: string, type: string): boolean {
+  const lower = name.toLowerCase()
+  if (type.includes('zip') || type.includes('x-7z') || type.includes('x-rar')) return true
+  return ['.zip', '.rar', '.7z', '.tar', '.gz', '.bz2', '.xz', '.tgz', '.tbz2', '.txz', '.tar.gz', '.tar.bz2', '.tar.xz'].some((ext) => lower.endsWith(ext))
+}
+
+function applySlashCommand(command: '/new' | '/clear' | '/model') {
+  inputText.value = command === '/model' ? '/model ' : command
+  requestAnimationFrame(() => {
+    textareaRef.value?.focus()
+    if (textareaRef.value) {
+      const len = textareaRef.value.value.length
+      textareaRef.value.setSelectionRange(len, len)
+    }
+  })
 }
 </script>
 
@@ -378,19 +522,33 @@ function isImage(type: string): boolean {
         :class="{ image: isImage(att.type) }"
       >
         <template v-if="isImage(att.type)">
-          <img :src="att.url" :alt="att.name" class="attachment-thumb" />
+          <img :src="att.url" :alt="att.name" class="attachment-thumb" @click="openImagePreviewByAttachment(att.id)" />
         </template>
         <template v-else>
           <div class="attachment-file">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
             <span class="file-name">{{ att.name }}</span>
             <span class="file-size">{{ formatSize(att.size) }}</span>
+            <div class="file-tags-row">
+              <span v-if="isArchiveFile(att.name, att.type)" class="file-archive-tag">{{ t('chat.archiveTag') }}</span>
+              <button
+                v-if="isArchiveFile(att.name, att.type)"
+                class="archive-preview-btn"
+                type="button"
+                @click="openArchivePreview(att)"
+              >
+                {{ t('chat.previewArchive') }}
+              </button>
+            </div>
           </div>
         </template>
         <button class="attachment-remove" @click="removeAttachment(att.id)">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
       </div>
+    </div>
+    <div v-if="imageAttachmentCount > 1" class="album-summary">
+      {{ t('chat.albumSummary', { count: imageAttachmentCount }) }}
     </div>
 
     <div
@@ -408,6 +566,14 @@ function isImage(type: string): boolean {
         multiple
         class="file-input-hidden"
         @change="handleFileChange"
+      />
+      <input
+        ref="albumInputRef"
+        type="file"
+        accept="image/*"
+        multiple
+        class="file-input-hidden"
+        @change="handleAlbumChange"
       />
       <textarea
         ref="textareaRef"
@@ -431,6 +597,21 @@ function isImage(type: string): boolean {
             </NButton>
           </template>
           {{ t('chat.attachFiles') }}
+        </NTooltip>
+
+        <NTooltip trigger="hover">
+          <template #trigger>
+            <NButton quaternary size="small" @click="handleAlbumClick" circle>
+              <template #icon>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <rect x="3" y="3" width="18" height="18" rx="2" />
+                  <circle cx="9" cy="9" r="1.5" />
+                  <path d="M21 16l-5-5-6 6-3-3-4 4" />
+                </svg>
+              </template>
+            </NButton>
+          </template>
+          {{ t('chat.addAlbum') }}
         </NTooltip>
 
         <NTooltip v-if="isVoiceSupported" trigger="hover">
@@ -483,9 +664,48 @@ function isImage(type: string): boolean {
     </div>
 
     <div class="input-hint-row">
-      <span>{{ t('chat.inputHint') }} · Slash: /new /clear /model</span>
-      <span>{{ t('chat.attachmentUsage', { count: attachments.length, size: formatSize(totalAttachmentSize) }) }}</span>
+      <div class="input-hint-left">
+        <span>{{ t('chat.inputHint') }}</span>
+        <div class="slash-shortcuts">
+          <button @click="applySlashCommand('/new')">/new</button>
+          <button @click="applySlashCommand('/clear')">/clear</button>
+          <button @click="applySlashCommand('/model')">/model</button>
+        </div>
+      </div>
+      <span>
+        {{ t('chat.attachmentUsage', { count: attachments.length, size: formatSize(totalAttachmentSize) }) }}
+        · {{ t('chat.imageCount', { count: imageAttachmentCount }) }}
+        · {{ t('chat.fileCount', { count: fileAttachmentCount }) }}
+      </span>
     </div>
+
+    <NModal v-model:show="showImagePreview" preset="card" :title="currentPreviewImage?.name || t('chat.albumPreviewTitle')" class="album-preview-modal" size="huge" :bordered="false">
+      <div v-if="currentPreviewImage" class="album-preview-body">
+        <img :src="currentPreviewImage.url" :alt="currentPreviewImage.name" class="album-preview-image" />
+        <div class="album-preview-meta">
+          <span>{{ t('chat.albumPreviewIndex', { index: imagePreviewIndex + 1, total: imageAttachmentCount }) }}</span>
+          <span>{{ formatSize(currentPreviewImage.size) }}</span>
+        </div>
+        <div class="album-preview-actions">
+          <NButton size="small" secondary :disabled="!canPreviewPrevImage" @click="previewPrevImage">{{ t('chat.prevImage') }}</NButton>
+          <NButton size="small" secondary :disabled="!canPreviewNextImage" @click="previewNextImage">{{ t('chat.nextImage') }}</NButton>
+          <NButton size="small" @click="closeImagePreview">{{ t('common.done') }}</NButton>
+        </div>
+      </div>
+    </NModal>
+
+    <NModal v-model:show="showArchivePreview" preset="card" :title="t('chat.archivePreviewTitle', { name: archivePreviewTitle })" class="archive-preview-modal" size="large" :bordered="false">
+      <div class="archive-preview-body">
+        <div v-if="archiveLoading" class="archive-preview-loading">{{ t('common.loading') }}</div>
+        <div v-else-if="archivePreviewError" class="archive-preview-error">{{ archivePreviewError }}</div>
+        <div v-else class="archive-preview-list">
+          <div class="archive-preview-row" v-for="entry in archiveEntries" :key="entry.name">
+            <span class="archive-entry-name">{{ entry.name }}</span>
+            <span class="archive-entry-size">{{ entry.isDir ? t('chat.archiveDirectory') : formatSize(entry.size || 0) }}</span>
+          </div>
+        </div>
+      </div>
+    </NModal>
   </div>
 </template>
 
@@ -523,6 +743,13 @@ function isImage(type: string): boolean {
   padding: 0 0 10px;
 }
 
+.album-summary {
+  margin-top: -2px;
+  margin-bottom: 10px;
+  font-size: 11px;
+  color: $text-muted;
+}
+
 .attachment-preview {
   position: relative;
   border-radius: $radius-sm;
@@ -540,6 +767,7 @@ function isImage(type: string): boolean {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  cursor: zoom-in;
 }
 
 .attachment-file {
@@ -565,24 +793,57 @@ function isImage(type: string): boolean {
     font-size: 10px;
     color: $text-muted;
   }
+
+  .file-tags-row {
+    margin-top: 2px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .file-archive-tag {
+    font-size: 10px;
+    color: #ffd79a;
+    border: 1px solid rgba(255, 215, 154, 0.5);
+    border-radius: 999px;
+    padding: 0 6px;
+    line-height: 1.4;
+  }
+
+  .archive-preview-btn {
+    border: 1px solid rgba(#6dddff, 0.4);
+    border-radius: 999px;
+    background: rgba(#6dddff, 0.1);
+    color: #ccefff;
+    font-size: 10px;
+    padding: 0 6px;
+    line-height: 1.5;
+    cursor: pointer;
+  }
 }
 
 .attachment-remove {
   position: absolute;
-  top: 2px;
-  right: 2px;
-  width: 18px;
-  height: 18px;
+  top: 4px;
+  right: 4px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
-  border: none;
-  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(0, 0, 0, 0.56);
   color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   opacity: 0;
-  transition: opacity $transition-fast;
+  transition: opacity $transition-fast, border-color $transition-fast;
+
+  &:hover {
+    border-color: rgba(#6dddff, 0.6);
+  }
 
   .attachment-preview:hover & {
     opacity: 1;
@@ -660,6 +921,107 @@ function isImage(type: string): boolean {
   font-size: 11px;
   color: rgba($text-muted, 0.95);
   padding-inline: 4px;
+  flex-wrap: wrap;
+}
+
+.input-hint-left {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.slash-shortcuts {
+  display: inline-flex;
+  gap: 6px;
+  flex-wrap: wrap;
+
+  button {
+    border: 1px solid rgba($border-color, 0.7);
+    background: rgba($bg-secondary, 0.45);
+    color: $text-secondary;
+    border-radius: 999px;
+    font-size: 10px;
+    padding: 2px 8px;
+    cursor: pointer;
+
+    &:hover {
+      color: #d7edff;
+      border-color: rgba(#6dddff, 0.48);
+      background: rgba(#6dddff, 0.14);
+    }
+  }
+}
+
+.album-preview-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.album-preview-image {
+  width: 100%;
+  max-height: min(68vh, 720px);
+  border-radius: 12px;
+  object-fit: contain;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.album-preview-meta {
+  display: flex;
+  justify-content: space-between;
+  color: $text-muted;
+  font-size: 12px;
+}
+
+.album-preview-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.archive-preview-body {
+  max-height: min(65vh, 560px);
+  overflow-y: auto;
+}
+
+.archive-preview-loading,
+.archive-preview-error {
+  font-size: 13px;
+  color: $text-muted;
+}
+
+.archive-preview-error {
+  color: $error;
+}
+
+.archive-preview-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.archive-preview-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid rgba($border-color, 0.6);
+  border-radius: 8px;
+  padding: 6px 8px;
+  background: rgba($bg-secondary, 0.5);
+}
+
+.archive-entry-name {
+  font-size: 12px;
+  color: $text-primary;
+  word-break: break-all;
+}
+
+.archive-entry-size {
+  font-size: 11px;
+  color: $text-muted;
+  white-space: nowrap;
 }
 
 // Drag-over state

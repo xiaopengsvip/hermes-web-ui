@@ -1,7 +1,7 @@
 import Router from '@koa/router'
-import { execFile, exec } from 'child_process'
+import { execFile, exec, spawn } from 'child_process'
 import { promisify } from 'util'
-import { readFile, readdir } from 'fs/promises'
+import { readFile, readdir, writeFile, appendFile } from 'fs/promises'
 import { resolve, join } from 'path'
 import { homedir } from 'os'
 import { config } from '../config'
@@ -17,7 +17,17 @@ interface ServiceStatus {
   pid?: number
   uptime?: string
   details?: string
-  type: 'hermes' | 'gateway' | 'web-ui' | 'agent' | 'other'
+  type: 'hermes' | 'gateway' | 'web-ui' | 'agent' | 'dashboard' | 'other'
+}
+
+interface DashboardStatusInfo {
+  running: boolean
+  port: number
+  host: string
+  url: string
+  status: 'running' | 'stopped'
+  pid?: number
+  details?: string
 }
 
 interface SystemInfo {
@@ -28,6 +38,204 @@ interface SystemInfo {
   active_children: number
   uptime: number
   timestamp: number
+  dashboard: DashboardStatusInfo
+}
+
+interface CloudflareTunnelState {
+  running: boolean
+  pid?: number
+  target_url: string
+  public_url?: string
+  status: 'running' | 'stopped' | 'error'
+  updated_at: string
+  started_at?: string
+  error?: string
+}
+
+const tunnelStatePath = resolve(config.dataDir, 'cloudflare-tunnel-state.json')
+const tunnelLogPath = resolve(config.dataDir, 'cloudflare-tunnel.log')
+const DEFAULT_TUNNEL_TARGET = `http://127.0.0.1:${config.port}`
+let tunnelProcess: ReturnType<typeof spawn> | null = null
+
+function createDefaultTunnelState(): CloudflareTunnelState {
+  return {
+    running: false,
+    status: 'stopped',
+    target_url: DEFAULT_TUNNEL_TARGET,
+    updated_at: new Date().toISOString(),
+  }
+}
+
+async function loadTunnelState(): Promise<CloudflareTunnelState> {
+  try {
+    const raw = await readFile(tunnelStatePath, 'utf-8')
+    const parsed = JSON.parse(raw) as Partial<CloudflareTunnelState>
+    return {
+      ...createDefaultTunnelState(),
+      ...parsed,
+    }
+  } catch {
+    return createDefaultTunnelState()
+  }
+}
+
+async function saveTunnelState(next: CloudflareTunnelState): Promise<void> {
+  await writeFile(tunnelStatePath, JSON.stringify(next, null, 2), 'utf-8')
+}
+
+function isPidRunning(pid?: number): boolean {
+  if (!pid || !Number.isFinite(pid)) return false
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch {
+    return false
+  }
+}
+
+async function ensureCloudflaredAvailable(): Promise<void> {
+  await execFileAsync('cloudflared', ['--version'], { timeout: 5000 })
+}
+
+function extractTunnelUrl(line: string): string | null {
+  const match = line.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/i)
+  return match?.[0] || null
+}
+
+async function appendTunnelLog(line: string): Promise<void> {
+  if (!line.trim()) return
+  const text = `[${new Date().toISOString()}] ${line}\n`
+  await appendFile(tunnelLogPath, text, 'utf-8').catch(() => undefined)
+}
+
+async function getTunnelStatus(): Promise<CloudflareTunnelState> {
+  const current = await loadTunnelState()
+  const runningByPid = isPidRunning(current.pid)
+  if (!runningByPid && current.running) {
+    const next = {
+      ...current,
+      running: false,
+      status: 'stopped' as const,
+      pid: undefined,
+      updated_at: new Date().toISOString(),
+    }
+    await saveTunnelState(next)
+    return next
+  }
+
+  return {
+    ...current,
+    running: runningByPid,
+    status: runningByPid ? 'running' : current.status,
+  }
+}
+
+async function stopCloudflareTunnelInternal(): Promise<CloudflareTunnelState> {
+  const current = await loadTunnelState()
+
+  if (tunnelProcess && !tunnelProcess.killed) {
+    tunnelProcess.kill('SIGTERM')
+  }
+
+  if (isPidRunning(current.pid)) {
+    try {
+      process.kill(current.pid!, 'SIGTERM')
+    } catch {
+      // ignore
+    }
+  }
+
+  const next: CloudflareTunnelState = {
+    ...current,
+    running: false,
+    status: 'stopped',
+    pid: undefined,
+    updated_at: new Date().toISOString(),
+  }
+
+  tunnelProcess = null
+  await saveTunnelState(next)
+  await appendTunnelLog('cloudflared tunnel stopped')
+  return next
+}
+
+async function startCloudflareTunnel(targetUrl: string): Promise<CloudflareTunnelState> {
+  const current = await getTunnelStatus()
+  if (current.running && current.pid) return current
+
+  await ensureCloudflaredAvailable()
+
+  const child = spawn('cloudflared', ['tunnel', '--url', targetUrl], {
+    env: process.env,
+    cwd: homedir(),
+  })
+
+  const next: CloudflareTunnelState = {
+    ...current,
+    running: true,
+    status: 'running',
+    pid: child.pid,
+    target_url: targetUrl,
+    updated_at: new Date().toISOString(),
+    started_at: new Date().toISOString(),
+    error: undefined,
+  }
+
+  tunnelProcess = child
+  await saveTunnelState(next)
+  await appendTunnelLog(`cloudflared tunnel starting -> ${targetUrl}`)
+
+  const onLine = async (raw: string, source: 'stdout' | 'stderr') => {
+    const line = raw.trim()
+    if (!line) return
+    await appendTunnelLog(`[${source}] ${line}`)
+    const url = extractTunnelUrl(line)
+    if (url) {
+      const latest = await loadTunnelState()
+      const updated: CloudflareTunnelState = {
+        ...latest,
+        running: true,
+        status: 'running',
+        pid: child.pid,
+        target_url: targetUrl,
+        public_url: url,
+        updated_at: new Date().toISOString(),
+      }
+      await saveTunnelState(updated)
+    }
+  }
+
+  child.stdout.on('data', (buf) => {
+    String(buf).split(/\r?\n/).forEach((line) => { void onLine(line, 'stdout') })
+  })
+  child.stderr.on('data', (buf) => {
+    String(buf).split(/\r?\n/).forEach((line) => { void onLine(line, 'stderr') })
+  })
+
+  child.on('exit', async (code, signal) => {
+    const latest = await loadTunnelState()
+    const updated: CloudflareTunnelState = {
+      ...latest,
+      running: false,
+      status: code === 0 ? 'stopped' : 'error',
+      pid: undefined,
+      updated_at: new Date().toISOString(),
+      error: code === 0 ? undefined : `cloudflared exited (code=${code}, signal=${signal || 'none'})`,
+    }
+    tunnelProcess = null
+    await saveTunnelState(updated)
+    await appendTunnelLog(updated.error || 'cloudflared tunnel exited normally')
+  })
+
+  const startWaitMs = 7000
+  const startAt = Date.now()
+  while (Date.now() - startAt < startWaitMs) {
+    const latest = await loadTunnelState()
+    if (latest.public_url) return latest
+    await new Promise((resolve) => setTimeout(resolve, 250))
+  }
+
+  return loadTunnelState()
 }
 
 async function checkProcess(pattern: string): Promise<{ running: boolean; pid?: number }> {
@@ -107,14 +315,75 @@ async function getActiveSessions(): Promise<number> {
   }
 }
 
+async function getDashboardStatus(): Promise<DashboardStatusInfo> {
+  const host = '127.0.0.1'
+  const port = 9119
+  const url = `http://${host}:${port}`
+
+  let running = false
+  let pid: number | undefined
+
+  try {
+    const proc = await checkProcess('hermes dashboard')
+    if (proc.running) {
+      running = true
+      pid = proc.pid
+    }
+  } catch {
+    // ignore
+  }
+
+  if (!running) {
+    try {
+      const res = await fetch(`${url}/`, {
+        signal: AbortSignal.timeout(1500),
+      })
+      running = res.ok
+    } catch {
+      running = false
+    }
+  }
+
+  return {
+    running,
+    port,
+    host,
+    url,
+    status: running ? 'running' : 'stopped',
+    pid,
+    details: running ? `${host}:${port}` : 'not running',
+  }
+}
+
+async function startDashboardIfNeeded(): Promise<DashboardStatusInfo> {
+  const current = await getDashboardStatus()
+  if (current.running) return current
+
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn('hermes', ['dashboard', '--host', '127.0.0.1', '--port', '9119', '--no-open'], {
+      detached: true,
+      stdio: 'ignore',
+      env: process.env,
+    })
+
+    child.once('error', reject)
+    child.unref()
+    resolve()
+  })
+
+  await new Promise((resolve) => setTimeout(resolve, 1500))
+  return getDashboardStatus()
+}
+
 // GET /api/system/status — comprehensive system status
 systemRoutes.get('/api/system/status', async (ctx) => {
   try {
-    const [version, gateway, children, sessions] = await Promise.all([
+    const [version, gateway, children, sessions, dashboard] = await Promise.all([
       getHermesVersion(),
       getGatewayStatus(),
       getHermesChildren(),
       getActiveSessions(),
+      getDashboardStatus(),
     ])
 
     // Check web-ui itself
@@ -151,6 +420,13 @@ systemRoutes.get('/api/system/status', async (ctx) => {
         details: config.upstream,
       },
       {
+        name: 'Hermes Dashboard',
+        status: dashboard.status,
+        pid: dashboard.pid,
+        type: 'dashboard',
+        details: dashboard.url,
+      },
+      {
         name: 'Web UI (BFF)',
         status: 'running', // We're responding, so it's running
         pid: process.pid,
@@ -179,6 +455,7 @@ systemRoutes.get('/api/system/status', async (ctx) => {
       active_children: children.length,
       uptime: Math.round(process.uptime()),
       timestamp: Date.now(),
+      dashboard,
     } as SystemInfo
   } catch (err: any) {
     ctx.status = 500
@@ -207,6 +484,32 @@ systemRoutes.post('/api/system/wake', async (ctx) => {
   } catch (err: any) {
     ctx.status = 500
     ctx.body = { error: err.message }
+  }
+})
+
+// GET /api/system/dashboard/status — check Hermes dashboard(9119) status
+systemRoutes.get('/api/system/dashboard/status', async (ctx) => {
+  try {
+    const dashboard = await getDashboardStatus()
+    ctx.body = dashboard
+  } catch (err: any) {
+    ctx.status = 500
+    ctx.body = { error: err.message }
+  }
+})
+
+// POST /api/system/dashboard/start — start Hermes dashboard(9119)
+systemRoutes.post('/api/system/dashboard/start', async (ctx) => {
+  try {
+    const dashboard = await startDashboardIfNeeded()
+    ctx.body = {
+      success: dashboard.running,
+      status: dashboard,
+      message: dashboard.running ? 'Dashboard is running' : 'Dashboard failed to start',
+    }
+  } catch (err: any) {
+    ctx.status = 500
+    ctx.body = { success: false, error: err.message }
   }
 })
 
@@ -264,6 +567,45 @@ systemRoutes.post('/api/system/restart', async (ctx) => {
     console.log('  ↻ Web UI server restarting...')
     process.exit(42) // special exit code for restart
   }, 500)
+})
+
+// GET /api/system/cloudflare-tunnel/status — cloudflared tunnel status
+systemRoutes.get('/api/system/cloudflare-tunnel/status', async (ctx) => {
+  try {
+    const tunnel = await getTunnelStatus()
+    ctx.body = tunnel
+  } catch (err: any) {
+    ctx.status = 500
+    ctx.body = { error: err.message }
+  }
+})
+
+// POST /api/system/cloudflare-tunnel/start — start cloudflared quick tunnel
+systemRoutes.post('/api/system/cloudflare-tunnel/start', async (ctx) => {
+  try {
+    const body = (ctx.request.body || {}) as { target_url?: string }
+    const target = String(body.target_url || DEFAULT_TUNNEL_TARGET).trim()
+    const tunnel = await startCloudflareTunnel(target)
+    ctx.body = { success: true, tunnel }
+  } catch (err: any) {
+    const raw = err?.message || 'Failed to start cloudflared tunnel'
+    const message = /ENOENT|not found/i.test(raw)
+      ? 'cloudflared not found. Install it first: sudo curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /usr/local/bin/cloudflared && sudo chmod +x /usr/local/bin/cloudflared'
+      : raw
+    ctx.status = 500
+    ctx.body = { success: false, error: message }
+  }
+})
+
+// POST /api/system/cloudflare-tunnel/stop — stop cloudflared quick tunnel
+systemRoutes.post('/api/system/cloudflare-tunnel/stop', async (ctx) => {
+  try {
+    const tunnel = await stopCloudflareTunnelInternal()
+    ctx.body = { success: true, tunnel }
+  } catch (err: any) {
+    ctx.status = 500
+    ctx.body = { success: false, error: err.message }
+  }
 })
 
 // GET /api/system/sessions/active — active sessions with details

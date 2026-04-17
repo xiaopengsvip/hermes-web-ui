@@ -117,6 +117,16 @@ function inferExpiresAt(entry: any): string | null {
   )
 }
 
+function sortCredentialsByPriority(entries: any[]): any[] {
+  return [...entries].sort((a, b) => {
+    const pa = Number(a?.priority)
+    const pb = Number(b?.priority)
+    const wa = Number.isFinite(pa) ? pa : Number.MAX_SAFE_INTEGER
+    const wb = Number.isFinite(pb) ? pb : Number.MAX_SAFE_INTEGER
+    return wa - wb
+  })
+}
+
 function appendAuthEvent(event: Omit<AuthStreamEvent, 'id' | 'timestamp'>): void {
   authEventStream.unshift({
     id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
@@ -203,12 +213,9 @@ const KNOWN_MODELS: Record<string, string[]> = {
     'meta-llama/llama-4-maverick',
     'qwen/qwen-2.5-72b-instruct',
   ],
-  openai: [
-    'gpt-4o',
-    'gpt-4o-mini',
-    'o1',
-    'o1-mini',
-    'o3-mini',
+  'openai-codex': [
+    'gpt-5.3-codex',
+    'gpt-5.4-codex',
   ],
   anthropic: [
     'claude-sonnet-4-20250514',
@@ -216,6 +223,21 @@ const KNOWN_MODELS: Record<string, string[]> = {
     'claude-3-5-sonnet-20241022',
     'claude-3-5-haiku-20241022',
   ],
+}
+
+const PROVIDER_ALIAS: Record<string, string> = {
+  openai: 'openai-codex',
+}
+
+function normalizeProvider(provider?: string): string {
+  if (!provider) return ''
+  return PROVIDER_ALIAS[provider] || provider
+}
+
+function normalizeModelForProvider(provider: string, model: string): string {
+  if (provider !== 'openai-codex') return model
+  const known = KNOWN_MODELS['openai-codex'] || []
+  return known.includes(model) ? model : 'gpt-5.3-codex'
 }
 
 export const fsRoutes = new Router()
@@ -543,9 +565,10 @@ fsRoutes.get('/api/available-models', async (ctx) => {
     for (const [providerKey, entries] of Object.entries(pool)) {
       if (!Array.isArray(entries) || entries.length === 0) continue
 
-      const nonExhausted = entries.find(e => e.last_status !== 'exhausted')
+      const sortedEntries = sortCredentialsByPriority(entries as any[])
+      const nonExhausted = sortedEntries.find(e => e.last_status !== 'exhausted')
       if (!nonExhausted) {
-        const exhaustedEntry = entries[0] as any
+        const exhaustedEntry = sortedEntries[0] as any
         pushUnavailable(providerKey, providerKey.replace(/^custom:/, '') || exhaustedEntry?.label || providerKey, exhaustedEntry?.base_url || '', 'all_credentials_exhausted')
         continue
       }
@@ -658,30 +681,29 @@ fsRoutes.get('/api/auth/credentials', async (ctx) => {
     const providers = Object.entries(pool)
       .filter(([, entries]) => Array.isArray(entries) && entries.length > 0)
       .map(([provider, entries]) => {
-        const normalized = [...entries]
-          .sort((a: any, b: any) => (Number(a.priority ?? 0) - Number(b.priority ?? 0)))
-          .map((entry: any, idx: number) => ({
-            index: idx + 1,
-            id: entry.id || '',
-            label: entry.label || `account-${idx + 1}`,
-            auth_type: entry.auth_type || 'unknown',
-            source: entry.source || 'unknown',
-            priority: Number(entry.priority ?? idx),
-            status: entry.last_status || 'ok',
-            meta: {
-              last_error_code: entry.last_error_code ?? null,
-              last_error_message: entry.last_error_message ?? null,
-              last_error_reset_at: toIsoTime(entry.last_error_reset_at),
-              last_status_at: toIsoTime(entry.last_status_at),
-              expires_at: inferExpiresAt(entry),
-              last_refresh: toIsoTime(entry.last_refresh),
-              base_url: entry.base_url ?? null,
-            },
-          }))
+        const sortedEntries = sortCredentialsByPriority(entries as any[])
+        const normalized = sortedEntries.map((entry: any, idx: number) => ({
+          index: idx + 1,
+          id: entry.id || '',
+          label: entry.label || `account-${idx + 1}`,
+          auth_type: entry.auth_type || 'unknown',
+          source: entry.source || 'unknown',
+          priority: Number(entry.priority ?? idx),
+          status: entry.last_status || 'ok',
+          meta: {
+            last_error_code: entry.last_error_code ?? null,
+            last_error_message: entry.last_error_message ?? null,
+            last_error_reset_at: toIsoTime(entry.last_error_reset_at),
+            last_status_at: toIsoTime(entry.last_status_at),
+            expires_at: inferExpiresAt(entry),
+            last_refresh: toIsoTime(entry.last_refresh),
+            base_url: entry.base_url ?? null,
+          },
+        }))
 
         return {
           provider,
-          activeIndex: 1,
+          activeIndex: normalized.length > 0 ? 1 : 0,
           entries: normalized,
         }
       })

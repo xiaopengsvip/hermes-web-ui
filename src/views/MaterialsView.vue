@@ -4,6 +4,7 @@ import { NButton, NInput, NSelect, NSpin, NCard, NStatistic, NGrid, NGridItem, N
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useChatStore } from '@/stores/chat'
+import { formatLocaleDateTime } from '@/i18n'
 import { fetchMaterials, deleteMaterial, fetchMaterialText, uploadMaterial, type Material, type MaterialCategory, type MaterialSessionRef } from '@/api/materials'
 
 interface MaterialStats {
@@ -157,7 +158,7 @@ function formatSize(bytes: number): string {
 }
 
 function formatDate(timestamp: number): string {
-  return new Date(timestamp).toLocaleString()
+  return formatLocaleDateTime(timestamp)
 }
 
 function getTypeIcon(type: string): string {
@@ -193,7 +194,7 @@ async function loadMaterials() {
       similarity: m.source === 'chat' ? 0.92 : 0.78,
     }))
   } catch (error) {
-    console.error('加载素材失败:', error)
+    console.error(t('materials.messages.loadFailed'), error)
     materials.value = []
     categories.value = []
     chatSessions.value = []
@@ -210,7 +211,7 @@ async function handleUpload(data: { file: { file: File | null } }) {
     await loadMaterials()
     showUpload.value = false
   } catch (error) {
-    console.error('上传失败:', error)
+    console.error(t('materials.messages.uploadFailed'), error)
   } finally {
     uploading.value = false
   }
@@ -240,7 +241,7 @@ async function openSession(sessionId: string) {
     await chatStore.switchSession(sessionId)
     await router.push({ name: 'chat' })
   } catch (error) {
-    console.error('打开会话失败:', error)
+    console.error(t('materials.messages.openSessionFailed'), error)
     window.location.hash = '/'
   }
 }
@@ -264,7 +265,7 @@ async function handleView(material: Material) {
       const res = await fetchMaterialText(material.id, 50000)
       previewText.value = res.text || ''
     } catch (error) {
-      previewText.value = `(preview load failed) ${String((error as any)?.message || error)}`
+      previewText.value = t('materials.preview.loadFailed', { error: String((error as any)?.message || error) })
     } finally {
       previewTextLoading.value = false
     }
@@ -383,7 +384,7 @@ onMounted(() => {
         <div class="session-tools-section panel-card">
           <div class="session-tools-head">
             <h3 class="section-title compact-title">{{ t('materials.sessions.classificationTitle') }}</h3>
-            <NTag size="small" type="info">{{ sessionClassifications.length }} 组</NTag>
+            <NTag size="small" type="info">{{ t('materials.sessions.groupCount', { count: sessionClassifications.length }) }}</NTag>
           </div>
 
           <div class="session-classification-list compact-list">
@@ -449,8 +450,13 @@ onMounted(() => {
         </div>
 
         <!-- Smart Reuse Section -->
-        <div class="smart-reuse-section panel-card">
-          <h3 class="section-title">{{ t('materials.smartReuse.title') }}</h3>
+        <details class="smart-reuse-section panel-card" :open="smartReuseSuggestions.length > 0">
+          <summary class="smart-reuse-summary">
+            <span>
+              <strong>{{ t('materials.smartReuse.title') }}</strong>
+              <small>{{ t('materials.smartSuggestionCount', { count: smartReuseSuggestions.length }) }}</small>
+            </span>
+          </summary>
           <p class="section-description">{{ t('materials.smartReuse.description') }}</p>
           <div v-if="smartReuseSuggestions.length > 0" class="suggestions-grid">
             <NCard
@@ -485,7 +491,7 @@ onMounted(() => {
             </NCard>
           </div>
           <NEmpty v-else :description="t('materials.smartReuse.noSuggestions')" />
-        </div>
+        </details>
 
         <!-- Materials Grid -->
         <div class="materials-grid-section panel-card">
@@ -741,7 +747,8 @@ onMounted(() => {
 @use '@/styles/variables' as *;
 
 .materials-view {
-  height: 100vh;
+  height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   background:
@@ -798,6 +805,7 @@ onMounted(() => {
 
 .materials-content {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 16px 18px 28px;
 }
@@ -926,6 +934,40 @@ onMounted(() => {
 
 .smart-reuse-section {
   margin-bottom: 16px;
+}
+
+.smart-reuse-summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+
+  &::-webkit-details-marker {
+    display: none;
+  }
+
+  span {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  strong {
+    font-size: 14px;
+    color: $text-primary;
+  }
+
+  small {
+    border-radius: 999px;
+    border: 1px solid rgba(123, 195, 255, 0.36);
+    background: rgba(96, 177, 255, 0.14);
+    color: rgba(205, 233, 255, 0.9);
+    padding: 1px 8px;
+    font-size: 11px;
+    line-height: 1.5;
+  }
 }
 
 .suggestions-grid {
