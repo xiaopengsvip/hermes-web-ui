@@ -27,25 +27,25 @@
     "no": "否"
   },
   "sidebar": {
-    "logo": "EVR-AI开发工作系统",
-    "chat": "聊天",
-    "jobs": "定时任务",
+    "logo": "EVR-AI 智能作战台",
+    "chat": "对话中枢",
+    "jobs": "自动任务",
     "materials": "素材库",
-    "projectCenter": "项目中心",
-    "configCenter": "配置中心",
+    "projectCenter": "项目调度台",
+    "configCenter": "配置策略",
     "skills": "技能",
     "memory": "记忆",
     "logs": "日志",
-    "insights": "洞察",
+    "insights": "审计洞察",
     "audit": "审计",
     "reports": "汇报",
     "securityCenter": "安全中心",
     "settings": "设置",
-    "authSwitch": "登录/切换账号",
+    "authSwitch": "账号登录与切换",
     "github": "GitHub（代码托管）",
     "vercel": "Vercel（部署）",
-    "services": "服务",
-    "version": "版本",
+    "services": "服务中控",
+    "version": "版本矩阵",
     "disconnected": "未连接",
     "connected": "已连接",
     "cloudflare": "Cloudflare（网络）",
@@ -65,28 +65,28 @@
       "collapseIntro": "收起介绍"
     },
     "chat": {
-      "subtitle": "对话、工具调用与终端协作入口",
-      "description": "用于与 Hermes Agent 进行连续会话，可切换聊天/终端模式，查看工具执行轨迹并沉淀素材。"
+      "subtitle": "对话、工具与命令流的一体化工作区",
+      "description": "在单一主视图完成提问、工具调用与命令协同，减少页面跳转并保留完整上下文。"
     },
     "jobs": {
-      "subtitle": "定时任务与自动投递编排",
-      "description": "在这里配置 Cron 任务、投递目标和执行状态，适合日报、巡检、自动审计等持续任务。"
+      "subtitle": "计划任务编排与结果投递中心",
+      "description": "统一管理 Cron 规则、投递目标与执行反馈，适合日报、巡检与自动化运营任务。"
     },
     "materials": {
-      "subtitle": "会话素材与附件统一管理",
-      "description": "按来源、类型、会话归类素材，支持快速预览、筛选和回溯到具体聊天上下文。"
+      "subtitle": "会话产物与附件的统一资产区",
+      "description": "按来源、类型、会话快速检索素材，支持预览、筛选与回跳到原始对话。"
     },
     "projectCenter": {
-      "subtitle": "多系统联动的项目调度中枢",
-      "description": "集成 GitHub / Vercel / Cloudflare / Relay 能力，支持项目级自动化执行与实时状态监控。"
+      "subtitle": "跨平台协同的项目作战指挥台",
+      "description": "联动 GitHub、Vercel、Cloudflare 与中转服务，形成从规划到发布的闭环执行链路。"
     },
     "configCenter": {
-      "subtitle": "平台配置与密钥策略集中管理",
-      "description": "集中维护目标仓库、域名、密钥与审计策略，确保全链路配置可追踪且一致。"
+      "subtitle": "全局配置、密钥与策略控制台",
+      "description": "集中维护仓库目标、域名参数与安全策略，确保多环境配置一致且可审计。"
     },
     "insights": {
-      "subtitle": "审计洞察与安全结果汇总",
-      "description": "集中展示审计、报告、安全巡检结果，帮助快速发现高风险变更并制定修复路径。"
+      "subtitle": "风险洞察与治理建议总览",
+      "description": "聚合审计结果、趋势与高优先级问题，帮助快速制定修复路径并持续追踪。"
     },
     "skills": {
       "subtitle": "技能资产与流程模板库",
@@ -113,16 +113,16 @@
       "description": "集中处理 Zone、DNS、Worker 与缓存操作，保障域名解析与边缘可用性。"
     },
     "services": {
-      "subtitle": "服务健康与依赖状态总览",
-      "description": "统一查看 Hermes、Gateway、BFF 等服务状态，并执行启停与诊断动作。"
+      "subtitle": "服务健康、链路状态与运维入口",
+      "description": "查看 Hermes/Gateway/Web UI 运行状态，执行启停、诊断与隧道联动操作。"
     },
     "settings": {
-      "subtitle": "客户端行为与体验偏好设置",
-      "description": "管理账号切换、交互偏好与显示配置，确保使用体验与工作流一致。"
+      "subtitle": "账号、偏好与交互体验设置",
+      "description": "统一管理账号切换、界面行为和交互参数，让日常工作流更稳定可控。"
     },
     "version": {
-      "subtitle": "版本信息与能力矩阵说明",
-      "description": "汇总当前平台版本、能力清单与关键接口，便于发布校验和审计留档。"
+      "subtitle": "版本信息、能力清单与发布基线",
+      "description": "汇总运行版本、模块能力与关键依赖，便于验收对比与发布留档。"
     }
   },
   "theme": {
@@ -156,14 +156,14 @@
     "midnight-purple": "午夜紫"
   },
   "chat": {
-    "title": "聊天",
-    "newChat": "新建聊天",
-    "sessions": "会话列表",
+    "title": "对话中枢",
+    "newChat": "新建会话",
+    "sessions": "会话导航",
     "loadingSessions": "加载会话中...",
     "noSessions": "暂无会话",
     "clickFilterToShow": "点击上方筛选后显示会话",
-    "startConversation": "开始与 Hermes Agent 对话",
-    "inputPlaceholder": "输入消息...",
+    "startConversation": "开始新的协作会话",
+    "inputPlaceholder": "输入消息，支持 / 命令、@Agent、#文件...",
     "send": "发送",
     "attachFiles": "附件",
     "addAlbum": "添加相册",
@@ -238,9 +238,9 @@
     "regenerate": "重新生成",
     "toolCalls": "工具调用",
     "lastLatency": "延迟",
-    "modeSwitchTitle": "工作模式",
-    "modeChatDescription": "聊天对话与上下文会话",
-    "modeTerminalDescription": "终端命令与输出会话",
+    "modeSwitchTitle": "工作视图",
+    "modeChatDescription": "对话与上下文协作",
+    "modeTerminalDescription": "命令执行与输出跟踪",
     "showTerminal": "打开终端面板",
     "hideTerminal": "关闭终端面板",
     "tool": {
@@ -296,8 +296,8 @@
       "none": "暂无",
       "collapseSessions": "收起会话列表",
       "expandSessions": "展开会话列表",
-      "sessionModeFilter": "会话模式与筛选",
-      "sessionDateGroups": "会话日期分组",
+      "sessionModeFilter": "会话视图与筛选",
+      "sessionDateGroups": "会话时间分区",
       "groupToday": "今天",
       "groupYesterday": "昨天",
       "groupEarlier": "更早",
@@ -308,30 +308,30 @@
       "messageCountLabel": "{count} 条消息",
       "pin": "置顶",
       "rename": "重命名",
-      "viewSessionData": "查看本会话数据",
-      "hideSessionData": "隐藏本会话数据",
+      "viewSessionData": "展开会话数据面板",
+      "hideSessionData": "收起会话数据面板",
       "newTerminal": "新建终端",
       "scopeCurrentSession": "统计范围（当前会话）",
       "terminalCommands": "终端命令",
       "chatMessages": "聊天消息",
       "toolCalls": "工具调用",
       "materialsTotal": "素材总数",
-      "runtimeNotificationsTitle": "定时任务通知（聊天联动）",
+      "runtimeNotificationsTitle": "任务动态通知（聊天联动）",
       "clear": "清空",
       "runtimeNotificationsEmpty": "暂时没有定时任务通知，去 Jobs 执行一次后会同步到这里。",
-      "materialsCurrentSession": "素材库（当前会话）",
+      "materialsCurrentSession": "当前会话素材区",
       "viewAll": "查看全部",
       "imagesCount": "图片 {count}",
       "filesCount": "其他 {count}",
       "view": "查看",
       "noMaterials": "当前会话还没有素材文件",
-      "sessionSummary": "本次会话总结",
+      "sessionSummary": "会话智能摘要",
       "summaryRegionAria": "会话总结内容",
       "suggestedRename": "建议重命名",
-      "renamePlaceholder": "输入新标题并应用",
+      "renamePlaceholder": "输入建议标题并一键应用",
       "apply": "应用",
-      "terminalOutputHint": "这里显示终端会话输出，左侧会话列表保持不变。",
-      "terminalInputPlaceholder": "输入命令，Enter 执行，Shift+Enter 换行",
+      "terminalOutputHint": "此处展示终端输出流，左侧会话导航保持可切换。",
+      "terminalInputPlaceholder": "输入命令后回车执行（Shift+Enter 换行）",
       "execute": "执行",
       "zoomView": "放大查看",
       "sourceLabel": "来源：",
@@ -394,11 +394,11 @@
     }
   },
   "projectCenter": {
-    "title": "超级项目中心",
-    "subtitle": "融合聊天、素材、GitHub、Vercel、Cloudflare 的一体化调度板块",
+    "title": "项目作战中心",
+    "subtitle": "把聊天调度、仓库协同、部署发布与网络治理聚合到一个工作台",
     "createSchedule": "创建调度任务",
     "openAudit": "打开动态审计",
-    "commandCenter": "自动能力聊天调度",
+    "commandCenter": "自动化调度指令台",
     "commandPlaceholder": "例如：为 allapple.top-new 制定网站开发方案，自动拆分任务并执行部署与域名配置。",
     "runAuto": "自动执行",
     "running": "自动执行中...",
@@ -407,7 +407,7 @@
     "activityEmpty": "暂无操作，发送一条自动指令开始。",
     "commandCompleted": "自动任务已提交到聊天会话，正在持续执行。",
     "commandFailed": "自动任务提交失败",
-    "realtimeData": "真实数据流与自动巡检",
+    "realtimeData": "实时链路数据与巡检结果",
     "ownerPlaceholder": "GitHub owner（例如 xiaopengsvip）",
     "repoPlaceholder": "GitHub repo（例如 allapple.new）",
     "projectIdPlaceholder": "Vercel 项目 ID/名称",
@@ -441,9 +441,9 @@
     "relaySendCommand": "发送命令",
     "relayChatSent": "远端聊天已发送",
     "relayCommandSent": "远端命令已发送",
-    "dispatchCenter": "融合调度中心",
+    "dispatchCenter": "融合执行调度中心",
     "autoPipeline": "自动化执行流水线",
-    "suggestionsTitle": "动态改进建议",
+    "suggestionsTitle": "策略优化建议",
     "enter": "进入",
     "quick": {
       "websiteDev": "网站开发",

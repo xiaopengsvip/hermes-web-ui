@@ -27,25 +27,25 @@
     "no": "No"
   },
   "sidebar": {
-    "logo": "EVR-AI Development Workspace",
-    "chat": "Chat",
-    "jobs": "Jobs",
+    "logo": "EVR-AI Ops Console",
+    "chat": "Conversation Hub",
+    "jobs": "Automation Jobs",
     "materials": "Materials",
-    "projectCenter": "Project Center",
-    "configCenter": "Config Center",
+    "projectCenter": "Project Ops Hub",
+    "configCenter": "Config Strategy",
     "skills": "Skills",
     "memory": "Memory",
     "logs": "Logs",
-    "insights": "Insights",
+    "insights": "Risk Insights",
     "audit": "Audit",
     "reports": "Reports",
     "securityCenter": "Security Center",
     "settings": "Settings",
-    "authSwitch": "Login / Switch Account",
+    "authSwitch": "Account Login / Switch",
     "github": "GitHub",
     "vercel": "Vercel",
-    "services": "Services",
-    "version": "Version",
+    "services": "Service Control",
+    "version": "Version Matrix",
     "disconnected": "Disconnected",
     "connected": "Connected",
     "cloudflare": "Cloudflare",
@@ -65,28 +65,28 @@
       "collapseIntro": "Collapse intro"
     },
     "chat": {
-      "subtitle": "Conversation, tool calls, and terminal collaboration",
-      "description": "Use this workspace for continuous chat with Hermes Agent, switch between chat and terminal panels, and track tool execution context."
+      "subtitle": "Unified workspace for dialog, tools, and command flow",
+      "description": "Handle prompts, tool calls, and command collaboration in one main view with continuous context."
     },
     "jobs": {
-      "subtitle": "Scheduled jobs and delivery orchestration",
-      "description": "Configure cron jobs, destinations, and runtime status for recurring workflows such as reports, audits, and monitoring."
+      "subtitle": "Scheduled automation and delivery control",
+      "description": "Manage cron rules, delivery targets, and runtime feedback for reports, audits, and recurring ops."
     },
     "materials": {
-      "subtitle": "Unified materials and attachments management",
-      "description": "Browse, filter, and preview generated files by source/type/session, then jump back to their related chat context."
+      "subtitle": "Unified asset zone for session outputs",
+      "description": "Browse artifacts by source/type/session, preview quickly, and jump back to original conversations."
     },
     "projectCenter": {
-      "subtitle": "Project-level orchestration hub",
-      "description": "Coordinate GitHub, Vercel, Cloudflare, and relay operations from one control plane with real-time operational feedback."
+      "subtitle": "Cross-platform project command center",
+      "description": "Coordinate GitHub, Vercel, Cloudflare, and relay workflows into one execution pipeline."
     },
     "configCenter": {
-      "subtitle": "Centralized configuration and secrets strategy",
-      "description": "Manage repository targets, domains, credentials, and audit policies in one place for consistent operations."
+      "subtitle": "Global configuration, secrets, and policy control",
+      "description": "Maintain repo targets, domain settings, and security policies with consistent multi-env governance."
     },
     "insights": {
-      "subtitle": "Audit insights and security summaries",
-      "description": "Review audit findings, reports, and security checks to identify risk clusters and prioritize remediation."
+      "subtitle": "Risk intelligence and remediation overview",
+      "description": "Aggregate audit outcomes, trends, and critical findings to prioritize and track fixes."
     },
     "skills": {
       "subtitle": "Reusable skills and workflow templates",
@@ -113,16 +113,16 @@
       "description": "Manage zones, DNS records, workers, and cache operations to keep edge routing and resolution healthy."
     },
     "services": {
-      "subtitle": "Service health and dependency status",
-      "description": "Monitor Hermes, Gateway, and BFF runtime health, then execute start/stop/restart and diagnostics."
+      "subtitle": "Service health, runtime links, and ops entry",
+      "description": "Monitor Hermes/Gateway/Web UI status and run lifecycle actions, diagnostics, and tunnel controls."
     },
     "settings": {
-      "subtitle": "Client behavior and experience preferences",
-      "description": "Tune account switching, interaction behavior, and display preferences for a stable daily workflow."
+      "subtitle": "Accounts, preferences, and interaction setup",
+      "description": "Centralize account switching and UI behavior tuning for a stable daily workflow."
     },
     "version": {
-      "subtitle": "Version information and capability matrix",
-      "description": "Review platform version, feature coverage, and critical endpoints for release checks and audit records."
+      "subtitle": "Version baseline and capability matrix",
+      "description": "Review runtime versions, module capabilities, and key dependencies for release verification."
     }
   },
   "theme": {
@@ -156,14 +156,14 @@
     "midnight-purple": "Midnight Purple"
   },
   "chat": {
-    "title": "Chat",
-    "newChat": "New Chat",
-    "sessions": "Sessions",
+    "title": "Conversation Hub",
+    "newChat": "New Session",
+    "sessions": "Session Navigator",
     "loadingSessions": "Loading sessions...",
     "noSessions": "No sessions",
     "clickFilterToShow": "Select a filter above to show sessions",
-    "startConversation": "Start a conversation with Hermes Agent",
-    "inputPlaceholder": "Type a message...",
+    "startConversation": "Start a new collaborative session",
+    "inputPlaceholder": "Type a message, supports /commands, @Agent, #files...",
     "send": "Send",
     "attachFiles": "Attach files",
     "addAlbum": "Add album",
@@ -238,9 +238,9 @@
     "regenerate": "Regenerate",
     "toolCalls": "tools",
     "lastLatency": "Latency",
-    "modeSwitchTitle": "Mode",
-    "modeChatDescription": "Chat conversations and context sessions",
-    "modeTerminalDescription": "Terminal commands and output sessions",
+    "modeSwitchTitle": "Workspace View",
+    "modeChatDescription": "Dialogue and context collaboration",
+    "modeTerminalDescription": "Command execution and output trace",
     "showTerminal": "Open Terminal Panel",
     "hideTerminal": "Hide Terminal Panel",
     "tool": {
@@ -296,8 +296,8 @@
       "none": "None",
       "collapseSessions": "Collapse session list",
       "expandSessions": "Expand session list",
-      "sessionModeFilter": "Session mode and filter",
-      "sessionDateGroups": "Session date groups",
+      "sessionModeFilter": "Session view and filters",
+      "sessionDateGroups": "Session time groups",
       "groupToday": "Today",
       "groupYesterday": "Yesterday",
       "groupEarlier": "Earlier",
@@ -308,30 +308,30 @@
       "messageCountLabel": "{count} messages",
       "pin": "Pin",
       "rename": "Rename",
-      "viewSessionData": "View this session data",
-      "hideSessionData": "Hide this session data",
+      "viewSessionData": "Show session data panel",
+      "hideSessionData": "Hide session data panel",
       "newTerminal": "New Terminal",
       "scopeCurrentSession": "Scope: current session only",
       "terminalCommands": "Terminal commands",
       "chatMessages": "Chat messages",
       "toolCalls": "Tool calls",
       "materialsTotal": "Total materials",
-      "runtimeNotificationsTitle": "Scheduled-job notifications (chat linked)",
+      "runtimeNotificationsTitle": "Runtime notifications (chat linked)",
       "clear": "Clear",
       "runtimeNotificationsEmpty": "No scheduled-job notifications yet. Run one in Jobs and it will sync here.",
-      "materialsCurrentSession": "Material Library (Current Session)",
+      "materialsCurrentSession": "Current session assets",
       "viewAll": "View all",
       "imagesCount": "Images {count}",
       "filesCount": "Others {count}",
       "view": "View",
       "noMaterials": "No materials in current session yet",
-      "sessionSummary": "Session summary",
+      "sessionSummary": "Session smart summary",
       "summaryRegionAria": "Session summary content",
       "suggestedRename": "Suggested rename",
-      "renamePlaceholder": "Enter a new title and apply",
+      "renamePlaceholder": "Enter suggested title and apply",
       "apply": "Apply",
-      "terminalOutputHint": "Terminal output is shown here. The session list on the left stays fixed.",
-      "terminalInputPlaceholder": "Type command, Enter to run, Shift+Enter for newline",
+      "terminalOutputHint": "Terminal output stream appears here while session navigation remains on the left.",
+      "terminalInputPlaceholder": "Enter command to run (Shift+Enter for newline)",
       "execute": "Execute",
       "zoomView": "Zoom",
       "sourceLabel": "Source: ",
@@ -394,11 +394,11 @@
     }
   },
   "projectCenter": {
-    "title": "Super Project Center",
-    "subtitle": "A unified control board across Chat, Materials, GitHub, Vercel, and Cloudflare",
+    "title": "Project Command Center",
+    "subtitle": "Unify chat orchestration, repo collaboration, deployment release, and network governance in one workspace",
     "createSchedule": "Create Schedule",
     "openAudit": "Open Dynamic Audit",
-    "commandCenter": "Auto Capability Chat Dispatch",
+    "commandCenter": "Automation command desk",
     "commandPlaceholder": "Example: build a website-dev plan for allapple.top-new and auto-execute deploy/domain setup.",
     "runAuto": "Run Automatically",
     "running": "Running...",
@@ -407,7 +407,7 @@
     "activityEmpty": "No activity yet. Send an auto command to start.",
     "commandCompleted": "Task has been sent to chat session and is executing continuously.",
     "commandFailed": "Failed to submit automation task",
-    "realtimeData": "Live Data Stream & Auto Inspection",
+    "realtimeData": "Live link data and inspection results",
     "ownerPlaceholder": "GitHub owner (e.g. xiaopengsvip)",
     "repoPlaceholder": "GitHub repo (e.g. allapple.new)",
     "projectIdPlaceholder": "Vercel project id/name",
@@ -441,9 +441,9 @@
     "relaySendCommand": "Send Command",
     "relayChatSent": "Remote chat sent",
     "relayCommandSent": "Remote command sent",
-    "dispatchCenter": "Unified Dispatch Center",
-    "autoPipeline": "Automation Pipeline",
-    "suggestionsTitle": "Dynamic Improvement Suggestions",
+    "dispatchCenter": "Unified execution dispatch center",
+    "autoPipeline": "Automation execution pipeline",
+    "suggestionsTitle": "Strategy optimization suggestions",
     "enter": "Enter",
     "quick": {
       "websiteDev": "Website Dev",
