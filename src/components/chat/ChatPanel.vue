@@ -992,123 +992,131 @@ onBeforeUnmount(() => {
           </div>
 
           <div v-if="showWorkspaceData" class="workspace-data-panel">
-            <div class="workspace-scope-row">
-              <span class="workspace-scope-label">{{ t('chat.workspace.scopeCurrentSession') }}</span>
-              <code class="workspace-scope-id" :title="activeSessionIdText">{{ activeSessionIdText }}</code>
-            </div>
+            <div class="workspace-data-top">
+              <div class="workspace-scope-row">
+                <span class="workspace-scope-label">{{ t('chat.workspace.scopeCurrentSession') }}</span>
+                <code class="workspace-scope-id" :title="activeSessionIdText">{{ activeSessionIdText }}</code>
+              </div>
 
-            <div class="workspace-data-stats">
-              <div class="workspace-data-item">
-                <span class="workspace-data-label">{{ t('chat.workspace.sessionId') }}</span>
-                <strong class="workspace-data-value mono">{{ activeSessionIdText }}</strong>
-              </div>
-              <div class="workspace-data-item">
-                <span class="workspace-data-label">{{ isTerminalMode ? t('chat.workspace.terminalCommands') : t('chat.workspace.chatMessages') }}</span>
-                <strong class="workspace-data-value">{{ isTerminalMode ? currentSessionTerminalCommandCount : currentSessionMessageCount }}</strong>
-              </div>
-              <div class="workspace-data-item" v-if="!isTerminalMode">
-                <span class="workspace-data-label">{{ t('chat.workspace.toolCalls') }}</span>
-                <strong class="workspace-data-value">{{ currentSessionToolCount }}</strong>
-              </div>
-              <div class="workspace-data-item" v-if="!isTerminalMode">
-                <span class="workspace-data-label">{{ t('chat.workspace.materialsTotal') }}</span>
-                <strong class="workspace-data-value">{{ currentSessionMaterials.length }}</strong>
-              </div>
-            </div>
-
-            <div class="workspace-job-notices">
-              <div class="workspace-section-head">
-                <strong>{{ t('chat.workspace.runtimeNotificationsTitle') }}</strong>
-                <div class="job-notice-head-right">
-                  <span class="job-notice-count">{{ runtimeNoticeBadge }}</span>
-                  <NButton text size="tiny" :disabled="runtimeNoticeBadge === 0" @click="clearRuntimeNotices">{{ t('chat.workspace.clear') }}</NButton>
+              <div class="workspace-data-stats">
+                <div class="workspace-data-item">
+                  <span class="workspace-data-label">{{ t('chat.workspace.sessionId') }}</span>
+                  <strong class="workspace-data-value mono">{{ activeSessionIdText }}</strong>
+                </div>
+                <div class="workspace-data-item">
+                  <span class="workspace-data-label">{{ isTerminalMode ? t('chat.workspace.terminalCommands') : t('chat.workspace.chatMessages') }}</span>
+                  <strong class="workspace-data-value">{{ isTerminalMode ? currentSessionTerminalCommandCount : currentSessionMessageCount }}</strong>
+                </div>
+                <div class="workspace-data-item" v-if="!isTerminalMode">
+                  <span class="workspace-data-label">{{ t('chat.workspace.toolCalls') }}</span>
+                  <strong class="workspace-data-value">{{ currentSessionToolCount }}</strong>
+                </div>
+                <div class="workspace-data-item" v-if="!isTerminalMode">
+                  <span class="workspace-data-label">{{ t('chat.workspace.materialsTotal') }}</span>
+                  <strong class="workspace-data-value">{{ currentSessionMaterials.length }}</strong>
                 </div>
               </div>
-              <div v-if="latestRuntimeNotifications.length" class="job-notice-list">
-                <div v-for="item in latestRuntimeNotifications" :key="item.id" class="job-notice-item" :class="item.status">
-                  <p class="job-notice-text" :title="runtimeNoticeLabel(item)">{{ runtimeNoticeLabel(item) }}</p>
-                  <small class="job-notice-meta">{{ runtimeNoticeTime(item.createdAt) }} · {{ item.target }}</small>
+            </div>
+
+            <div class="workspace-data-layout">
+              <div class="workspace-data-main">
+                <div class="workspace-job-notices">
+                  <div class="workspace-section-head">
+                    <strong>{{ t('chat.workspace.runtimeNotificationsTitle') }}</strong>
+                    <div class="job-notice-head-right">
+                      <span class="job-notice-count">{{ runtimeNoticeBadge }}</span>
+                      <NButton text size="tiny" :disabled="runtimeNoticeBadge === 0" @click="clearRuntimeNotices">{{ t('chat.workspace.clear') }}</NButton>
+                    </div>
+                  </div>
+                  <div v-if="latestRuntimeNotifications.length" class="job-notice-list">
+                    <div v-for="item in latestRuntimeNotifications" :key="item.id" class="job-notice-item" :class="item.status">
+                      <p class="job-notice-text" :title="runtimeNoticeLabel(item)">{{ runtimeNoticeLabel(item) }}</p>
+                      <small class="job-notice-meta">{{ runtimeNoticeTime(item.createdAt) }} · {{ item.target }}</small>
+                    </div>
+                  </div>
+                  <div v-else class="workspace-empty-tip">{{ t('chat.workspace.runtimeNotificationsEmpty') }}</div>
+                </div>
+
+                <div v-if="!isTerminalMode" class="workspace-materials">
+                  <div class="workspace-section-head">
+                    <strong>{{ t('chat.workspace.materialsCurrentSession') }}</strong>
+                    <NButton text size="tiny" @click="showMaterialModal = true" :disabled="!hasCurrentSessionMaterials">{{ t('chat.workspace.viewAll') }}</NButton>
+                  </div>
+                  <div class="material-summary-row">
+                    <span class="material-chip image">{{ t('chat.workspace.imagesCount', { count: currentSessionImageMaterials.length }) }}</span>
+                    <span class="material-chip file">{{ t('chat.workspace.filesCount', { count: currentSessionOtherMaterials.length }) }}</span>
+                  </div>
+                  <div v-if="hasCurrentSessionMaterials" class="material-preview-list">
+                    <button
+                      v-for="item in currentSessionMaterials.slice(0, 8)"
+                      :key="item.id"
+                      class="material-item"
+                      :class="{ 'is-image': item.kind === 'image' && !!item.url }"
+                      type="button"
+                      @click="openImagePreviewByItem(item)"
+                    >
+                      <template v-if="item.kind === 'image' && item.url">
+                        <span class="material-thumb-wrap">
+                          <img class="material-thumb" :src="item.url" :alt="item.name" loading="lazy" />
+                        </span>
+                      </template>
+                      <span v-else class="material-kind" :class="item.kind">{{ item.kind === 'image' ? 'IMG' : 'FILE' }}</span>
+                      <span class="material-name" :title="item.name">{{ item.name }}</span>
+                      <span class="material-size">{{ formatMaterialSize(item.size) }}</span>
+                      <span v-if="item.kind === 'image' && item.url" class="material-action">{{ t('chat.workspace.view') }}</span>
+                    </button>
+                  </div>
+                  <div v-else class="workspace-empty-tip">{{ t('chat.workspace.noMaterials') }}</div>
                 </div>
               </div>
-              <div v-else class="workspace-empty-tip">{{ t('chat.workspace.runtimeNotificationsEmpty') }}</div>
-            </div>
 
-            <div v-if="!isTerminalMode" class="workspace-materials">
-              <div class="workspace-section-head">
-                <strong>{{ t('chat.workspace.materialsCurrentSession') }}</strong>
-                <NButton text size="tiny" @click="showMaterialModal = true" :disabled="!hasCurrentSessionMaterials">{{ t('chat.workspace.viewAll') }}</NButton>
-              </div>
-              <div class="material-summary-row">
-                <span class="material-chip image">{{ t('chat.workspace.imagesCount', { count: currentSessionImageMaterials.length }) }}</span>
-                <span class="material-chip file">{{ t('chat.workspace.filesCount', { count: currentSessionOtherMaterials.length }) }}</span>
-              </div>
-              <div v-if="hasCurrentSessionMaterials" class="material-preview-list">
-                <button
-                  v-for="item in currentSessionMaterials.slice(0, 8)"
-                  :key="item.id"
-                  class="material-item"
-                  :class="{ 'is-image': item.kind === 'image' && !!item.url }"
-                  type="button"
-                  @click="openImagePreviewByItem(item)"
-                >
-                  <template v-if="item.kind === 'image' && item.url">
-                    <span class="material-thumb-wrap">
-                      <img class="material-thumb" :src="item.url" :alt="item.name" loading="lazy" />
-                    </span>
-                  </template>
-                  <span v-else class="material-kind" :class="item.kind">{{ item.kind === 'image' ? 'IMG' : 'FILE' }}</span>
-                  <span class="material-name" :title="item.name">{{ item.name }}</span>
-                  <span class="material-size">{{ formatMaterialSize(item.size) }}</span>
-                  <span v-if="item.kind === 'image' && item.url" class="material-action">{{ t('chat.workspace.view') }}</span>
-                </button>
-              </div>
-              <div v-else class="workspace-empty-tip">{{ t('chat.workspace.noMaterials') }}</div>
-            </div>
-
-            <div class="workspace-summary-box">
-              <div class="workspace-section-head summary-head">
-                <strong>{{ t('chat.workspace.sessionSummary') }}</strong>
-                <div class="summary-actions">
-                  <span class="summary-scroll-tip">{{ summaryExpanded ? t('chat.workspace.summary.scrollTipExpanded') : t('chat.workspace.summary.scrollTipCollapsed') }}</span>
-                  <button
-                    v-if="summaryCanExpand"
-                    type="button"
-                    class="summary-toggle-btn"
-                    :aria-expanded="summaryExpanded"
-                    @click="toggleSummaryExpanded"
-                  >
-                    {{ summaryExpanded ? t('chat.workspace.collapse') : t('chat.workspace.expand') }}
-                  </button>
+              <div class="workspace-data-side">
+                <div class="workspace-summary-box">
+                  <div class="workspace-section-head summary-head">
+                    <strong>{{ t('chat.workspace.sessionSummary') }}</strong>
+                    <div class="summary-actions">
+                      <span class="summary-scroll-tip">{{ summaryExpanded ? t('chat.workspace.summary.scrollTipExpanded') : t('chat.workspace.summary.scrollTipCollapsed') }}</span>
+                      <button
+                        v-if="summaryCanExpand"
+                        type="button"
+                        class="summary-toggle-btn"
+                        :aria-expanded="summaryExpanded"
+                        @click="toggleSummaryExpanded"
+                      >
+                        {{ summaryExpanded ? t('chat.workspace.collapse') : t('chat.workspace.expand') }}
+                      </button>
+                    </div>
+                  </div>
+                  <div class="summary-scroll" :class="{ expanded: summaryExpanded }" role="region" :aria-label="t('chat.workspace.summaryRegionAria')">
+                    <p v-for="(line, idx) in visibleSummaryLines" :key="`summary-${idx}`">{{ line }}</p>
+                  </div>
                 </div>
-              </div>
-              <div class="summary-scroll" :class="{ expanded: summaryExpanded }" role="region" :aria-label="t('chat.workspace.summaryRegionAria')">
-                <p v-for="(line, idx) in visibleSummaryLines" :key="`summary-${idx}`">{{ line }}</p>
-              </div>
-            </div>
 
-            <div class="workspace-rename-box">
-              <div class="workspace-section-head">
-                <strong>{{ t('chat.workspace.suggestedRename') }}</strong>
-              </div>
-              <div class="rename-inline">
-                <NInput
-                  v-model:value="quickRenameInput"
-                  size="small"
-                  :placeholder="t('chat.workspace.renamePlaceholder')"
-                  @keyup.enter="handleQuickRename"
-                />
-                <NButton size="small" type="primary" ghost @click="handleQuickRename">{{ t('chat.workspace.apply') }}</NButton>
-              </div>
-              <div class="suggestion-list">
-                <button
-                  v-for="name in suggestedSessionNames"
-                  :key="name"
-                  class="suggestion-chip"
-                  type="button"
-                  @click="applySuggestedSessionName(name)"
-                >
-                  {{ name }}
-                </button>
+                <div class="workspace-rename-box">
+                  <div class="workspace-section-head">
+                    <strong>{{ t('chat.workspace.suggestedRename') }}</strong>
+                  </div>
+                  <div class="rename-inline">
+                    <NInput
+                      v-model:value="quickRenameInput"
+                      size="small"
+                      :placeholder="t('chat.workspace.renamePlaceholder')"
+                      @keyup.enter="handleQuickRename"
+                    />
+                    <NButton size="small" type="primary" ghost @click="handleQuickRename">{{ t('chat.workspace.apply') }}</NButton>
+                  </div>
+                  <div class="suggestion-list">
+                    <button
+                      v-for="name in suggestedSessionNames"
+                      :key="name"
+                      class="suggestion-chip"
+                      type="button"
+                      @click="applySuggestedSessionName(name)"
+                    >
+                      {{ name }}
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -1943,6 +1951,54 @@ onBeforeUnmount(() => {
   padding-top: 12px;
   border-top: 1px solid var(--cp-border);
   display: grid;
+  gap: 12px;
+  max-height: min(54vh, 560px);
+  overflow: auto;
+  padding-right: 4px;
+
+  scrollbar-width: thin;
+  scrollbar-color: rgba(var(--cp-accent-rgb), 0.4) transparent;
+
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: rgba(var(--cp-accent-rgb), 0.34);
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+
+  &::-webkit-scrollbar-thumb:hover {
+    background: rgba(var(--cp-accent-rgb), 0.52);
+    background-clip: content-box;
+  }
+}
+
+.workspace-data-top {
+  border: 1px solid rgba(var(--cp-accent-rgb), 0.18);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--cp-surface) 86%, transparent);
+  padding: 9px;
+  display: grid;
+  gap: 10px;
+}
+
+.workspace-data-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+  gap: 10px;
+  align-items: start;
+}
+
+.workspace-data-main,
+.workspace-data-side {
+  display: grid;
   gap: 10px;
 }
 
@@ -2482,6 +2538,11 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  border: 1px solid var(--cp-border);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--cp-surface-strong) 92%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--theme-text, #fff) 7%, transparent);
+  padding: 8px;
 }
 
 .terminal-shell {
@@ -2641,6 +2702,14 @@ onBeforeUnmount(() => {
     justify-self: start;
   }
 
+  .workspace-data-panel {
+    max-height: min(50vh, 500px);
+  }
+
+  .workspace-data-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .workspace-data-stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -2678,6 +2747,14 @@ onBeforeUnmount(() => {
 
   .content-header-shell {
     padding: 9px 10px;
+  }
+
+  .workspace-data-panel {
+    max-height: min(56vh, 420px);
+  }
+
+  .workspace-data-layout {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .workspace-data-stats {
