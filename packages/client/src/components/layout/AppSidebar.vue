@@ -165,6 +165,14 @@ async function handleUpdate() {
             </svg>
             <span>{{ t("sidebar.terminal") }}</span>
           </button>
+          <button class="nav-item" :class="{ active: selectedKey === 'hermes.tunnels' }" @click="handleNav('hermes.tunnels')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 12h6" />
+              <path d="M15 12h6" />
+              <path d="M9 8l4 4-4 4" />
+            </svg>
+            <span>{{ t("sidebar.tunnels") }}</span>
+          </button>
         </div>
       </div>
 
