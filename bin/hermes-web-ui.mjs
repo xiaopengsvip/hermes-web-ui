@@ -1,15 +1,52 @@
 #!/usr/bin/env node
-import { spawn } from 'child_process'
+import { spawn, execSync } from 'child_process'
 import { resolve, dirname, join } from 'path'
 import { fileURLToPath } from 'url'
-import { readFileSync, writeFileSync, unlinkSync, mkdirSync, openSync } from 'fs'
+import { readFileSync, writeFileSync, unlinkSync, mkdirSync, openSync, chmodSync, statSync } from 'fs'
+import { randomBytes } from 'crypto'
+import { homedir } from 'os'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const serverEntry = resolve(__dirname, '..', 'dist', 'server', 'index.js')
-const PID_DIR = resolve(__dirname, '..', '.hermes-web-ui')
+const pkgDir = resolve(__dirname, '..')
+const pkg = JSON.parse(readFileSync(resolve(pkgDir, 'package.json'), 'utf-8'))
+const VERSION = pkg.version
+const PID_DIR = resolve(homedir(), '.hermes-web-ui')
 const PID_FILE = join(PID_DIR, 'server.pid')
 const LOG_FILE = join(PID_DIR, 'server.log')
+const TOKEN_FILE = resolve(__dirname, '..', 'dist', 'server', 'data', '.token')
 const DEFAULT_PORT = 8650
+
+// ─── Auto-fix node-pty native module ──────────────────────────
+function ensureNativeModules() {
+  const prebuildDir = join(pkgDir, 'node_modules', 'node-pty', 'prebuilds', `${process.platform}-${process.arch}`)
+  const helper = join(prebuildDir, 'spawn-helper')
+  try {
+    chmodSync(helper, 0o755)
+  } catch {}
+}
+
+function getToken() {
+  try {
+    return readFileSync(TOKEN_FILE, 'utf-8').trim()
+  } catch {
+    return null
+  }
+}
+
+function ensureToken() {
+  // If AUTH_DISABLED or AUTH_TOKEN is set, let server handle it
+  if (process.env.AUTH_DISABLED === '1' || process.env.AUTH_DISABLED === 'true') return null
+  if (process.env.AUTH_TOKEN) return process.env.AUTH_TOKEN
+
+  let token = getToken()
+  if (!token) {
+    mkdirSync(dirname(TOKEN_FILE), { recursive: true })
+    token = randomBytes(32).toString('hex')
+    writeFileSync(TOKEN_FILE, token + '\n', { mode: 0o600 })
+  }
+  return token
+}
 
 function getPort() {
   if (process.argv[3] && !isNaN(process.argv[3])) return parseInt(process.argv[3])
@@ -49,33 +86,123 @@ function startDaemon(port) {
     console.log(`    Use "hermes-web-ui stop" to stop it first`)
     process.exit(1)
   }
-  removePid() // stale pid file
+  removePid()
+
+  // Check if port is already in use
+  try {
+    const isWin = process.platform === 'win32'
+    let pids = ''
+    if (isWin) {
+      const out = execSync(`netstat -aon | findstr :${port}`, { encoding: 'utf-8' }).trim()
+      const lines = out.split('\n').filter(l => l.includes('LISTENING'))
+      pids = [...new Set(lines.map(l => l.trim().split(/\s+/).pop()).filter(Boolean))].join(' ')
+    } else {
+      pids = execSync(`lsof -ti:${port}`, { encoding: 'utf-8' }).trim()
+    }
+    if (pids) {
+      console.log(`  ⚠ Port ${port} is in use by PID(s): ${pids}, killing...`)
+      if (isWin) {
+        execSync(`taskkill /F /PID ${pids.split(' ').join(' /PID ')}`, { encoding: 'utf-8' })
+      } else {
+        execSync(`kill -9 ${pids}`, { encoding: 'utf-8' })
+      }
+      // Brief wait for port to be released
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 500)
+    }
+  } catch {
+    // Port is free
+  }
+
   mkdirSync(PID_DIR, { recursive: true })
+
+  ensureNativeModules()
+  const token = ensureToken()
+
+  // Rotate log if over 3MB — keep last 2000 lines
+  const MAX_LOG_SIZE = 3 * 1024 * 1024
+  const MAX_LOG_LINES = 2000
+  try {
+    const stat = statSync(LOG_FILE)
+    if (stat.size > MAX_LOG_SIZE) {
+      const content = readFileSync(LOG_FILE, 'utf-8')
+      const lines = content.split('\n')
+      const kept = lines.slice(-MAX_LOG_LINES)
+      writeFileSync(LOG_FILE, kept.join('\n'), 'utf-8')
+      console.log(`  ↻ Log rotated (${(stat.size / 1024 / 1024).toFixed(1)}MB → ${kept.length} lines)`)
+    }
+  } catch { }
 
   const logStream = openSync(LOG_FILE, 'a')
   const child = spawn(process.execPath, [serverEntry], {
     detached: true,
     stdio: ['ignore', logStream, logStream],
+    env: { ...process.env, PORT: String(port), AUTH_TOKEN: token },
     windowsHide: true,
-    env: { ...process.env, PORT: String(port) },
+  })
+
+  child.on('error', (err) => {
+    console.error(`  ✗ Failed to start: ${err.message}`)
+    removePid()
+    process.exit(1)
   })
 
   child.unref()
   writePid(child.pid)
 
-  // Wait a moment and check if the process is still alive
-  setTimeout(() => {
-    if (isRunning(child.pid)) {
-      console.log(`  ✓ hermes-web-ui started (PID: ${child.pid}, port: ${port})`)
-      console.log(`    http://localhost:${port}`)
-      console.log(`    Log: ${LOG_FILE}`)
-    } else {
+  // Poll health endpoint until server is ready (setTimeout to avoid overlapping requests)
+  const healthUrl = `http://127.0.0.1:${port}/health`
+  const maxWait = 30000
+  const interval = 500
+  let waited = 0
+
+  console.log(`  ⏳ Starting hermes-web-ui (PID: ${child.pid}, port: ${port})...`)
+
+  function poll() {
+    waited += interval
+    if (!isRunning(child.pid)) {
       console.log('  ✗ Failed to start hermes-web-ui')
       console.log(`    Check log: ${LOG_FILE}`)
       removePid()
       process.exit(1)
+      return
     }
-  }, 500)
+
+    fetch(healthUrl).then(res => {
+      if (res.ok) {
+        const url = token
+          ? `http://localhost:${port}/#/?token=${token}`
+          : `http://localhost:${port}`
+        console.log(`  ✓ hermes-web-ui started`)
+        console.log(`    ${url}`)
+        console.log(`    Log: ${LOG_FILE}`)
+        const isWin = process.platform === 'win32'
+        const cmd = isWin ? `start ${url}` : process.platform === 'darwin' ? `open ${url}` : `xdg-open ${url}`
+        try { execSync(cmd, { stdio: 'ignore' }) } catch {}
+      } else if (waited < maxWait) {
+        setTimeout(poll, interval)
+      } else {
+        console.log(`  ⚠ Server process is running but health check failed after ${maxWait / 1000}s`)
+        console.log(`    Check log: ${LOG_FILE}`)
+        const url = token
+          ? `http://localhost:${port}/#/?token=${token}`
+          : `http://localhost:${port}`
+        console.log(`    ${url}`)
+      }
+    }).catch(() => {
+      if (waited < maxWait) {
+        setTimeout(poll, interval)
+      } else {
+        console.log(`  ⚠ Server process is running but health check failed after ${maxWait / 1000}s`)
+        console.log(`    Check log: ${LOG_FILE}`)
+        const url = token
+          ? `http://localhost:${port}/#/?token=${token}`
+          : `http://localhost:${port}`
+        console.log(`    ${url}`)
+      }
+    })
+  }
+
+  setTimeout(poll, interval)
 }
 
 function stopDaemon() {
@@ -86,13 +213,24 @@ function stopDaemon() {
   }
 
   if (!isRunning(pid)) {
-    console.log(`  ✗ Process ${pid} is not alive (stale PID file)`)
     removePid()
-    process.exit(1)
+    console.log(`  ✓ hermes-web-ui was not running (cleaned stale PID)`)
+    return
   }
 
   try {
-    process.kill(pid, 'SIGTERM')
+    try {
+      process.kill(pid, 'SIGTERM')
+      // Wait briefly for graceful shutdown
+      for (let i = 0; i < 10; i++) {
+        if (!isRunning(pid)) break
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 500)
+      }
+    } catch {}
+    // Force kill if still alive
+    if (isRunning(pid)) {
+      process.kill(pid, 'SIGKILL')
+    }
     removePid()
     console.log(`  ✓ hermes-web-ui stopped (PID: ${pid})`)
   } catch (err) {
@@ -105,13 +243,65 @@ function showStatus() {
   const pid = getPid()
   if (pid && isRunning(pid)) {
     console.log(`  ✓ hermes-web-ui is running (PID: ${pid})`)
+    console.log(`    PID file: ${PID_FILE}`)
   } else {
-    if (pid) removePid() // clean stale
+    if (pid) removePid()
     console.log('  ✗ hermes-web-ui is not running')
   }
 }
 
 const command = process.argv[2] || 'start'
+
+if (['-v', '--version', 'version'].includes(command)) {
+  console.log(`hermes-web-ui v${VERSION}`)
+  process.exit(0)
+}
+
+if (['-h', '--help', 'help'].includes(command)) {
+  console.log(`
+hermes-web-ui v${VERSION}
+
+Usage: hermes-web-ui <command> [options]
+
+Commands:
+  start [port]       Start the server (default port: ${DEFAULT_PORT})
+  stop               Stop the server
+  restart [port]     Restart the server
+  status             Show server status
+  update             Update to latest version and restart
+  version            Show version number
+
+Options:
+  -v, --version      Show version number
+  -h, --help         Show this help message
+  --port <port>      Specify port (used with start/restart)
+`)
+  process.exit(0)
+}
+
+function doUpdate() {
+  const isWin = process.platform === 'win32'
+  const cmd = isWin
+    ? 'cmd /c npm install -g hermes-web-ui@latest'
+    : 'npm install -g hermes-web-ui@latest'
+
+  console.log('  ⬆ Updating hermes-web-ui...')
+
+  const child = spawn(isWin ? 'cmd' : 'sh', isWin ? ['/c', ...cmd.split(' ')] : ['-c', cmd], {
+    stdio: 'inherit',
+    windowsHide: true,
+  })
+
+  child.on('exit', (code) => {
+    if (code === 0) {
+      console.log('  ✓ Update complete, restarting...')
+      stopDaemon()
+      setTimeout(() => startDaemon(getPort()), 500)
+    } else {
+      console.log('  ✗ Update failed')
+    }
+  })
+}
 
 switch (command) {
   case 'start':
@@ -127,13 +317,17 @@ switch (command) {
   case 'status':
     showStatus()
     break
+  case 'update':
+  case 'upgrade':
+    doUpdate()
+    break
   default:
-    // Direct run (foreground): hermes-web-ui [port]
+    ensureNativeModules()
     const port = !isNaN(command) ? parseInt(command) : DEFAULT_PORT
     const child = spawn(process.execPath, [serverEntry], {
       stdio: 'inherit',
-      windowsHide: true,
       env: { ...process.env, PORT: String(port) },
+      windowsHide: true,
     })
     child.on('exit', (code) => process.exit(code ?? 1))
     process.on('SIGTERM', () => child.kill('SIGTERM'))
