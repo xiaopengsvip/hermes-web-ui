@@ -5,11 +5,16 @@
 DIR="$(cd "$(dirname "$0")" && pwd)"
 PID_FILE="$DIR/.hermes-web-ui/webui.pid"
 LOG_FILE="$DIR/.hermes-web-ui/server.log"
-NODE_BIN="$(which node 2>/dev/null || echo "/home/xiao2027/.local/bin/node")"
+NODE_BIN="$(command -v node 2>/dev/null || echo "$HOME/.local/bin/node")"
 # Ensure web-ui child processes can call Hermes CLI from venv
-HERMES_PROJECT_DIR="/home/xiao2027/.hermes/hermes-agent"
-HERMES_VENV_BIN="$HERMES_PROJECT_DIR/venv/bin"
-export PATH="$HERMES_VENV_BIN:$HERMES_PROJECT_DIR:$PATH"
+HERMES_PROJECT_DIR="${HERMES_PROJECT_DIR:-$HOME/.hermes/hermes-agent}"
+for _v in ".venv_fix/bin" ".venv/bin" "venv/bin"; do
+  if [ -d "$HERMES_PROJECT_DIR/$_v" ]; then
+    export PATH="$HERMES_PROJECT_DIR/$_v:$HERMES_PROJECT_DIR:$PATH"
+    break
+  fi
+done
+export PORT="${PORT:-8650}"
 
 mkdir -p "$DIR/.hermes-web-ui"
 
@@ -29,13 +34,13 @@ do_start() {
     exit 0
   fi
 
-  echo "Starting Hermes Web UI on port 8650..."
+  echo "Starting Hermes Web UI on port ${PORT}..."
   while true; do
     nohup "$NODE_BIN" "$DIR/dist/server/index.js" >> "$LOG_FILE" 2>&1 &
     pid=$!
     echo "$pid" > "$PID_FILE"
-    echo "  Started (PID $pid, port 8650)"
-    echo "  http://localhost:8650"
+    echo "  Started (PID $pid, port ${PORT})"
+    echo "  http://localhost:${PORT}"
 
     # Wait for process to exit
     wait "$pid"
@@ -71,7 +76,7 @@ do_stop() {
 
 do_status() {
   if is_running; then
-    echo "Running (PID $(cat "$PID_FILE"), port 8650)"
+    echo "Running (PID $(cat "$PID_FILE"), port ${PORT})"
   else
     echo "Not running"
   fi
