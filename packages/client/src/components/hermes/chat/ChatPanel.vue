@@ -219,6 +219,21 @@ const activeSessionSource = computed(() =>
   currentMode.value === "chat" ? chatStore.activeSession?.source || "" : "",
 );
 
+const activeProfileName = computed(
+  () => profilesStore.activeProfileName || profilesStore.activeProfile?.name || "default",
+);
+
+const activeProfileInitial = computed(() => {
+  const first = activeProfileName.value.trim().charAt(0);
+  return first ? first.toUpperCase() : "H";
+});
+
+function handlePrimaryNavInteraction() {
+  showDrawer.value = false;
+  showSessions.value = false;
+  showContextMenu.value = false;
+}
+
 const activeApproval = computed(() => chatStore.activePendingApproval);
 
 function handleNewChat() {

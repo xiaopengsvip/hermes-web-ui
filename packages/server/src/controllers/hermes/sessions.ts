@@ -1,11 +1,12 @@
 import * as hermesCli from '../../services/hermes/hermes-cli'
-import { listSessionSummaries, getUsageStatsFromDb, getSessionDetailFromDb } from '../../db/hermes/sessions-db'
+import { listSessionSummaries, searchSessionSummaries, getUsageStatsFromDb, getSessionDetailFromDb } from '../../db/hermes/sessions-db'
 import {
   listSessions as localListSessions,
   searchSessions as localSearchSessions,
   getSessionDetail as localGetSessionDetail,
   deleteSession as localDeleteSession,
   renameSession as localRenameSession,
+  useLocalSessionStore,
 } from '../../db/hermes/session-store'
 import { ExportCompressor } from '../../lib/context-compressor/export-compressor'
 import { getGatewayManagerInstance } from '../../services/gateway-bootstrap'

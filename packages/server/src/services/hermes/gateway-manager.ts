@@ -301,7 +301,9 @@ export class GatewayManager {
       }
     } catch {}
 
-    // Fallback: check gateway_state.json (written by `hermes gateway run`)
+    // Fallback: check gateway_state.json (written by `hermes gateway run`).
+    // Treat an explicit stopped state as authoritative so stale runtime scans do not
+    // override profile-scoped state files or test homes.
     const statePath = join(profilePath, 'gateway_state.json')
     if (existsSync(statePath)) {
       try {
@@ -309,13 +311,18 @@ export class GatewayManager {
         const data = JSON.parse(content)
         const pid = typeof data.pid === 'number' ? data.pid : parseInt(data.pid, 10) || null
         const state = data?.gateway_state
-        if (pid && Number.isFinite(pid) && pid > 0 && this.isProcessAlive(pid) && (!state || state === 'running' || state === 'starting')) {
+        if (pid && Number.isFinite(pid) && pid > 0 && (!state || state === 'running' || state === 'starting')) {
           return pid
         }
+        return null
       } catch { }
     }
 
-    // Final fallback: scan for running hermes gateway process
+    // Final fallback: scan for a legacy default-profile gateway process only.
+    // Non-default profiles must be resolved from profile-scoped pid/state files;
+    // otherwise a running default gateway can be incorrectly attributed to them.
+    if (name !== 'default') return null
+
     try {
       const { execSync } = require('child_process')
       const output = execSync('ps -eo pid,cmd | grep "hermes.*gateway run" | grep -v grep', { encoding: 'utf-8', timeout: 3000 })
