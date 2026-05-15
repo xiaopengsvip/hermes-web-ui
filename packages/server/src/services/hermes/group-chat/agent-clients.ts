@@ -101,6 +101,8 @@ class AgentClient {
             reconnectionAttempts: Infinity,
             reconnectionDelay: 1000,
             reconnectionDelayMax: 30000,
+            randomizationFactor: 0.5,
+            timeout: 30000,
         })
 
         this.bindEvents()
@@ -567,6 +569,14 @@ export class AgentClients {
         logger.info(`[AgentClients] All agents disconnected from room: ${roomId}`)
 
         // Invalidate context engine cache for this room
+        if (this._contextEngine) {
+            try { this._contextEngine.invalidateRoom(roomId) } catch { /* ignore */ }
+        }
+    }
+
+    resetRoomContext(roomId: string): void {
+        this._mentionQueue.delete(roomId)
+        this._processingRooms.delete(roomId)
         if (this._contextEngine) {
             try { this._contextEngine.invalidateRoom(roomId) } catch { /* ignore */ }
         }

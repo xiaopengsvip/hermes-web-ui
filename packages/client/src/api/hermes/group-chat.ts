@@ -66,11 +66,13 @@ export function connectGroupChat(opts?: { userId?: string; userName?: string; de
             name: opts?.userName || localStorage.getItem('gc_user_name') || undefined,
             description: opts?.description || localStorage.getItem('gc_user_description') || undefined,
         },
-        transports: ['websocket'],
+        transports: ['websocket', 'polling'],
         reconnection: true,
         reconnectionAttempts: Infinity,
         reconnectionDelay: 1000,
         reconnectionDelayMax: 30000,
+        randomizationFactor: 0.5,
+        timeout: 30000,
     })
 
     return socket
@@ -123,6 +125,14 @@ export async function createRoom(data: {
     })
 }
 
+export async function cloneRoom(roomId: string, data?: { name?: string; inviteCode?: string }): Promise<{ room: RoomInfo; agents: RoomAgent[] }> {
+    return request(`/api/hermes/group-chat/rooms/${roomId}/clone`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data || {}),
+    })
+}
+
 export async function listRooms(): Promise<{ rooms: RoomInfo[] }> {
     return request('/api/hermes/group-chat/rooms')
 }
@@ -172,6 +182,12 @@ export async function deleteRoom(roomId: string): Promise<void> {
     })
 }
 
+export async function clearRoomContext(roomId: string): Promise<{ success: boolean; room: RoomInfo }> {
+    return request(`/api/hermes/group-chat/rooms/${roomId}/clear-context`, {
+        method: 'POST',
+    })
+}
+
 export async function updateRoomConfig(roomId: string, config: { triggerTokens?: number; maxHistoryTokens?: number; tailMessageCount?: number }): Promise<{ room: RoomInfo }> {
     return request(`/api/hermes/group-chat/rooms/${roomId}/config`, {
         method: 'PUT',
@@ -185,4 +201,3 @@ export async function forceCompress(roomId: string): Promise<{ success: boolean;
         method: 'POST',
     })
 }
-

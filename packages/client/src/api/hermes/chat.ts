@@ -17,6 +17,7 @@ export interface StartRunRequest {
   session_id?: string
   model?: string
   queue_id?: string
+  source?: 'api_server' | 'cli'
 }
 
 export interface StartRunResponse {
@@ -76,7 +77,10 @@ const sessionEventHandlers = new Map<string, {
   onAbortStarted: (event: RunEvent) => void
   onAbortCompleted: (event: RunEvent) => void
   onUsageUpdated: (event: RunEvent) => void
+  onSessionCommand?: (event: RunEvent) => void
   onRunQueued?: (event: RunEvent) => void
+  onApprovalRequested?: (event: RunEvent) => void
+  onApprovalResolved?: (event: RunEvent) => void
 }>()
 
 /**
@@ -288,6 +292,36 @@ function globalUsageUpdatedHandler(event: RunEvent): void {
   }
 }
 
+function globalSessionCommandHandler(event: RunEvent): void {
+  const sid = event.session_id
+  if (!sid) return
+
+  const handlers = sessionEventHandlers.get(sid)
+  if (handlers?.onSessionCommand) {
+    handlers.onSessionCommand(event)
+  }
+}
+
+function globalApprovalRequestedHandler(event: RunEvent): void {
+  const sid = event.session_id
+  if (!sid) return
+
+  const handlers = sessionEventHandlers.get(sid)
+  if (handlers?.onApprovalRequested) {
+    handlers.onApprovalRequested(event)
+  }
+}
+
+function globalApprovalResolvedHandler(event: RunEvent): void {
+  const sid = event.session_id
+  if (!sid) return
+
+  const handlers = sessionEventHandlers.get(sid)
+  if (handlers?.onApprovalResolved) {
+    handlers.onApprovalResolved(event)
+  }
+}
+
 /**
  * Register event handlers for a session
  * @param sessionId - Session ID
@@ -311,7 +345,10 @@ export function registerSessionHandlers(
     onAbortStarted: (event: RunEvent) => void
     onAbortCompleted: (event: RunEvent) => void
     onUsageUpdated: (event: RunEvent) => void
+    onSessionCommand?: (event: RunEvent) => void
     onRunQueued?: (event: RunEvent) => void
+    onApprovalRequested?: (event: RunEvent) => void
+    onApprovalResolved?: (event: RunEvent) => void
   }
 ): () => void {
   sessionEventHandlers.set(sessionId, handlers)
@@ -328,6 +365,19 @@ export function registerSessionHandlers(
  */
 export function unregisterSessionHandlers(sessionId: string): void {
   sessionEventHandlers.delete(sessionId)
+}
+
+export function respondToolApproval(
+  sessionId: string,
+  approvalId: string,
+  choice: 'once' | 'session' | 'always' | 'deny',
+): void {
+  const socket = connectChatRun()
+  socket.emit('approval.respond', {
+    session_id: sessionId,
+    approval_id: approvalId,
+    choice,
+  })
 }
 
 export function getChatRunSocket(): Socket | null {
@@ -365,7 +415,9 @@ export function connectChatRun(): Socket {
     reconnection: true,
     reconnectionAttempts: Infinity,
     reconnectionDelay: 1000,
-    reconnectionDelayMax: 10000,
+    reconnectionDelayMax: 30000,
+    randomizationFactor: 0.5,
+    timeout: 30000,
   })
 
   // Register global listeners only once per socket connection
@@ -385,6 +437,8 @@ export function connectChatRun(): Socket {
     chatRunSocket.on('run.failed', globalRunFailedHandler)
     chatRunSocket.on('run.completed', globalRunCompletedHandler)
     chatRunSocket.on('run.queued', globalRunQueuedHandler)
+    chatRunSocket.on('approval.requested', globalApprovalRequestedHandler)
+    chatRunSocket.on('approval.resolved', globalApprovalResolvedHandler)
 
     // Compression events
     chatRunSocket.on('compression.started', globalCompressionStartedHandler)
@@ -394,6 +448,7 @@ export function connectChatRun(): Socket {
 
     // Usage events
     chatRunSocket.on('usage.updated', globalUsageUpdatedHandler)
+    chatRunSocket.on('session.command', globalSessionCommandHandler)
 
     globalListenersRegistered = true
   }
@@ -523,7 +578,23 @@ export function startRunViaSocket(
       if (closed) return
       onEvent(evt)
     },
+    onSessionCommand: (evt: RunEvent) => {
+      if (closed) return
+      onEvent(evt)
+      if ((evt as any).terminal === false) return
+      closed = true
+      sessionEventHandlers.delete(sid)
+      onDone()
+    },
     onRunQueued: (evt: RunEvent) => {
+      if (closed) return
+      onEvent(evt)
+    },
+    onApprovalRequested: (evt: RunEvent) => {
+      if (closed) return
+      onEvent(evt)
+    },
+    onApprovalResolved: (evt: RunEvent) => {
       if (closed) return
       onEvent(evt)
     },
