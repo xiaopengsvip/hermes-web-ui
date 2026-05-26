@@ -18,22 +18,15 @@ import { convertHistoryFormat } from './message-format'
 import { readSseFrames } from './sse-utils'
 import { extractResponseText } from './response-utils'
 import { applyResponseStreamEvent, flushResponseRunToDb } from './response-stream'
-import { buildCompressedHistory, getOrCreateSession } from './compression'
+import { buildCompressedHistory, buildDbHistory, buildSnapshotAwareHistory, getOrCreateSession } from './compression'
 import { calcAndUpdateUsage, estimateUsageTokensFromMessages } from './usage'
 import { handleMessage } from './message-format'
 import { countTokens, SUMMARY_PREFIX } from '../../../lib/context-compressor'
 import { getCompressionSnapshot } from '../../../db/hermes/compression-snapshot'
 import type { ContentBlock, SessionState, ChatRunSource } from './types'
 
-export function resolveRunSource(source?: string, sessionId?: string): ChatRunSource {
-  const normalized = String(source || '').trim()
-  if (normalized === 'cli') return 'cli'
-  if (normalized === 'api_server') return 'api_server'
-  if (sessionId) {
-    const existing = getSession(sessionId)
-    if (existing?.source === 'cli') return 'cli'
-  }
-  return 'api_server'
+export function resolveRunSource(_source?: string, _sessionId?: string): ChatRunSource {
+  return 'cli'
 }
 
 export async function loadSessionStateFromDb(sid: string, _sessionMap: Map<string, SessionState>): Promise<SessionState> {
@@ -44,8 +37,9 @@ export async function loadSessionStateFromDb(sid: string, _sessionMap: Map<strin
 
     let inputTokens: number
     let outputTokens: number
+    let contextTokens: number | undefined
     const snapshot = getCompressionSnapshot(sid)
-    if (snapshot) {
+    if (snapshot && snapshot.lastMessageIndex >= 0 && snapshot.lastMessageIndex < messages.length) {
       const newMessages = messages.slice(snapshot.lastMessageIndex + 1)
       const newUsage = estimateUsageTokensFromMessages(newMessages)
       inputTokens = countTokens(SUMMARY_PREFIX + snapshot.summary) +
@@ -56,6 +50,20 @@ export async function loadSessionStateFromDb(sid: string, _sessionMap: Map<strin
       inputTokens = usage.inputTokens
       outputTokens = usage.outputTokens
     }
+    try {
+      const session = getSession(sid)
+      const dbHistory = await buildDbHistory(sid, { excludeLastUser: false })
+      const snapshotHistory = await buildSnapshotAwareHistory(
+        sid,
+        session?.profile || 'default',
+        dbHistory,
+        { model: session?.model, provider: session?.provider },
+      )
+      const contextUsage = estimateUsageTokensFromMessages(snapshotHistory)
+      contextTokens = contextUsage.inputTokens + contextUsage.outputTokens
+    } catch (err) {
+      logger.warn(err, '[chat-run-socket] failed to calculate snapshot-aware context tokens for session %s', sid)
+    }
 
     logger.info('[chat-run-socket] loaded session %s from DB (%d messages)', sid, messages.length)
     return {
@@ -64,6 +72,7 @@ export async function loadSessionStateFromDb(sid: string, _sessionMap: Map<strin
       events: [],
       inputTokens,
       outputTokens,
+      contextTokens,
       queue: [],
     }
   } catch (err) {
@@ -75,14 +84,13 @@ export async function loadSessionStateFromDb(sid: string, _sessionMap: Map<strin
 export async function handleApiRun(
   nsp: ReturnType<Server['of']>,
   socket: Socket,
-  data: { input: string | ContentBlock[]; session_id?: string; model?: string; instructions?: string; source?: string },
+  data: { input: string | ContentBlock[]; session_id?: string; model?: string; provider?: string; instructions?: string; source?: string; queue_id?: string; peerExcludeSocketId?: string },
   profile: string,
   sessionMap: Map<string, SessionState>,
-  gatewayManager: any,
   skipUserMessage = false,
   dequeueNextQueuedRun: (socket: Socket, sessionId: string, fallbackProfile?: string) => void,
 ) {
-  const { input, session_id, model, instructions } = data
+  const { input, session_id, model, provider, instructions } = data
 
   // Build full instructions with system prompt + workspace context
   let fullInstructions = instructions
@@ -96,8 +104,8 @@ export async function handleApiRun(
     }
   }
 
-  const upstream = gatewayManager.getUpstream(profile).replace(/\/$/, '')
-  const apiKey = gatewayManager.getApiKey(profile) || undefined
+  const upstream = ''
+  const apiKey = undefined
 
   const runMarker = session_id
     ? `resp_run_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
@@ -113,10 +121,12 @@ export async function handleApiRun(
       sessionMap.set(session_id, state)
     }
     state.isWorking = true
+    state.events = []
     state.profile = profile
     state.source = 'api_server'
     state.activeRunMarker = runMarker
 
+    let peerUserMessage: { id?: number; role: 'user'; content: string; timestamp: number } | null = null
     if (!skipUserMessage) {
       const inputStr = contentBlocksToString(input)
       state.messages.push({
@@ -131,15 +141,16 @@ export async function handleApiRun(
       if (!getSession(session_id)) {
         const previewText = extractTextForPreview(input)
         const preview = previewText.replace(/[\r\n]/g, ' ').substring(0, 100)
-        createSession({ id: session_id, profile, source: 'api_server', model, title: preview })
+        createSession({ id: session_id, profile, source: 'api_server', model, provider, title: preview })
       }
 
-      addMessage({
+      const messageId = addMessage({
         session_id,
         role: 'user',
         content: inputStr,
         timestamp: now,
       })
+      peerUserMessage = { id: data.queue_id ? undefined : messageId, role: 'user', content: inputStr, timestamp: now }
     } else {
       const inputStr = contentBlocksToString(input)
       state.messages.push({
@@ -153,17 +164,31 @@ export async function handleApiRun(
       if (!getSession(session_id)) {
         const previewText = extractTextForPreview(input)
         const preview = previewText.replace(/[\r\n]/g, ' ').substring(0, 100)
-        createSession({ id: session_id, profile, source: 'api_server', model, title: preview })
+        createSession({ id: session_id, profile, source: 'api_server', model, provider, title: preview })
       }
-      addMessage({
+      const messageId = addMessage({
         session_id,
         role: 'user',
         content: inputStr,
         timestamp: now,
       })
+      peerUserMessage = { id: data.queue_id ? undefined : messageId, role: 'user', content: inputStr, timestamp: now }
     }
 
     socket.join(`session:${session_id}`)
+    if (peerUserMessage) {
+      const target = data.peerExcludeSocketId
+        ? nsp.to(`session:${session_id}`).except(data.peerExcludeSocketId)
+        : socket.to(`session:${session_id}`)
+      target.emit('run.peer_user_message', {
+        event: 'run.peer_user_message',
+        session_id,
+        message: {
+          ...peerUserMessage,
+          id: data.queue_id || peerUserMessage.id,
+        },
+      })
+    }
   }
 
   const emit = (event: string, payload: any) => {
@@ -179,7 +204,11 @@ export async function handleApiRun(
     if (model) body.model = model
     body.instructions = fullInstructions
     if (session_id) {
-      const compressed = await buildCompressedHistory(session_id, profile, upstream, apiKey, emit, sessionMap)
+      const sessionRow = getSession(session_id)
+      const compressed = await buildCompressedHistory(session_id, profile, upstream, apiKey, emit, sessionMap, {
+        model: sessionRow?.model || model,
+        provider: sessionRow?.provider || provider,
+      })
       if (compressed.length > 0) {
         body.conversation_history = compressed
       }

@@ -1,6 +1,6 @@
 # CLI/Bridge Chat Sessions 实现文档
 
-> 分支：`feat/cli-chat-sessions`
+> 状态：本文档描述当前 `main` 中 Web UI 聊天会话的 API Server / Bridge(beta) 双路径实现。
 
 ## 概述
 
@@ -25,7 +25,7 @@ Bridge 模式支持：
 - 从 DB resume 会话
 - 与 API Server 路径共用上下文压缩逻辑
 
-当前不再支持旧文档里的独立 `/cli-chat-run` namespace、`CliChatPanel.vue`、`cli-chat.ts` 和 CLI 命令控制层。前端不会再发送 `command` 或 `steer` socket 事件，也不会把 `/new`、`/reset`、`/undo`、`/retry`、`/branch`、`/compress` 等输入当作特殊命令处理。
+当前不再支持旧文档里的独立 `/cli-chat-run` namespace、`CliChatPanel.vue`、`cli-chat.ts` 和独立 `command` / `steer` socket 事件。CLI/Bridge 会话中的 slash command 现在通过统一 `/chat-run` 的 `run` payload 进入后端解析；当前支持 `/usage`、`/status`、`/abort`、`/queue`、`/clear`、`/title`、`/compress`、`/steer`、`/destroy`。
 
 ---
 
@@ -76,7 +76,10 @@ ChatRunSocket (Node.js)
 
 | 文件 | 说明 |
 |------|------|
-| `packages/server/src/services/hermes/chat-run-socket.ts` | `/chat-run` Socket.IO 服务；同时处理 API Server 和 Bridge 运行 |
+| `packages/server/src/services/hermes/run-chat/index.ts` | `/chat-run` Socket.IO 入口；按 `source` 分流 API Server 与 Bridge 运行 |
+| `packages/server/src/services/hermes/run-chat/handle-api-run.ts` | API Server 路径；调用 Hermes Gateway `/v1/responses` 并消费流式响应 |
+| `packages/server/src/services/hermes/run-chat/handle-bridge-run.ts` | Bridge 路径；调用 Agent Bridge 并写入本地会话库 |
+| `packages/server/src/services/hermes/run-chat/session-command.ts` | CLI/Bridge slash command 解析与处理 |
 | `packages/server/src/services/hermes/agent-bridge/client.ts` | Node 端 bridge 客户端；通过 socket 请求 Python bridge |
 | `packages/server/src/services/hermes/agent-bridge/manager.ts` | Python bridge 子进程生命周期管理 |
 | `packages/server/src/services/hermes/agent-bridge/hermes_bridge.py` | Python bridge 服务；创建并复用 `AIAgent` 实例 |
@@ -84,7 +87,7 @@ ChatRunSocket (Node.js)
 | `packages/server/src/index.ts` | 启动 `AgentBridgeManager` 和 `ChatRunSocket` |
 | `packages/server/src/services/shutdown.ts` | 关闭时停止 chat socket 和 bridge 子进程 |
 | `packages/server/src/controllers/hermes/sessions.ts` | 会话列表和详情读取，包含 `source` 信息 |
-| `packages/server/src/controllers/hermes/profiles.ts` | profile 切换/管理时清理 bridge 内存会话 |
+| `packages/server/src/controllers/hermes/profiles.ts` | profile 管理接口；按 URL/body 中的 profile 做权限校验 |
 
 ### 已移除的旧文件
 
@@ -180,7 +183,7 @@ socket.emit('approval.respond', {
 | `cancel_queued_run` | `{ session_id, queue_id }` | 取消等待队列中的一条 run |
 | `approval.respond` | `{ session_id, approval_id, choice }` | 响应 Bridge 工具审批 |
 
-当前没有 `command`、`steer` 或 slash-command 相关 Socket.IO 事件。
+客户端不再发送独立 `command` 或 `steer` Socket.IO 事件；slash command 作为普通 `run.input` 进入 `/chat-run`，由服务端在 `source=cli` 时解析。
 
 ### 服务端 → 客户端
 
@@ -202,6 +205,7 @@ socket.emit('approval.respond', {
 | `usage.updated` | token 用量更新 |
 | `abort.started` | 中断开始 |
 | `abort.completed` | 中断结束 |
+| `session.command` | slash command 的执行结果或错误反馈 |
 | `run.completed` | 运行完成 |
 | `run.failed` | 运行失败 |
 
@@ -216,7 +220,7 @@ io(`${baseUrl}/chat-run`, {
 })
 ```
 
-如果未设置 `AUTH_DISABLED=1`，服务端会与 Web UI token 比对。
+服务端会与 Web UI token 比对。
 
 ---
 
@@ -298,18 +302,18 @@ Windows 使用 TCP 是因为部分 Python/Windows 环境没有 Unix domain socke
 | `get_output` | 通过 `cursor` 和 `event_cursor` 获取增量文本与事件 |
 | `interrupt` | 调用 agent 中断当前运行 |
 | `approval_respond` | 响应工具审批 |
-| `destroy_all` | profile 切换/管理时销毁全部 bridge 内存 session |
+| `destroy_all` | 维护动作；仅用于明确的全量清理/进程关闭场景，普通 profile 切换不会调用 |
 
-bridge 代码里还保留了一些调试/维护 action，例如 `ping`、`get_result`、`get_history`、`destroy`、`list`、`shutdown`、`steer`，但当前 `/chat-run` 前端路径不会暴露这些能力。
+bridge 代码里还保留了一些调试/维护 action，例如 `ping`、`get_result`、`get_history`、`destroy`、`list`、`shutdown`、`steer`。当前 `/chat-run` 前端路径不会直接暴露这些 action；需要的能力由 Node `/chat-run` 层封装，例如 `/steer` slash command 会调用 `steer` action。
 
-旧的 `command` action 已移除，bridge 不再处理 `/new`、`/undo`、`/retry`、`/branch`、`/compress` 等斜杠命令。
+旧的 `command` action 已移除，Python bridge 不再直接解析 `/new`、`/undo`、`/retry`、`/branch` 等旧斜杠命令；当前 CLI/Bridge slash command 支持范围以 Node `/chat-run` 的 `session-command.ts` 为准。
 
 ### 会话和 profile
 
 `AgentPool` 维护 `session_id -> AgentSession`：
 
 - 每个 session 持有独立 `AIAgent` 实例。
-- session 按 profile 创建，profile 改变时会重建对应 agent。
+- session 按请求中的 profile 创建和复用；前端切换 Hermes Profile 只改变后续请求使用的 profile，不会影响其他 bridge 内存 session。
 - `HERMES_HOME` 会在创建 agent 时临时切到 profile home。
 - `SessionDB` 按 profile 的 `state.db` 路径缓存。
 - 空闲 session 会被 bridge GC，默认 30 分钟无运行后销毁内存态。
@@ -413,7 +417,7 @@ bridge 启动失败不会阻止 Web UI 启动，但 Bridge(beta) 会话后续运
 随后创建统一的 chat socket：
 
 ```ts
-chatRunServer = new ChatRunSocket(groupChatServer.getIO(), getGatewayManagerInstance())
+chatRunServer = new ChatRunSocket(groupChatServer.getIO())
 chatRunServer.init()
 ```
 
@@ -433,7 +437,10 @@ chatRunServer.init()
 |------|------|
 | `HERMES_AGENT_BRIDGE_ENDPOINT` | Bridge endpoint；Windows 默认 `tcp://127.0.0.1:18765`，macOS/Linux 默认 `ipc:///tmp/hermes-agent-bridge.sock` |
 | `HERMES_AGENT_BRIDGE_TIMEOUT_MS` | Node 等待 bridge 请求响应的超时，默认 `120000` ms |
+| `HERMES_AGENT_BRIDGE_CONNECT_RETRY_MS` | Node 连接 bridge socket 失败时的短重试窗口，默认 `5000` ms |
 | `HERMES_AGENT_BRIDGE_STARTUP_TIMEOUT_MS` | Node 等待 Python bridge ready 的超时，默认 `120000` ms |
+| `HERMES_AGENT_BRIDGE_AUTO_RESTART` | bridge broker 意外退出后是否自动重启；设为 `0`/`false`/`no`/`off` 可关闭，默认开启 |
+| `HERMES_AGENT_BRIDGE_RESTART_DELAY_MS` | bridge broker 自动重启基础延迟，默认 `1000` ms，连续失败时最多退避到 `30000` ms |
 | `HERMES_AGENT_BRIDGE_PYTHON` | 指定 Python 解释器路径 |
 | `HERMES_AGENT_ROOT` | hermes-agent 安装目录 |
 | `HERMES_AGENT_BRIDGE_UV` | 指定 uv 可执行文件路径 |
@@ -441,6 +448,8 @@ chatRunServer.init()
 | `HERMES_BRIDGE_PROVIDER` | 覆盖 bridge 使用的 provider |
 | `HERMES_BRIDGE_MAX_TURNS` | 覆盖 bridge 最大轮数 |
 | `UV` | uv 可执行文件路径 fallback |
+
+正常使用不需要配置这些变量。Bridge 支持多个用户/多个 profile 的运行并存；Web UI 的 Hermes Profile 切换不会重启 bridge 或销毁其他正在运行的任务。Windows 下如果默认 TCP 端口被旧 bridge/broker/worker 占用，新 bridge 会先按端口杀掉旧进程树，再用同一个 endpoint 重建。
 
 Windows 首次启动慢时可以临时放大：
 
@@ -456,4 +465,4 @@ $env:HERMES_AGENT_BRIDGE_TIMEOUT_MS = "300000"
 - Bridge(beta) 仍依赖 Python bridge 成功启动；启动失败时 Web UI 可用，但 bridge 会话不可用。
 - bridge socket connect 阶段还没有单独 connect timeout。
 - 旧 CLI 独立面板和独立 `/cli-chat-run` namespace 已移除。
-- 旧 bridge 斜杠命令和 `command/steer` socket 控制层已移除；现在输入框内容一律按普通用户消息发送。
+- 旧 bridge `command/steer` socket 控制层已移除；CLI/Bridge slash command 现在通过统一 `/chat-run` 的 `run.input` 解析并以 `session.command` 反馈。

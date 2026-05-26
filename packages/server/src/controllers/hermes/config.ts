@@ -1,18 +1,23 @@
-import { readFile, writeFile, copyFile } from 'fs/promises'
-import YAML from 'js-yaml'
-import { getGatewayManagerInstance } from '../../services/gateway-bootstrap'
-import { getActiveConfigPath, getActiveEnvPath } from '../../services/hermes/hermes-profile'
-import { saveEnvValue } from '../../services/config-helpers'
+import { readFile } from 'fs/promises'
+import { join } from 'path'
+import { getActiveProfileName, getProfileDir } from '../../services/hermes/hermes-profile'
+import { restartGatewayForProfile } from '../../services/hermes/gateway-autostart'
+import { saveEnvValueForProfile } from '../../services/config-helpers'
 import { logger } from '../../services/logger'
+import { safeFileStore } from '../../services/safe-file-store'
 
 const PLATFORM_SECTIONS = new Set([
   'telegram', 'discord', 'slack', 'whatsapp', 'matrix',
-  'weixin', 'wecom', 'feishu', 'dingtalk',
+  'weixin', 'wecom', 'feishu', 'dingtalk', 'qqbot',
   'approvals',
 ])
 
-const configPath = () => getActiveConfigPath()
-const envPath = () => getActiveEnvPath()
+function requestedProfile(ctx: any): string {
+  return ctx.state?.profile?.name || getActiveProfileName() || 'default'
+}
+
+const configPath = (profile: string) => join(getProfileDir(profile), 'config.yaml')
+const envPath = (profile: string) => join(getProfileDir(profile), '.env')
 
 const envPlatformMap: Record<string, [string, string]> = {
   TELEGRAM_BOT_TOKEN: ['telegram', 'token'],
@@ -25,6 +30,12 @@ const envPlatformMap: Record<string, [string, string]> = {
   DINGTALK_CLIENT_ID: ['dingtalk', 'extra.client_id'],
   DINGTALK_CLIENT_SECRET: ['dingtalk', 'extra.client_secret'],
   DINGTALK_APP_KEY: ['dingtalk', 'extra.app_key'],
+  DINGTALK_ALLOWED_USERS: ['dingtalk', 'allowed_users'],
+  DINGTALK_ALLOW_ALL_USERS: ['dingtalk', 'allow_all_users'],
+  QQ_APP_ID: ['qqbot', 'extra.app_id'],
+  QQ_CLIENT_SECRET: ['qqbot', 'extra.client_secret'],
+  QQ_ALLOWED_USERS: ['qqbot', 'allowed_users'],
+  QQ_ALLOW_ALL_USERS: ['qqbot', 'allow_all_users'],
   WECOM_BOT_ID: ['wecom', 'extra.bot_id'],
   WECOM_SECRET: ['wecom', 'extra.secret'],
   WEIXIN_TOKEN: ['weixin', 'token'],
@@ -72,9 +83,9 @@ function deepMerge(target: Record<string, any>, source: Record<string, any>): Re
   return target
 }
 
-async function readEnvPlatforms(): Promise<Record<string, any>> {
+async function readEnvPlatforms(profile: string): Promise<Record<string, any>> {
   try {
-    const raw = await readFile(envPath(), 'utf-8')
+    const raw = await readFile(envPath(profile), 'utf-8')
     const env = parseEnv(raw)
     const platforms: Record<string, any> = {}
     for (const [envKey, [platform, cfgPath]] of Object.entries(envPlatformMap)) {
@@ -82,38 +93,26 @@ async function readEnvPlatforms(): Promise<Record<string, any>> {
       if (val === undefined || val === '') continue
       if (!platforms[platform]) platforms[platform] = {}
       let finalVal: any = val
-      if (cfgPath === 'enabled') finalVal = val === 'true'
+      if (cfgPath === 'enabled' || cfgPath === 'allow_all_users') finalVal = val === 'true'
       setNested(platforms[platform], cfgPath, finalVal)
     }
     return platforms
   } catch { return {} }
 }
 
-async function readConfig(): Promise<Record<string, any>> {
-  const raw = await readFile(configPath(), 'utf-8')
-  return (YAML.load(raw, { json: true }) as Record<string, any>) || {}
-}
-
-async function writeConfig(data: Record<string, any>): Promise<void> {
-  const cp = configPath()
-  await copyFile(cp, cp + '.bak')
-  const yamlStr = YAML.dump(data, {
-    lineWidth: -1,
-    noRefs: true,
-    quotingType: '"',
-    forceQuotes: true, // Force quotes on all string values
-  })
-  await writeFile(cp, yamlStr, 'utf-8')
+async function readConfig(profile: string): Promise<Record<string, any>> {
+  return safeFileStore.readYaml(configPath(profile))
 }
 
 export async function getConfig(ctx: any) {
   try {
-    const config = await readConfig()
-    const envPlatforms = await readEnvPlatforms()
+    const profile = requestedProfile(ctx)
+    const config = await readConfig(profile)
+    const envPlatforms = await readEnvPlatforms(profile)
     if (Object.keys(envPlatforms).length > 0) {
       const existing = config.platforms || {}
       for (const [platform, vals] of Object.entries(envPlatforms)) {
-        existing[platform] = { ...(existing[platform] || {}), ...(vals as Record<string, any>) }
+        existing[platform] = deepMerge(existing[platform] || {}, vals as Record<string, any>)
       }
       config.platforms = existing
     }
@@ -134,26 +133,33 @@ export async function getConfig(ctx: any) {
 }
 
 export async function updateConfig(ctx: any) {
-  const { section, values } = ctx.request.body as { section: string; values: Record<string, any> }
+  const { section, values, restart } = ctx.request.body as { section: string; values: Record<string, any>; restart?: boolean }
   if (!section || !values) {
     ctx.status = 400; ctx.body = { error: 'Missing section or values' }; return
   }
   try {
-    const config = await readConfig()
-    config[section] = deepMerge(config[section] || {}, values)
-    await writeConfig(config)
+    const profile = requestedProfile(ctx)
+    await safeFileStore.updateYaml(configPath(profile), (config) => {
+      config[section] = deepMerge(config[section] || {}, values)
+      return config
+    }, {
+      backup: true,
+      dumpOptions: {
+        forceQuotes: true,
+      },
+    })
 
-    // 使用 GatewayManager 重启平台网关
-    if (PLATFORM_SECTIONS.has(section)) {
-      const mgr = getGatewayManagerInstance()
-      if (mgr) {
-        try {
-          const activeProfile = mgr.getActiveProfile()
-          await mgr.stop(activeProfile)
-          await mgr.start(activeProfile)
-        } catch (err) {
-          logger.error(err, 'GatewayManager restart failed')
-        }
+    // Platform adapters run through Hermes gateway; restart it so channel
+    // config changes (Feishu/Weixin/etc.) are applied.
+    if (restart !== false && PLATFORM_SECTIONS.has(section)) {
+      try {
+        const restartResult = await restartGatewayForProfile(profile)
+        logger.info('[config] gateway restarted after config update section=%s profile=%s result=%j', section, profile, restartResult)
+      } catch (err) {
+        logger.error(err, 'Gateway restart failed')
+        ctx.status = 500
+        ctx.body = { error: err instanceof Error ? err.message : 'Gateway restart failed' }
+        return
       }
     }
 
@@ -169,52 +175,57 @@ export async function updateCredentials(ctx: any) {
     ctx.status = 400; ctx.body = { error: 'Missing platform or values' }; return
   }
   try {
+    const profile = requestedProfile(ctx)
     const envMap = platformEnvMap[platform]
     if (!envMap) {
       ctx.status = 400; ctx.body = { error: `Unknown platform: ${platform}` }; return
     }
-    const config = await readConfig()
-    let configChanged = false
     const flatValues: Record<string, any> = {}
     for (const [key, val] of Object.entries(values)) {
       if (key === 'extra' && val && typeof val === 'object') {
         for (const [subKey, subVal] of Object.entries(val as Record<string, any>)) { flatValues[`extra.${subKey}`] = subVal }
       } else { flatValues[key] = val }
     }
-    for (const [cfgPath, val] of Object.entries(flatValues)) {
-      const envVar = envMap[cfgPath]
-      if (!envVar) continue
-      if (val === undefined || val === null || val === '') {
-        await saveEnvValue(envVar, '')
-        const parts = cfgPath.split('.')
-        let obj: any = config.platforms?.[platform]
-        if (obj) {
-          if (parts.length === 1) { delete obj[parts[0]] }
-          else {
-            let cur = obj
-            for (let i = 0; i < parts.length - 1; i++) { if (!cur[parts[i]]) break; cur = cur[parts[i]] }
-            delete cur[parts[parts.length - 1]]
-            if (obj.extra && Object.keys(obj.extra).length === 0) delete obj.extra
+    await safeFileStore.updateYaml(configPath(profile), async (config) => {
+      for (const [cfgPath, val] of Object.entries(flatValues)) {
+        const envVar = envMap[cfgPath]
+        if (!envVar) continue
+        if (val === undefined || val === null || val === '') {
+          await saveEnvValueForProfile(profile, envVar, '')
+          const parts = cfgPath.split('.')
+          let obj: any = config.platforms?.[platform]
+          if (obj) {
+            if (parts.length === 1) { delete obj[parts[0]] }
+            else {
+              let cur = obj
+              for (let i = 0; i < parts.length - 1; i++) { if (!cur[parts[i]]) break; cur = cur[parts[i]] }
+              delete cur[parts[parts.length - 1]]
+              if (obj.extra && Object.keys(obj.extra).length === 0) delete obj.extra
+            }
+            if (Object.keys(obj).length === 0) { if (!config.platforms) config.platforms = {}; delete config.platforms[platform] }
           }
-          if (Object.keys(obj).length === 0) { if (!config.platforms) config.platforms = {}; delete config.platforms[platform] }
-          configChanged = true
+        } else {
+          await saveEnvValueForProfile(profile, envVar, String(val))
         }
-      } else {
-        await saveEnvValue(envVar, String(val))
       }
-    }
-    if (configChanged) { await writeConfig(config) }
+      return config
+    }, {
+      backup: true,
+      dumpOptions: {
+        forceQuotes: true,
+      },
+    })
 
-    // 使用 GatewayManager 重启平台网关
-    const mgr = getGatewayManagerInstance()
-    if (mgr) {
-      try {
-        const activeProfile = mgr.getActiveProfile()
-        await mgr.stop(activeProfile)
-        await mgr.start(activeProfile)
-      } catch (err) {
-        logger.error(err, 'GatewayManager restart failed')
-      }
+    // Platform adapters run through Hermes gateway; restart it so channel
+    // credentials are applied.
+    try {
+      const restartResult = await restartGatewayForProfile(profile)
+      logger.info('[config] gateway restarted after credentials update platform=%s profile=%s result=%j', platform, profile, restartResult)
+    } catch (err) {
+      logger.error(err, 'Gateway restart failed')
+      ctx.status = 500
+      ctx.body = { error: err instanceof Error ? err.message : 'Gateway restart failed' }
+      return
     }
 
     ctx.body = { success: true }

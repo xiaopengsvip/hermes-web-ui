@@ -3,13 +3,15 @@ import { ref, computed, watch, nextTick } from "vue";
 import { useI18n } from "vue-i18n";
 import MessageItem from "./MessageItem.vue";
 import { useChatStore } from "@/stores/hermes/chat";
-import thinkingVideoLight from "@/assets/thinking-light.mp4";
-import thinkingVideoDark from "@/assets/thinking-dark.mp4";
+import thinkingImageLight from "@/assets/thinking-light.gif";
+import thinkingImageDark from "@/assets/thinking-dark.gif";
 import { useTheme } from "@/composables/useTheme";
+import { useToolTraceVisibility } from "@/composables/useToolTraceVisibility";
 
 const chatStore = useChatStore();
 const { t } = useI18n();
 const { isDark } = useTheme();
+const { toolTraceVisible } = useToolTraceVisibility();
 const listRef = ref<HTMLElement>();
 
 function formatTokens(n: number): string {
@@ -41,9 +43,16 @@ const currentToolCalls = computed(() => {
   return [...tools].reverse();
 });
 
-const displayMessages = computed(() =>
-  chatStore.messages.filter((m) => {
-    if (m.role === "tool") return false;
+const visibleToolCalls = computed(() =>
+  currentToolCalls.value.filter((tool) => !!tool.toolName),
+);
+
+const displayMessages = computed(() => {
+  const currentToolIds = new Set(currentToolCalls.value.map((tool) => tool.id));
+  return chatStore.messages.filter((m) => {
+    if (m.role === "tool") {
+      return toolTraceVisible.value && !!m.toolName && !(chatStore.isRunActive && currentToolIds.has(m.id));
+    }
     if (
       m.role === "assistant" &&
       m.isStreaming &&
@@ -54,8 +63,8 @@ const displayMessages = computed(() =>
       return false;
     }
     return true;
-  }),
-);
+  });
+});
 
 const queuedMessages = computed(() => {
   const sid = chatStore.activeSessionId;
@@ -163,15 +172,13 @@ watch(currentToolCalls, () => {
     />
     <Transition name="fade">
       <div v-if="chatStore.isRunActive || chatStore.abortState" class="streaming-indicator">
-        <video
-          :src="isDark ? thinkingVideoDark : thinkingVideoLight"
-          autoplay
-          loop
-          muted
-          playsinline
+        <img
+          :src="isDark ? thinkingImageDark : thinkingImageLight"
+          alt=""
+          aria-hidden="true"
           class="thinking-video"
-        />
-        <div v-if="currentToolCalls.length > 0 || chatStore.compressionState || chatStore.abortState" class="tool-calls-panel">
+        >
+        <div v-if="visibleToolCalls.length > 0 || chatStore.compressionState || chatStore.abortState" class="tool-calls-panel">
           <!-- Abort indicator -->
           <div v-if="chatStore.abortState" class="tool-call-item compression-item">
             <svg
@@ -254,7 +261,7 @@ watch(currentToolCalls, () => {
           </div>
           <!-- Tool calls -->
           <div
-            v-for="tc in currentToolCalls"
+            v-for="tc in visibleToolCalls"
             :key="tc.id"
             class="tool-call-item"
           >
@@ -370,7 +377,7 @@ watch(currentToolCalls, () => {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  background-color: $bg-card;
+  background: rgba(var(--bg-card-rgb, 255, 255, 255), 0.4);
   position: relative;
 
   .dark & {

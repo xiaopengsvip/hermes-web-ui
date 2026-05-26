@@ -26,7 +26,7 @@ This compose file runs a single service:
 
 - `hermes-webui` — Web UI dashboard with integrated Hermes Agent runtime (pre-built image or built from source)
 
-The Web UI container is built on the `nousresearch/hermes-agent` base image and internally manages the Hermes Agent gateway lifecycle via `GatewayManager`.
+The Web UI container is built on the `nousresearch/hermes-agent` base image and uses the Hermes CLI / agent bridge runtime for chat execution. It does not start or manage a separate Hermes gateway process.
 
 ## Environment Variables
 
@@ -40,14 +40,11 @@ All key runtime settings are configured from compose variables.
 | `HERMES_AGENT_IMAGE` | `nousresearch/hermes-agent:latest` | Hermes Agent base image (used only during build) |
 | `WEBUI_IMAGE` | `hermes-web-ui-local:latest` | Web UI image (set to `ekkoye8888/hermes-web-ui` to use pre-built) |
 | `HERMES_DATA_DIR` | `./hermes_data` | Hermes runtime data directory |
-| `AUTH_DISABLED` | `false` | Set to `true` to disable login authentication |
 
 Override variables directly from shell:
 
 ```bash
-PORT=16060 \
-AUTH_DISABLED=true \
-docker compose up -d
+PORT=16060 docker compose up -d
 ```
 
 Or create a `.env` file in the project root:
@@ -55,7 +52,6 @@ Or create a `.env` file in the project root:
 ```
 WEBUI_IMAGE=ekkoye8888/hermes-web-ui
 PORT=6060
-AUTH_DISABLED=false
 ```
 
 ## Data Persistence
@@ -67,7 +63,7 @@ AUTH_DISABLED=false
 
 - Hermes data persists in `./hermes_data`, mapped to `/home/agent/.hermes` in the container.
 - Web UI data persists in `./hermes_data/hermes-web-ui/`, mapped to `/home/agent/.hermes-web-ui` in the container.
-- When `AUTH_DISABLED=false`, the auth token is auto-generated on first run and printed to container logs.
+- The auth token is auto-generated on first run and printed to container logs.
 - Deleting the token file and restarting will generate a new one.
 
 ## Port Mapping
@@ -76,14 +72,14 @@ AUTH_DISABLED=false
 |---|---|
 | `${PORT}` (6060) | Web UI dashboard |
 
-Hermes Agent gateway ports (8642-8670) are used internally within the container and are not exposed to the host.
+No Hermes gateway ports are exposed by this compose setup.
 
 ## Code Runtime Behavior
 
 - Hermes CLI binary comes from `HERMES_BIN` env (`packages/server/src/services/hermes-cli.ts`).
 - If `HERMES_BIN` is not provided, code falls back to `hermes` in `PATH`.
-- Profile switching dynamically resolves upstream URLs via `GatewayManager`.
-- The Web UI automatically starts and manages the Hermes Agent gateway process on startup.
+- Profile-specific chat runs are handled through the Hermes agent bridge. The selected/requested profile is authorized per account and passed with runtime requests; switching the frontend Hermes Profile does not restart the bridge or clear other running tasks.
+- The Web UI does not automatically start or manage a Hermes Agent gateway process on startup.
 
 ## Common Operations
 

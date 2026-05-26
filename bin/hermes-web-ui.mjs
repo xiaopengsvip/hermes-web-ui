@@ -2,20 +2,28 @@
 import { spawn, execSync, execFileSync } from 'child_process'
 import { resolve, dirname, join, delimiter } from 'path'
 import { fileURLToPath } from 'url'
-import { readFileSync, writeFileSync, unlinkSync, mkdirSync, openSync, chmodSync, statSync, existsSync } from 'fs'
-import { randomBytes } from 'crypto'
+import { readFileSync, writeFileSync, unlinkSync, mkdirSync, openSync, chmodSync, statSync, existsSync, realpathSync } from 'fs'
+import { randomBytes, scryptSync } from 'crypto'
 import { homedir } from 'os'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
+const __filename = fileURLToPath(import.meta.url)
 const serverEntry = resolve(__dirname, '..', 'dist', 'server', 'index.js')
 const pkgDir = resolve(__dirname, '..')
 const pkg = JSON.parse(readFileSync(resolve(pkgDir, 'package.json'), 'utf-8'))
 const VERSION = pkg.version
-const PID_DIR = resolve(homedir(), '.hermes-web-ui')
+const WEB_UI_HOME = process.env.HERMES_WEB_UI_HOME?.trim()
+  ? resolve(process.env.HERMES_WEB_UI_HOME.trim())
+  : resolve(homedir(), '.hermes-web-ui')
+const PID_DIR = WEB_UI_HOME
 const PID_FILE = join(PID_DIR, 'server.pid')
 const LOG_FILE = join(PID_DIR, 'server.log')
 const TOKEN_FILE = join(PID_DIR, '.token')
+const LOGIN_LOCK_FILE = join(WEB_UI_HOME, '.login-lock.json')
+const WEB_UI_DB_FILE = join(WEB_UI_HOME, 'hermes-web-ui.db')
 const DEFAULT_PORT = 8648
+const DEFAULT_USERNAME = 'admin'
+const DEFAULT_PASSWORD = '123456'
 
 // ─── Auto-fix node-pty native module ──────────────────────────
 function ensureNativeModules() {
@@ -35,8 +43,7 @@ function getToken() {
 }
 
 function ensureToken() {
-  // If AUTH_DISABLED or AUTH_TOKEN is set, let server handle it
-  if (process.env.AUTH_DISABLED === '1' || process.env.AUTH_DISABLED === 'true') return null
+  // If AUTH_TOKEN is set, let server handle it.
   if (process.env.AUTH_TOKEN) return process.env.AUTH_TOKEN
 
   let token = getToken()
@@ -157,6 +164,39 @@ function getPort() {
   return argPort ?? DEFAULT_PORT
 }
 
+function commandExists(command) {
+  try {
+    if (process.platform === 'win32') {
+      execFileSync('where', [command], { stdio: 'ignore', windowsHide: true })
+    } else {
+      execFileSync('sh', ['-c', `command -v "$1" >/dev/null 2>&1`, 'sh', command], { stdio: 'ignore' })
+    }
+    return true
+  } catch {
+    return false
+  }
+}
+
+function parseUnixNetstatListeningPids(out, port) {
+  const pids = []
+  for (const line of out.split(/\r?\n/)) {
+    const parts = line.trim().split(/\s+/)
+    if (parts.length < 6) continue
+
+    const proto = parts[0]?.toLowerCase()
+    if (!proto?.startsWith('tcp')) continue
+
+    const localAddress = parts[3]
+    const state = parts.find(part => part.toUpperCase() === 'LISTEN' || part.toUpperCase() === 'LISTENING')
+    if (!state || !localAddress?.endsWith(`:${port}`)) continue
+
+    const pidPart = parts.find(part => /^\d+\//.test(part))
+    const pid = pidPart ? parseInt(pidPart.split('/')[0], 10) : NaN
+    if (Number.isFinite(pid)) pids.push(pid)
+  }
+  return pids
+}
+
 function getListeningPids(port) {
   if (!port || isNaN(port)) return []
   const uniquePids = (pids) => [...new Set(pids.filter(pid => Number.isFinite(pid)))]
@@ -179,17 +219,31 @@ function getListeningPids(port) {
     return []
   }
 
-  try {
-    const out = execSync(`lsof -tiTCP:${port} -sTCP:LISTEN`, { encoding: 'utf-8' }).trim()
-    return uniquePids(out.split('\n').map(pid => parseInt(pid, 10)))
-  } catch {}
+  if (commandExists('ss')) {
+    try {
+      const out = execFileSync('ss', ['-ltnp', `sport = :${port}`], { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] })
+      const pids = uniquePids(out.split(/\r?\n/)
+        .map(line => line.match(/pid=(\d+)/)?.[1])
+        .map(pid => parseInt(pid || '', 10)))
+      if (pids.length) return pids
+    } catch {}
+  }
 
-  try {
-    const out = execSync(`ss -ltnp 'sport = :${port}'`, { encoding: 'utf-8' })
-    return uniquePids(out.split('\n')
-      .map(line => line.match(/pid=(\d+)/)?.[1])
-      .map(pid => parseInt(pid || '', 10)))
-  } catch {}
+  if (commandExists('lsof')) {
+    try {
+      const out = execFileSync('lsof', [`-tiTCP:${port}`, '-sTCP:LISTEN'], { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()
+      const pids = uniquePids(out.split(/\r?\n/).map(pid => parseInt(pid, 10)))
+      if (pids.length) return pids
+    } catch {}
+  }
+
+  if (commandExists('netstat')) {
+    try {
+      const out = execFileSync('netstat', ['-anp', 'tcp'], { encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] })
+      const pids = uniquePids(parseUnixNetstatListeningPids(out, port))
+      if (pids.length) return pids
+    } catch {}
+  }
 
   return []
 }
@@ -334,9 +388,7 @@ function startDaemon(port) {
 
     fetch(healthUrl).then(res => {
       if (res.ok) {
-        const url = token
-          ? `http://localhost:${port}/#/?token=${token}`
-          : `http://localhost:${port}`
+        const url = `http://localhost:${port}`
         console.log(`  ✓ hermes-web-ui started`)
         console.log(`    ${url}`)
         console.log(`    Log: ${LOG_FILE}`)
@@ -348,9 +400,7 @@ function startDaemon(port) {
       } else {
         console.log(`  ⚠ Server process is running but health check failed after ${maxWait / 1000}s`)
         console.log(`    Check log: ${LOG_FILE}`)
-        const url = token
-          ? `http://localhost:${port}/#/?token=${token}`
-          : `http://localhost:${port}`
+        const url = `http://localhost:${port}`
         console.log(`    ${url}`)
       }
     }).catch(() => {
@@ -359,9 +409,7 @@ function startDaemon(port) {
       } else {
         console.log(`  ⚠ Server process is running but health check failed after ${maxWait / 1000}s`)
         console.log(`    Check log: ${LOG_FILE}`)
-        const url = token
-          ? `http://localhost:${port}/#/?token=${token}`
-          : `http://localhost:${port}`
+        const url = `http://localhost:${port}`
         console.log(`    ${url}`)
       }
     })
@@ -371,7 +419,14 @@ function startDaemon(port) {
 }
 
 function stopDaemon() {
-  const pid = getPid()
+  const pidFromFile = readPidFile()
+  if (pidFromFile && !isRunning(pidFromFile)) {
+    removePid()
+    console.log(`  ✓ hermes-web-ui was not running (cleaned stale PID: ${pidFromFile})`)
+    return
+  }
+
+  const pid = pidFromFile ?? recoverPidFromPort()
   if (!pid) {
     console.log('  ✗ hermes-web-ui is not running')
     process.exit(1)
@@ -394,7 +449,11 @@ function stopDaemon() {
     } catch {}
     // Force kill if still alive
     if (isRunning(pid)) {
-      process.kill(pid, 'SIGKILL')
+      try {
+        process.kill(pid, 'SIGKILL')
+      } catch (err) {
+        if (err?.code !== 'ESRCH') throw err
+      }
     }
     removePid()
     console.log(`  ✓ hermes-web-ui stopped (PID: ${pid})`)
@@ -415,15 +474,97 @@ function showStatus() {
   }
 }
 
-const command = process.argv[2] || 'start'
+function clearLoginLocks(options = {}) {
+  const { silent = false, checkRunning = true } = options
+  const serverRunning = checkRunning ? !!getPid() : false
+  let removed = false
 
-if (['-v', '--version', 'version'].includes(command)) {
-  console.log(`hermes-web-ui v${VERSION}`)
-  process.exit(0)
+  try {
+    unlinkSync(LOGIN_LOCK_FILE)
+    removed = true
+    if (!silent) console.log(`  ✓ Removed login lock file: ${LOGIN_LOCK_FILE}`)
+  } catch (err) {
+    if (err?.code === 'ENOENT') {
+      if (!silent) console.log(`  ✓ No login lock file found: ${LOGIN_LOCK_FILE}`)
+    } else {
+      if (!silent) console.log(`  ✗ Failed to remove login lock file: ${err.message}`)
+      throw err
+    }
+  }
+
+  if (!silent && serverRunning) {
+    console.log('  ⚠ hermes-web-ui is running; restart it to clear in-memory login locks.')
+    console.log('    Run: hermes-web-ui restart')
+  }
+
+  return { path: LOGIN_LOCK_FILE, removed, serverRunning }
 }
 
-if (['-h', '--help', 'help'].includes(command)) {
-  console.log(`
+function hashPassword(password) {
+  const salt = randomBytes(16).toString('hex')
+  const hash = scryptSync(password, salt, 64).toString('hex')
+  return `scrypt:${salt}:${hash}`
+}
+
+async function resetDefaultLogin(options = {}) {
+  const { silent = false } = options
+  mkdirSync(WEB_UI_HOME, { recursive: true })
+  const { DatabaseSync } = await import('node:sqlite')
+  const db = new DatabaseSync(WEB_UI_DB_FILE)
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT NOT NULL UNIQUE,
+        password_hash TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'admin',
+        status TEXT NOT NULL DEFAULT 'active',
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        last_login_at INTEGER
+      )
+    `)
+
+    const now = Date.now()
+    const passwordHash = hashPassword(DEFAULT_PASSWORD)
+    const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(DEFAULT_USERNAME)
+    if (existing?.id) {
+      db.prepare(
+        `UPDATE users
+         SET password_hash = ?, role = 'super_admin', status = 'active', updated_at = ?
+         WHERE id = ?`
+      ).run(passwordHash, now, existing.id)
+      if (!silent) {
+        console.log(`  ✓ Reset default login: ${DEFAULT_USERNAME} / ${DEFAULT_PASSWORD}`)
+        console.log(`    Database: ${WEB_UI_DB_FILE}`)
+      }
+      return { path: WEB_UI_DB_FILE, username: DEFAULT_USERNAME, password: DEFAULT_PASSWORD, action: 'updated' }
+    }
+
+    db.prepare(
+      `INSERT INTO users (username, password_hash, role, status, created_at, updated_at)
+       VALUES (?, ?, 'super_admin', 'active', ?, ?)`
+    ).run(DEFAULT_USERNAME, passwordHash, now, now)
+    if (!silent) {
+      console.log(`  ✓ Created default login: ${DEFAULT_USERNAME} / ${DEFAULT_PASSWORD}`)
+      console.log(`    Database: ${WEB_UI_DB_FILE}`)
+    }
+    return { path: WEB_UI_DB_FILE, username: DEFAULT_USERNAME, password: DEFAULT_PASSWORD, action: 'created' }
+  } finally {
+    db.close()
+  }
+}
+
+async function main() {
+  const command = process.argv[2] || 'start'
+
+  if (['-v', '--version', 'version'].includes(command)) {
+    console.log(`hermes-web-ui v${VERSION}`)
+    process.exit(0)
+  }
+
+  if (['-h', '--help', 'help'].includes(command)) {
+    console.log(`
 hermes-web-ui v${VERSION}
 
 Usage: hermes-web-ui <command> [options]
@@ -433,15 +574,74 @@ Commands:
   stop               Stop the server
   restart [port]     Restart the server
   status             Show server status
+  clear-login-locks  Delete the login IP lock file
+  reset-default-login Create or reset the default login (${DEFAULT_USERNAME} / ${DEFAULT_PASSWORD})
   update             Update to latest version and restart
+  upgrade            Alias for update
   version            Show version number
 
 Options:
   -v, --version      Show version number
   -h, --help         Show this help message
   --port <port>      Specify port (used with start/restart)
+  --restart          Restart after clear-login-locks
 `)
-  process.exit(0)
+    process.exit(0)
+  }
+
+  switch (command) {
+    case 'start':
+      startDaemon(getPort())
+      break
+    case 'stop':
+      stopDaemon()
+      break
+    case 'restart':
+      stopDaemon()
+      setTimeout(() => startDaemon(getPort()), 500)
+      break
+    case 'status':
+      showStatus()
+      break
+    case 'clear-login-locks': {
+      const restartAfterClear = process.argv.includes('--restart')
+      const result = clearLoginLocks()
+      if (restartAfterClear && result.serverRunning) {
+        const port = getRunningPort() ?? getPort()
+        stopDaemon()
+        setTimeout(() => startDaemon(port), 500)
+      }
+      break
+    }
+    case 'reset-default-login':
+      await resetDefaultLogin()
+      break
+    case 'update':
+    case 'upgrade':
+      doUpdate()
+      break
+    default:
+      ensureNativeModules()
+      const port = !isNaN(command) ? parseInt(command) : DEFAULT_PORT
+      const windowsShell = process.platform === 'win32' ? getWindowsShell() : null
+      const serverEnv = {
+        ...process.env,
+        NODE_ENV: 'production',
+        PORT: String(port),
+      }
+      if (windowsShell) {
+        serverEnv.SHELL = serverEnv.SHELL?.trim() || windowsShell
+        serverEnv.ComSpec = serverEnv.ComSpec?.trim() || windowsShell
+      }
+      const child = spawn(process.execPath, [serverEntry], {
+        stdio: 'inherit',
+        env: serverEnv,
+        windowsHide: true,
+      })
+      child.on('exit', (code) => process.exit(code ?? 1))
+      process.on('SIGTERM', () => child.kill('SIGTERM'))
+      process.on('SIGINT', () => child.kill('SIGINT'))
+  }
 }
 
 function doUpdate() {
@@ -499,43 +699,18 @@ function runUpdateInstall(npm) {
   })
 }
 
-switch (command) {
-  case 'start':
-    startDaemon(getPort())
-    break
-  case 'stop':
-    stopDaemon()
-    break
-  case 'restart':
-    stopDaemon()
-    setTimeout(() => startDaemon(getPort()), 500)
-    break
-  case 'status':
-    showStatus()
-    break
-  case 'update':
-  case 'upgrade':
-    doUpdate()
-    break
-  default:
-    ensureNativeModules()
-    const port = !isNaN(command) ? parseInt(command) : DEFAULT_PORT
-    const windowsShell = process.platform === 'win32' ? getWindowsShell() : null
-    const serverEnv = {
-      ...process.env,
-      NODE_ENV: 'production',
-      PORT: String(port),
-    }
-    if (windowsShell) {
-      serverEnv.SHELL = serverEnv.SHELL?.trim() || windowsShell
-      serverEnv.ComSpec = serverEnv.ComSpec?.trim() || windowsShell
-    }
-    const child = spawn(process.execPath, [serverEntry], {
-      stdio: 'inherit',
-      env: serverEnv,
-      windowsHide: true,
-    })
-    child.on('exit', (code) => process.exit(code ?? 1))
-    process.on('SIGTERM', () => child.kill('SIGTERM'))
-    process.on('SIGINT', () => child.kill('SIGINT'))
+if (process.argv[1] && realpathSync(resolve(process.argv[1])) === __filename) {
+  main().catch(err => {
+    console.error(`  ✗ ${err?.message || err}`)
+    process.exit(1)
+  })
+}
+
+export {
+  clearLoginLocks,
+  commandExists,
+  getListeningPids,
+  parseUnixNetstatListeningPids,
+  resetDefaultLogin,
+  stopDaemon,
 }

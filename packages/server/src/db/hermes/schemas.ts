@@ -34,6 +34,7 @@ export const SESSIONS_SCHEMA: Record<string, string> = {
   source: 'TEXT NOT NULL DEFAULT \'api_server\'',
   user_id: 'TEXT',
   model: 'TEXT NOT NULL DEFAULT \'\'',
+  provider: 'TEXT NOT NULL DEFAULT \'\'',
   title: 'TEXT',
   started_at: 'INTEGER NOT NULL',
   ended_at: 'INTEGER',
@@ -104,6 +105,38 @@ export const MODEL_CONTEXT_SCHEMA: Record<string, string> = {
 export const MODEL_CONTEXT_INDEX = 'CREATE UNIQUE INDEX IF NOT EXISTS idx_model_context_provider_model ON model_context(provider, model)'
 
 // ============================================================================
+// Users and Profile Access
+// ============================================================================
+
+export const USERS_TABLE = 'users'
+
+export const USERS_SCHEMA: Record<string, string> = {
+  id: 'INTEGER PRIMARY KEY AUTOINCREMENT',
+  username: 'TEXT NOT NULL UNIQUE',
+  password_hash: 'TEXT NOT NULL',
+  role: "TEXT NOT NULL DEFAULT 'admin'",
+  status: "TEXT NOT NULL DEFAULT 'active'",
+  created_at: 'INTEGER NOT NULL',
+  updated_at: 'INTEGER NOT NULL',
+  last_login_at: 'INTEGER',
+}
+
+export const USER_PROFILES_TABLE = 'user_profiles'
+
+export const USER_PROFILES_SCHEMA: Record<string, string> = {
+  user_id: 'INTEGER NOT NULL',
+  profile_name: "TEXT NOT NULL DEFAULT 'default'",
+  is_default: 'INTEGER NOT NULL DEFAULT 0',
+  created_at: 'INTEGER NOT NULL',
+}
+
+export const USER_PROFILES_INDEXES = {
+  idx_user_profiles_user: 'CREATE INDEX IF NOT EXISTS idx_user_profiles_user ON user_profiles(user_id)',
+  idx_user_profiles_profile: 'CREATE INDEX IF NOT EXISTS idx_user_profiles_profile ON user_profiles(profile_name)',
+  idx_user_profiles_default: 'CREATE UNIQUE INDEX IF NOT EXISTS idx_user_profiles_default ON user_profiles(user_id) WHERE is_default = 1',
+}
+
+// ============================================================================
 // Group Chat (services/hermes/group-chat/index.ts)
 // ============================================================================
 
@@ -117,6 +150,7 @@ export const GC_ROOMS_SCHEMA: Record<string, string> = {
   maxHistoryTokens: 'INTEGER NOT NULL DEFAULT 32000',
   tailMessageCount: 'INTEGER NOT NULL DEFAULT 10',
   totalTokens: 'INTEGER NOT NULL DEFAULT 0',
+  sessionSeed: "TEXT NOT NULL DEFAULT '0'",
 }
 
 export const GC_MESSAGES_TABLE = 'gc_messages'
@@ -128,6 +162,14 @@ export const GC_MESSAGES_SCHEMA: Record<string, string> = {
   senderName: 'TEXT NOT NULL',
   content: 'TEXT NOT NULL',
   timestamp: 'INTEGER NOT NULL',
+  role: "TEXT NOT NULL DEFAULT 'user'",
+  tool_call_id: 'TEXT',
+  tool_calls: 'TEXT',
+  tool_name: 'TEXT',
+  finish_reason: 'TEXT',
+  reasoning: 'TEXT',
+  reasoning_details: 'TEXT',
+  reasoning_content: 'TEXT',
 }
 
 export const GC_ROOM_AGENTS_TABLE = 'gc_room_agents'
@@ -317,6 +359,13 @@ export function initAllHermesTables(): void {
       indexes: {
         idx_model_context_provider_model: MODEL_CONTEXT_INDEX,
       }
+    })
+
+    // Users and profile access
+    syncTable(USERS_TABLE, USERS_SCHEMA)
+    syncTable(USER_PROFILES_TABLE, USER_PROFILES_SCHEMA, {
+      primaryKey: 'user_id, profile_name',
+      indexes: USER_PROFILES_INDEXES,
     })
 
     // Group chat - basic tables

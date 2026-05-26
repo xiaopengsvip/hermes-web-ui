@@ -1,15 +1,20 @@
 <script setup lang="ts">
-import { ref, computed, nextTick, watch } from 'vue'
+import { ref, computed, nextTick, watch, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useMessage, NInput, NButton, NSpace, NSelect, NPopover, NPopconfirm, NInputNumber } from 'naive-ui'
-import multiavatar from '@multiavatar/multiavatar'
+import { useRouter } from 'vue-router'
+import { useMessage, NInput, NButton, NSpace, NSelect, NPopover, NPopconfirm, NInputNumber, NDropdown, type DropdownOption } from 'naive-ui'
 import { useGroupChatStore } from '@/stores/hermes/group-chat'
 import { useProfilesStore } from '@/stores/hermes/profiles'
 import { updateRoomConfig, forceCompress } from '@/api/hermes/group-chat'
 import GroupMessageList from './GroupMessageList.vue'
 import GroupChatInput from './GroupChatInput.vue'
+import ProfileAvatar from '@/components/hermes/profiles/ProfileAvatar.vue'
+import { copyToClipboard } from '@/utils/clipboard'
+import type { Attachment } from '@/stores/hermes/chat'
+import type { RoomAgent } from '@/api/hermes/group-chat'
 
 const { t } = useI18n()
+const router = useRouter()
 const message = useMessage()
 const store = useGroupChatStore()
 const profilesStore = useProfilesStore()
@@ -27,21 +32,26 @@ const agentDescription = ref('')
 const cloneSourceRoomId = ref<string | null>(null)
 const cloneRoomName = ref('')
 const cloneInviteCode = ref('')
+const contextRoomId = ref<string | null>(null)
+const showRoomContextMenu = ref(false)
+const roomContextMenuX = ref(0)
+const roomContextMenuY = ref(0)
 
 const profileOptions = computed(() =>
     profilesStore.profiles.map(p => ({ label: p.name, value: p.name }))
 )
 
-const avatarCache = new Map<string, string>()
+function profileAvatarFor(profileName?: string) {
+    if (!profileName) return null
+    return profilesStore.profiles.find(profile => profile.name === profileName)?.avatar || null
+}
 
-function agentAvatarUrl(name: string): string {
-    if (avatarCache.has(name)) return avatarCache.get(name)!
-    const uri = multiavatar(name)
-    avatarCache.set(name, uri)
-    return uri
+function agentAvatarName(agent: RoomAgent): string {
+    return agent.profile || agent.name || agent.agentId
 }
 
 const hasRoom = computed(() => !!store.currentRoomId)
+const visibleApproval = computed(() => store.activePendingApproval)
 
 function formatTokens(tokens: number): string {
     if (tokens >= 1000) return `${(tokens / 1000).toFixed(1)}k tokens`
@@ -61,13 +71,37 @@ function generateCode(): string {
     return code
 }
 
+function formatAgentFailures(results?: Array<{ ok: boolean; profile: string; error?: string; reason?: string }>): string | null {
+    const failed = results?.filter(result => !result.ok) || []
+    if (failed.length === 0) return null
+    const details = failed.map(result => result.reason || result.error || result.profile).join('; ')
+    return t('groupChat.agentAddFailedCount', { count: failed.length, details })
+}
+
+function extractApiErrorMessage(err: any): string {
+    const raw = err?.message || ''
+    const jsonStart = raw.indexOf('{')
+    if (jsonStart >= 0) {
+        try {
+            const parsed = JSON.parse(raw.slice(jsonStart))
+            if (parsed?.code === 'PROFILE_AGENT_CONNECT_FAILED' && parsed?.error) {
+                return parsed.reason ? `${parsed.error}: ${parsed.reason}` : parsed.error
+            }
+            if (parsed?.error) return parsed.error
+        } catch { /* ignore */ }
+    }
+    return raw || t('common.saveFailed')
+}
+
 async function handleCreateRoom(name: string, inviteCode: string, userName: string, description: string, compression: { triggerTokens: number; maxHistoryTokens: number; tailMessageCount: number }) {
     try {
         store.setUserInfo(userName, description)
         const res = await store.createNewRoom(name, inviteCode, undefined, compression)
         showCreateModal.value = false
-        message.success(t('groupChat.roomCreated'))
-        await store.joinRoom(res.room.id)
+        const failureMessage = formatAgentFailures(res.agentResults)
+        if (failureMessage) message.warning(failureMessage)
+        else message.success(t('groupChat.roomCreated'))
+        await router.push({ name: 'hermes.groupChatRoom', params: { roomId: res.room.id } })
     } catch {
         message.error(t('common.saveFailed'))
     }
@@ -76,9 +110,51 @@ async function handleCreateRoom(name: string, inviteCode: string, userName: stri
 async function handleDeleteRoom(roomId: string) {
     try {
         await store.deleteRoom(roomId)
+        if (store.currentRoomId === roomId) {
+            await router.replace({ name: 'hermes.groupChat' })
+        }
         message.success(t('groupChat.roomDeleted'))
     } catch {
         message.error(t('common.saveFailed'))
+    }
+}
+
+function buildRoomUrl(roomId: string) {
+    const href = router.resolve({ name: 'hermes.groupChatRoom', params: { roomId } }).href
+    return `${window.location.origin}${window.location.pathname}${href}`
+}
+
+async function copyRoomLink(roomId: string) {
+    const ok = await copyToClipboard(buildRoomUrl(roomId))
+    if (ok) message.success(t('common.copied'))
+    else message.error(t('common.copied') + ' ✗')
+}
+
+const roomContextMenuOptions = computed<DropdownOption[]>(() => [
+    { label: t('groupChat.copyRoomLink'), key: 'copy-link' },
+    { label: t('groupChat.cloneRoom'), key: 'clone-room' },
+])
+
+function handleRoomContextMenu(event: MouseEvent, roomId: string) {
+    event.preventDefault()
+    contextRoomId.value = roomId
+    roomContextMenuX.value = event.clientX
+    roomContextMenuY.value = event.clientY
+    showRoomContextMenu.value = true
+}
+
+function handleRoomContextClickOutside() {
+    showRoomContextMenu.value = false
+}
+
+function handleRoomContextSelect(key: string) {
+    showRoomContextMenu.value = false
+    const roomId = contextRoomId.value
+    if (!roomId) return
+    if (key === 'copy-link') {
+        void copyRoomLink(roomId)
+    } else if (key === 'clone-room') {
+        handleOpenCloneRoom(roomId)
     }
 }
 
@@ -101,8 +177,10 @@ async function confirmCloneRoom() {
         cloneSourceRoomId.value = null
         cloneRoomName.value = ''
         cloneInviteCode.value = ''
-        await store.joinRoom(res.room.id)
-        message.success(t('groupChat.roomCloned'))
+        await router.push({ name: 'hermes.groupChatRoom', params: { roomId: res.room.id } })
+        const failureMessage = formatAgentFailures(res.agentResults)
+        if (failureMessage) message.warning(failureMessage)
+        else message.success(t('groupChat.roomCloned'))
     } catch {
         message.error(t('common.saveFailed'))
     }
@@ -124,16 +202,16 @@ async function handleClearRoomContext() {
 
 async function handleSelectRoom(roomId: string) {
     try {
-        await store.joinRoom(roomId)
+        await router.push({ name: 'hermes.groupChatRoom', params: { roomId } })
         if (window.innerWidth <= 768) showSidebar.value = false
     } catch {
         message.error(t('groupChat.joinFailed'))
     }
 }
 
-async function handleSendMessage(content: string) {
+async function handleSendMessage(content: string, attachments?: Attachment[]) {
     try {
-        await store.sendMessage(content)
+        await store.sendMessage(content, attachments)
     } catch (err: any) {
         message.error(err.message)
     }
@@ -143,6 +221,12 @@ async function handleAddAgent() {
     await profilesStore.fetchProfiles()
     showAddAgentModal.value = true
 }
+
+onMounted(() => {
+    if (profilesStore.profiles.length === 0) {
+        void profilesStore.fetchProfiles()
+    }
+})
 
 async function confirmAddAgent() {
     if (!selectedProfile.value || !store.currentRoomId) return
@@ -161,7 +245,7 @@ async function confirmAddAgent() {
         if (err.message?.includes('already')) {
             message.warning(t('groupChat.agentAlreadyInRoom'))
         } else {
-            message.error(t('common.saveFailed'))
+            message.error(extractApiErrorMessage(err))
         }
     }
 }
@@ -217,6 +301,22 @@ async function handleRemoveAgent(agentId: string) {
     }
 }
 
+async function handleInterruptAgent(agentName: string) {
+    try {
+        await store.interruptAgent(agentName)
+    } catch (err: any) {
+        message.error(err.message || t('common.saveFailed'))
+    }
+}
+
+async function handleApproval(choice: 'once' | 'session' | 'always' | 'deny') {
+    try {
+        await store.respondApproval(choice)
+    } catch (err: any) {
+        message.error(err.message || t('common.saveFailed'))
+    }
+}
+
 // Auto-scroll on new messages
 const messageListRef = ref()
 watch(() => store.sortedMessages.length, async () => {
@@ -248,6 +348,7 @@ watch(() => store.sortedMessages.length, async () => {
                     class="room-item"
                     :class="{ active: store.currentRoomId === room.id }"
                     @click="handleSelectRoom(room.id)"
+                    @contextmenu="handleRoomContextMenu($event, room.id)"
                 >
                     <svg class="room-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
@@ -257,11 +358,6 @@ watch(() => store.sortedMessages.length, async () => {
                         <span v-if="room.inviteCode" class="room-code">{{ room.inviteCode }}</span>
                         <span class="room-tokens">{{ formatTokens(room.totalTokens || 0) }}</span>
                     </div>
-                    <button class="room-action-btn" :title="t('groupChat.cloneRoom')" @click.stop="handleOpenCloneRoom(room.id)">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <rect x="8" y="8" width="12" height="12" rx="2" /><path d="M4 16V6a2 2 0 0 1 2-2h10" />
-                        </svg>
-                    </button>
                     <NPopconfirm @positive-click="handleDeleteRoom(room.id)">
                         <template #trigger>
                             <button class="room-action-btn danger" @click.stop>
@@ -276,6 +372,17 @@ watch(() => store.sortedMessages.length, async () => {
                 </div>
             </div>
         </div>
+
+        <NDropdown
+            placement="bottom-start"
+            trigger="manual"
+            :x="roomContextMenuX"
+            :y="roomContextMenuY"
+            :options="roomContextMenuOptions"
+            :show="showRoomContextMenu"
+            @select="handleRoomContextSelect"
+            @clickoutside="handleRoomContextClickOutside"
+        />
 
         <!-- Main chat area -->
         <div class="chat-main">
@@ -293,7 +400,7 @@ watch(() => store.sortedMessages.length, async () => {
                             <div class="avatar-stack-inner">
                                 <!-- User avatar first -->
                                 <span class="avatar-stack-item" :style="{ zIndex: store.agents.length + 1 }">
-                                    <span class="agent-avatar" v-html="agentAvatarUrl(store.userName || store.userId)" />
+                                    <ProfileAvatar class="agent-avatar" :name="store.userName || store.userId" :size="28" />
                                 </span>
                                 <span
                                     v-for="(agent, index) in store.agents.slice(-4)"
@@ -301,14 +408,14 @@ watch(() => store.sortedMessages.length, async () => {
                                     class="avatar-stack-item"
                                     :style="{ zIndex: store.agents.length - index }"
                                 >
-                                    <span class="agent-avatar" v-html="agentAvatarUrl(agent.name)" />
+                                    <ProfileAvatar class="agent-avatar" :name="agentAvatarName(agent)" :avatar="profileAvatarFor(agent.profile)" :size="28" />
                                 </span>
                                 <span v-if="store.agents.length > 4" class="avatar-stack-more">+{{ store.agents.length - 4 }}</span>
                             </div>
                         </template>
                         <div class="agent-popover">
                             <div class="agent-popover-item" style="margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--n-border-color, #efeff5);">
-                                <span class="agent-avatar" v-html="agentAvatarUrl(store.userName || store.userId)" />
+                                <ProfileAvatar class="agent-avatar" :name="store.userName || store.userId" :size="28" />
                                 <div class="agent-popover-info">
                                     <span class="agent-popover-name">{{ store.userName || 'You' }}</span>
                                     <span class="agent-popover-profile">{{ t('groupChat.you') }}</span>
@@ -316,7 +423,7 @@ watch(() => store.sortedMessages.length, async () => {
                             </div>
                             <div class="agent-popover-title">{{ t('groupChat.agents') }} ({{ store.agents.length }})</div>
                             <div v-for="agent in store.agents" :key="agent.id" class="agent-popover-item">
-                                <span class="agent-avatar" v-html="agentAvatarUrl(agent.name)" />
+                                <ProfileAvatar class="agent-avatar" :name="agentAvatarName(agent)" :avatar="profileAvatarFor(agent.profile)" :size="28" />
                                 <div class="agent-popover-info">
                                     <span class="agent-popover-name">{{ agent.name }}</span>
                                     <span class="agent-popover-profile">{{ agent.profile }}</span>
@@ -330,7 +437,7 @@ watch(() => store.sortedMessages.length, async () => {
                     <!-- Only user avatar, no agents -->
                     <div v-else-if="store.userName" class="avatar-stack-inner">
                         <span class="avatar-stack-item">
-                            <span class="agent-avatar" v-html="agentAvatarUrl(store.userName || store.userId)" />
+                            <ProfileAvatar class="agent-avatar" :name="store.userName || store.userId" :size="28" />
                         </span>
                     </div>
                     <button class="icon-btn" :title="t('groupChat.addAgent')" @click="handleAddAgent">
@@ -370,6 +477,12 @@ watch(() => store.sortedMessages.length, async () => {
                             <span v-else>
                                 @{{ status.agentName }} {{ t('groupChat.agentReplying') }}
                             </span>
+                            <button class="context-stop-btn" :title="t('common.cancel')" @click="handleInterruptAgent(status.agentName)">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                    <line x1="18" y1="6" x2="6" y2="18" />
+                                    <line x1="6" y1="6" x2="18" y2="18" />
+                                </svg>
+                            </button>
                         </div>
                     </div>
                     <div v-else-if="store.typingText" class="typing-indicator">
@@ -377,6 +490,38 @@ watch(() => store.sortedMessages.length, async () => {
                             <span /><span /><span />
                         </span>
                         {{ store.typingText }}
+                    </div>
+                </div>
+                <div v-if="visibleApproval" class="approval-bar">
+                    <div class="approval-icon" aria-hidden="true">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10" />
+                            <path d="m9 12 2 2 4-4" />
+                        </svg>
+                    </div>
+                    <div class="approval-content">
+                        <div class="approval-main">
+                            <div class="approval-kicker">{{ t('chat.approvalKicker') }}</div>
+                            <div class="approval-title">
+                                <span v-if="visibleApproval.agentName">@{{ visibleApproval.agentName }} · </span>{{ t('chat.approvalTitle') }}
+                            </div>
+                            <div class="approval-desc">{{ visibleApproval.description }}</div>
+                            <code class="approval-command">{{ visibleApproval.command }}</code>
+                        </div>
+                        <div class="approval-actions">
+                            <NButton v-if="visibleApproval.choices.includes('once')" size="small" type="primary" @click="handleApproval('once')">
+                                {{ t('chat.approvalAllowOnce') }}
+                            </NButton>
+                            <NButton v-if="visibleApproval.choices.includes('session')" size="small" secondary @click="handleApproval('session')">
+                                {{ t('chat.approvalAllowSession') }}
+                            </NButton>
+                            <NButton v-if="visibleApproval.choices.includes('always')" size="small" secondary @click="handleApproval('always')">
+                                {{ t('chat.approvalAlways') }}
+                            </NButton>
+                            <NButton v-if="visibleApproval.choices.includes('deny')" size="small" type="error" secondary @click="handleApproval('deny')">
+                                {{ t('chat.approvalDeny') }}
+                            </NButton>
+                        </div>
                     </div>
                 </div>
                 <GroupChatInput @send="handleSendMessage" />
@@ -582,6 +727,143 @@ export default defineComponent({ components: { CreateRoomForm } })
 
     .dark & {
         background-color: rgba(255, 255, 255, 0.06);
+    }
+}
+
+.context-stop-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border: 1px solid rgba(var(--error-rgb), 0.18);
+    border-radius: $radius-sm;
+    background: rgba(var(--error-rgb), 0.06);
+    color: $error;
+    cursor: pointer;
+    padding: 0;
+    transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+
+    &:hover {
+        color: #ffffff;
+        background: $error;
+        border-color: $error;
+    }
+}
+
+.approval-bar {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin: 0 16px 12px;
+    padding: 12px;
+    border: 1px solid $border-color;
+    border-radius: 8px;
+    background: $bg-card;
+    box-shadow: none;
+}
+
+.approval-icon {
+    display: grid;
+    place-items: center;
+    flex: 0 0 32px;
+    width: 32px;
+    height: 32px;
+    color: var(--accent-primary);
+    background: rgba(var(--accent-primary-rgb), 0.12);
+    border: 1px solid rgba(var(--accent-primary-rgb), 0.2);
+    border-radius: 8px;
+}
+
+.approval-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.approval-main {
+    min-width: 0;
+}
+
+.approval-kicker {
+    margin-bottom: 2px;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent-primary);
+}
+
+.approval-title {
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.3;
+    color: $text-primary;
+}
+
+.approval-desc {
+    margin-top: 4px;
+    font-size: 12px;
+    line-height: 1.45;
+    color: $text-secondary;
+}
+
+.approval-command {
+    display: block;
+    margin-top: 8px;
+    max-height: 96px;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-family: "SFMono-Regular", "Cascadia Code", "Roboto Mono", Consolas, monospace;
+    font-size: 11px;
+    line-height: 1.45;
+    color: $text-primary;
+    background: $bg-secondary;
+    border: 1px solid $border-color;
+    border-radius: 6px;
+    padding: 8px 10px;
+}
+
+.approval-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid $border-color;
+}
+
+@media (max-width: 768px) {
+    .approval-bar {
+        margin: 0 10px 10px;
+        padding: 10px;
+    }
+
+    .approval-icon {
+        flex-basis: 28px;
+        width: 28px;
+        height: 28px;
+    }
+
+    .approval-actions {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .approval-actions :deep(.n-button) {
+        width: 100%;
+    }
+}
+
+@media (max-width: 420px) {
+    .approval-bar {
+        gap: 8px;
+    }
+
+    .approval-actions {
+        grid-template-columns: 1fr;
     }
 }
 

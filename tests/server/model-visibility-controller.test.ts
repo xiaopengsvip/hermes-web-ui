@@ -1,14 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockReadFile, mockReadConfigYaml, mockFetchProviderModels, mockBuildModelGroups, mockReadAppConfig, mockWriteAppConfig, mockExistsSync, mockReadFileSync } = vi.hoisted(() => ({
+const { mockReadFile, mockReadConfigYaml, mockReadConfigYamlForProfile, mockFetchProviderModels, mockBuildModelGroups, mockReadAppConfig, mockWriteAppConfig, mockExistsSync, mockReadFileSync, mockListProfileNamesFromDisk, mockListUserProfiles } = vi.hoisted(() => ({
   mockReadFile: vi.fn(),
   mockReadConfigYaml: vi.fn(),
+  mockReadConfigYamlForProfile: vi.fn(),
   mockFetchProviderModels: vi.fn(),
   mockBuildModelGroups: vi.fn(() => ({ default: '', groups: [] })),
   mockReadAppConfig: vi.fn(),
   mockWriteAppConfig: vi.fn(),
   mockExistsSync: vi.fn(() => false),
   mockReadFileSync: vi.fn(),
+  mockListProfileNamesFromDisk: vi.fn(() => ['default']),
+  mockListUserProfiles: vi.fn(() => []),
 }))
 
 vi.mock('fs/promises', () => ({
@@ -23,15 +26,24 @@ vi.mock('fs', () => ({
 vi.mock('../../packages/server/src/services/hermes/hermes-profile', () => ({
   getActiveEnvPath: () => '/fake/home/.hermes/.env',
   getActiveAuthPath: () => '/fake/home/.hermes/auth.json',
+  getActiveProfileName: () => 'default',
+  getProfileDir: () => '/fake/home/.hermes',
+  listProfileNamesFromDisk: mockListProfileNamesFromDisk,
+}))
+
+vi.mock('../../packages/server/src/db/hermes/users-store', () => ({
+  listUserProfiles: mockListUserProfiles,
 }))
 
 vi.mock('../../packages/server/src/services/config-helpers', () => ({
   readConfigYaml: mockReadConfigYaml,
+  readConfigYamlForProfile: mockReadConfigYamlForProfile,
   writeConfigYaml: vi.fn(),
   fetchProviderModels: mockFetchProviderModels,
   buildModelGroups: mockBuildModelGroups,
   PROVIDER_ENV_MAP: {
     deepseek: { api_key_env: 'DEEPSEEK_API_KEY' },
+    'xai-oauth': { api_key_env: '', base_url_env: 'XAI_BASE_URL' },
     openrouter: {},
   },
 }))
@@ -39,6 +51,7 @@ vi.mock('../../packages/server/src/services/config-helpers', () => ({
 vi.mock('../../packages/server/src/shared/providers', () => ({
   buildProviderModelMap: () => ({
     deepseek: ['deepseek-chat', 'deepseek-reasoner'],
+    'xai-oauth': ['grok-4.3', 'grok-4.20-0309-reasoning'],
     openrouter: ['openrouter/auto'],
   }),
   PROVIDER_PRESETS: [
@@ -53,6 +66,12 @@ vi.mock('../../packages/server/src/shared/providers', () => ({
       label: 'OpenRouter',
       base_url: 'https://openrouter.ai/api/v1',
       models: ['openrouter/auto'],
+    },
+    {
+      value: 'xai-oauth',
+      label: 'xAI Grok OAuth (SuperGrok Subscription)',
+      base_url: 'https://api.x.ai/v1',
+      models: ['grok-4.3', 'grok-4.20-0309-reasoning'],
     },
   ],
 }))
@@ -85,11 +104,14 @@ beforeEach(() => {
   vi.clearAllMocks()
   mockReadFile.mockResolvedValue('DEEPSEEK_API_KEY=sk-test\n')
   mockReadConfigYaml.mockResolvedValue({ model: { default: 'deepseek-chat', provider: 'deepseek' } })
+  mockReadConfigYamlForProfile.mockResolvedValue({ model: { default: 'deepseek-chat', provider: 'deepseek' } })
   mockBuildModelGroups.mockReturnValue({ default: '', groups: [] })
   mockReadAppConfig.mockResolvedValue({})
   mockWriteAppConfig.mockImplementation(async patch => patch)
   mockExistsSync.mockReturnValue(false)
   mockReadFileSync.mockReturnValue('{}')
+  mockListProfileNamesFromDisk.mockReturnValue(['default'])
+  mockListUserProfiles.mockReturnValue([])
 })
 
 describe('models controller — model visibility', () => {
@@ -116,6 +138,84 @@ describe('models controller — model visibility', () => {
       deepseek: { mode: 'include', models: ['deepseek-reasoner'] },
     })
   })
+
+  it('merges Web UI custom models into available provider groups', async () => {
+    mockReadAppConfig.mockResolvedValue({
+      customModels: {
+        deepseek: ['gemma-4-26b-a4b-it', 'deepseek-chat'],
+      },
+    })
+
+    const ctx = makeCtx()
+    await ctrl.getAvailable(ctx)
+
+    expect(ctx.status).toBe(200)
+    expect(ctx.body.groups[0]).toMatchObject({
+      provider: 'deepseek',
+      models: ['deepseek-chat', 'deepseek-reasoner', 'gemma-4-26b-a4b-it'],
+      available_models: ['deepseek-chat', 'deepseek-reasoner', 'gemma-4-26b-a4b-it'],
+    })
+    expect(ctx.body.custom_models).toEqual({
+      deepseek: ['gemma-4-26b-a4b-it', 'deepseek-chat'],
+    })
+  })
+
+  it('limits the default available-models response to profiles bound to regular admins', async () => {
+    mockListProfileNamesFromDisk.mockReturnValue(['default', 'research', 'private'])
+    mockListUserProfiles.mockReturnValue([
+      { user_id: 7, profile_name: 'research', is_default: 1, created_at: 1 },
+    ])
+    mockReadConfigYamlForProfile.mockImplementation(async (profile: string) => ({
+      model: {
+        default: `${profile}-model`,
+        provider: 'deepseek',
+      },
+    }))
+
+    const ctx = makeCtx()
+    ctx.state = { user: { id: 7, username: 'ops', role: 'admin' } }
+    ctx.get = vi.fn((name: string) => name.toLowerCase() === 'x-hermes-profile' ? 'private' : '')
+    await ctrl.getAvailable(ctx)
+
+    expect(mockReadConfigYamlForProfile).toHaveBeenCalledTimes(1)
+    expect(mockReadConfigYamlForProfile).toHaveBeenCalledWith('research')
+    expect(ctx.body.profiles.map((profile: any) => profile.profile)).toEqual(['research'])
+    expect(ctx.body.groups).toEqual(expect.arrayContaining([
+      expect.objectContaining({ provider: 'deepseek' }),
+    ]))
+  })
+
+  it('uses the requested profile for aggregate response defaults', async () => {
+    mockListProfileNamesFromDisk.mockReturnValue(['default', 'tester'])
+    mockReadConfigYamlForProfile.mockImplementation(async (profile: string) => ({
+      model: {
+        default: profile === 'tester' ? 'deepseek-reasoner' : 'deepseek-chat',
+        provider: 'deepseek',
+      },
+    }))
+
+    const ctx = makeCtx()
+    ctx.state = { user: { id: 1, username: 'admin', role: 'super_admin' } }
+    ctx.get = vi.fn((name: string) => name.toLowerCase() === 'x-hermes-profile' ? 'tester' : '')
+    await ctrl.getAvailable(ctx)
+
+    expect(ctx.body.default).toBe('deepseek-reasoner')
+    expect(ctx.body.default_provider).toBe('deepseek')
+    expect(ctx.body.profiles.map((profile: any) => profile.profile)).toEqual(['default', 'tester'])
+  })
+
+  it('uses explicit query profile for single-profile model fetches', async () => {
+    mockListProfileNamesFromDisk.mockReturnValue(['default', 'research'])
+
+    const ctx = makeCtx()
+    ctx.query = { profile: 'research' }
+    ctx.state = { profile: { name: 'default' }, user: { id: 1, username: 'admin', role: 'super_admin' } }
+    await ctrl.getAvailable(ctx)
+
+    expect(mockReadConfigYamlForProfile).toHaveBeenCalledTimes(1)
+    expect(mockReadConfigYamlForProfile).toHaveBeenCalledWith('research')
+    expect(ctx.body.profiles.map((profile: any) => profile.profile)).toEqual(['research'])
+  })
   it('accepts OAuth providers stored in credential_pool entries', async () => {
     mockExistsSync.mockReturnValue(true)
     mockReadFileSync.mockReturnValue(JSON.stringify({
@@ -134,6 +234,30 @@ describe('models controller — model visibility', () => {
         label: 'OpenRouter',
         models: ['openrouter/auto'],
         available_models: ['openrouter/auto'],
+      }),
+    ]))
+  })
+
+  it('shows xAI Grok OAuth when SuperGrok credentials exist in auth.json', async () => {
+    mockExistsSync.mockReturnValue(true)
+    mockReadFileSync.mockReturnValue(JSON.stringify({
+      providers: {
+        'xai-oauth': {
+          tokens: { access_token: 'xai-token' },
+        },
+      },
+    }))
+
+    const ctx = makeCtx()
+    await ctrl.getAvailable(ctx)
+
+    expect(ctx.status).toBe(200)
+    expect(ctx.body.groups).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        provider: 'xai-oauth',
+        label: 'xAI Grok OAuth (SuperGrok Subscription)',
+        base_url: 'https://api.x.ai/v1',
+        models: ['grok-4.3', 'grok-4.20-0309-reasoning'],
       }),
     ]))
   })
@@ -241,6 +365,63 @@ describe('models controller — model visibility', () => {
     expect(ctx.body.model_visibility).toEqual({
       openrouter: { mode: 'include', models: ['x'] },
     })
+  })
+
+  it('adds and removes custom models in web-ui app config only', async () => {
+    mockReadAppConfig.mockResolvedValueOnce({
+      customModels: { deepseek: ['existing'] },
+    })
+    mockWriteAppConfig.mockResolvedValueOnce({
+      customModels: { deepseek: ['existing', 'manual-model'] },
+    })
+
+    const addCtx = makeCtx({ provider: 'deepseek', model: 'manual-model' })
+    await ctrl.addCustomModel(addCtx)
+
+    expect(mockWriteAppConfig).toHaveBeenCalledWith({
+      customModels: { deepseek: ['existing', 'manual-model'] },
+    })
+    expect(addCtx.body).toEqual({
+      success: true,
+      custom_models: { deepseek: ['existing', 'manual-model'] },
+    })
+
+    mockReadAppConfig.mockResolvedValueOnce({
+      customModels: { deepseek: ['existing', 'manual-model'] },
+    })
+    mockWriteAppConfig.mockResolvedValueOnce({
+      customModels: { deepseek: ['existing'] },
+    })
+
+    const removeCtx = makeCtx({ provider: 'deepseek', model: 'manual-model' })
+    await ctrl.removeCustomModel(removeCtx)
+
+    expect(mockWriteAppConfig).toHaveBeenLastCalledWith({
+      customModels: { deepseek: ['existing'] },
+    })
+    expect(removeCtx.body).toEqual({
+      success: true,
+      custom_models: { deepseek: ['existing'] },
+    })
+  })
+
+  it('removes custom models from query params when DELETE body is missing', async () => {
+    mockReadAppConfig.mockResolvedValueOnce({
+      customModels: { deepseek: ['manual-model'] },
+    })
+    mockWriteAppConfig.mockResolvedValueOnce({
+      customModels: {},
+    })
+
+    const ctx = makeCtx()
+    ctx.request.body = undefined
+    ctx.query = { provider: 'deepseek', model: 'manual-model' }
+
+    await ctrl.removeCustomModel(ctx)
+
+    expect(ctx.status).toBe(200)
+    expect(mockWriteAppConfig).toHaveBeenCalledWith({ customModels: {} })
+    expect(ctx.body).toEqual({ success: true, custom_models: {} })
   })
 
   it('rejects empty include lists', async () => {

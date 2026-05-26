@@ -6,19 +6,26 @@ import ProvidersPanel from '@/components/hermes/models/ProvidersPanel.vue'
 import ProviderFormModal from '@/components/hermes/models/ProviderFormModal.vue'
 import CodexAccountsPanel from '@/components/hermes/models/CodexAccountsPanel.vue'
 import { useModelsStore } from '@/stores/hermes/models'
-import { useAppStore } from '@/stores/hermes/app'
+import { useProfilesStore } from '@/stores/hermes/profiles'
 import { checkCopilotToken } from '@/api/hermes/copilot-auth'
 
 const { t } = useI18n()
 const modelsStore = useModelsStore()
-const appStore = useAppStore()
+const profilesStore = useProfilesStore()
 const showModal = ref(false)
 
-onMounted(async () => {
+async function loadProvidersForProfile() {
+  if (!profilesStore.activeProfileName || profilesStore.profiles.length === 0) {
+    await profilesStore.fetchProfiles()
+  }
   // 先 invalidate 后端 copilot 缓存（gh logout / VS Code 退出后下一次 list 立刻反映），
   // 再拉 providers 与 appStore 的模型显示名配置。check-token 失败不阻断。
   try { await checkCopilotToken() } catch { /* ignore */ }
-  await Promise.all([modelsStore.fetchProviders(), appStore.loadModels()])
+  await modelsStore.fetchProviders()
+}
+
+onMounted(async () => {
+  await loadProvidersForProfile()
 })
 
 function openCreateModal() {
@@ -31,7 +38,6 @@ function handleModalClose() {
 
 async function handleSaved() {
   await modelsStore.fetchProviders()
-  appStore.loadModels()
   handleModalClose()
 }
 </script>

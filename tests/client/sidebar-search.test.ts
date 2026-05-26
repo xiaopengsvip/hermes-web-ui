@@ -55,6 +55,30 @@ vi.mock('/logo.png', () => ({
   default: 'logo.png',
 }))
 
+vi.mock('@/components/layout/ProfileSelector.vue', () => ({
+  default: { name: 'ProfileSelector', template: '<div />' },
+}))
+
+vi.mock('@/components/layout/ModelSelector.vue', () => ({
+  default: { name: 'ModelSelector', template: '<div />' },
+}))
+
+vi.mock('@/components/layout/LanguageSwitch.vue', () => ({
+  default: { name: 'LanguageSwitch', template: '<div />' },
+}))
+
+vi.mock('@/components/layout/ThemeSwitch.vue', () => ({
+  default: { name: 'ThemeSwitch', template: '<div />' },
+}))
+
+vi.mock('@/components/common/RouteLinkItem.vue', () => ({
+  default: {
+    name: 'RouteLinkItem',
+    props: ['to', 'active'],
+    template: '<a class="route-link-item" :class="{ active }" href="#"><slot /></a>',
+  },
+}))
+
 vi.mock('naive-ui', async () => {
   const actual = await vi.importActual<any>('naive-ui')
   return {
@@ -82,6 +106,7 @@ describe('AppSidebar search entry', () => {
     mockAppStore.updateAvailable = false
     mockAppStore.clientOutdated = false
     mockAppStore.updating = false
+    mockAppStore.sidebarCollapsed = false
     mockAppStore.reloadClient.mockClear()
   })
 
@@ -126,5 +151,34 @@ describe('AppSidebar search entry', () => {
 
     await reloadButton!.trigger('click')
     expect(mockAppStore.reloadClient).toHaveBeenCalledTimes(1)
+  })
+
+  it('uses short group labels and keeps group folding active when collapsed', async () => {
+    mockAppStore.sidebarCollapsed = true
+    const wrapper = mount(AppSidebar, {
+      global: {
+        stubs: {
+          ProfileSelector: true,
+          ModelSelector: true,
+          LanguageSwitch: true,
+          ThemeSwitch: true,
+          NButton: true,
+        },
+      },
+    })
+
+    expect(wrapper.classes()).toContain('collapsed')
+    expect(wrapper.findAll('.nav-group-label span').map(node => node.text())).toEqual([
+      'sidebar.groupConversationShort',
+      'sidebar.groupAgentShort',
+      'sidebar.groupMonitoringShort',
+      'sidebar.groupSystemShort',
+    ])
+
+    const agentGroup = wrapper.findAll('.nav-group')[1]
+    expect(agentGroup.find('.nav-group-items').attributes('style')).toBeUndefined()
+
+    await agentGroup.find('.nav-group-label').trigger('click')
+    expect(agentGroup.find('.nav-group-items').attributes('style')).toContain('display: none')
   })
 })

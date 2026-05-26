@@ -1,9 +1,11 @@
 import { WebSocketServer } from 'ws'
 import type { Server as HttpServer } from 'http'
 import { accessSync, chmodSync, constants as fsConstants, existsSync } from 'fs'
-import { dirname, join } from 'path'
+import { dirname, join, isAbsolute, resolve as resolvePath } from 'path'
 import { homedir } from 'os'
-import { getToken } from '../../services/auth'
+import { getActiveProfileDir } from '../../services/hermes/hermes-profile'
+import { getTerminalConfig, type TerminalConfig } from '../../services/hermes/file-provider'
+import { authenticateUserToken, isAuthEnabled } from '../../middleware/user-auth'
 import { logger } from '../../services/logger'
 
 let pty: any = null
@@ -66,6 +68,22 @@ function shellName(shell: string): string {
   return shell.split('/').pop() || 'shell'
 }
 
+export function resolveTerminalCwd(
+  cfg: Pick<TerminalConfig, 'cwd'> = getTerminalConfig(),
+  profileDir = getActiveProfileDir(),
+): string {
+  const configured = cfg.cwd?.trim()
+  const fallback = existsSync(profileDir) ? profileDir : homedir()
+  if (!configured) return fallback
+
+  const cwd = isAbsolute(configured) ? configured : resolvePath(profileDir, configured)
+  if (!existsSync(cwd)) {
+    logger.warn({ cwd }, 'Configured terminal cwd does not exist; falling back to Hermes profile directory')
+    return fallback
+  }
+  return cwd
+}
+
 // ─── Session types ──────────────────────────────────────────────
 
 interface PtySession {
@@ -96,7 +114,7 @@ function createSession(shell: string): PtySession {
       name: 'xterm-color',
       cols: 80,
       rows: 24,
-      cwd: homedir(),
+      cwd: resolveTerminalCwd(),
     })
   } catch (err: any) {
     throw new Error(`Failed to spawn shell "${shell}": ${err.message}`)
@@ -133,10 +151,9 @@ export function setupTerminalWebSocket(httpServers: HttpServer | HttpServer[]) {
       }
 
       // Auth check
-      const authToken = await getToken()
-      if (authToken) {
+      if (await isAuthEnabled()) {
         const token = url.searchParams.get('token') || ''
-        if (token !== authToken) {
+        if (!await authenticateUserToken(token)) {
           socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n')
           socket.destroy()
           return

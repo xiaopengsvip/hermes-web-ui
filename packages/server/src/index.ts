@@ -8,9 +8,7 @@ import { resolve } from 'path'
 import { mkdir } from 'fs/promises'
 import { readFileSync } from 'fs'
 import { config } from './config'
-import { getToken, requireAuth } from './services/auth'
 import { initLoginLimiter } from './services/login-limiter'
-import { initGatewayManager, getGatewayManagerInstance } from './services/gateway-bootstrap'
 import { bindShutdown } from './services/shutdown'
 import { setupTerminalWebSocket } from './routes/hermes/terminal'
 import { setupKanbanEventsWebSocket } from './routes/hermes/kanban-events'
@@ -21,7 +19,10 @@ import { setChatRunServer } from './routes/hermes/chat-run'
 import { GroupChatServer } from './services/hermes/group-chat'
 import { ChatRunSocket } from './services/hermes/run-chat'
 import { startAgentBridgeManager } from './services/hermes/agent-bridge'
+import { HermesSkillInjector } from './services/hermes/skill-injector'
+import { ensureProfileGatewaysRunning } from './services/hermes/gateway-autostart'
 import { logger } from './services/logger'
+import { requireUserJwt, resolveUserProfile } from './middleware/user-auth'
 
 // Injected by esbuild at build time; fallback to reading package.json in dev mode
 declare const __APP_VERSION__: string
@@ -38,10 +39,9 @@ process.on('uncaughtException', (err) => {
 })
 
 process.on('unhandledRejection', (reason) => {
-  console.error('FATAL: Unhandled rejection')
+  console.error('Unhandled rejection')
   console.error(reason)
   logger.error(reason, 'Unhandled rejection')
-  process.exit(1)
 })
 
 let server: any = null
@@ -86,16 +86,37 @@ export async function bootstrap() {
   await mkdir(config.uploadDir, { recursive: true })
   await mkdir(config.dataDir, { recursive: true })
 
-  const authToken = await getToken()
   await initLoginLimiter()
+  try {
+    const skillInjector = new HermesSkillInjector()
+    const injectionResult = await skillInjector.injectMissingSkills()
+    if (injectionResult.injected.length > 0) {
+      logger.info({
+        injected: [...new Set(injectionResult.injected)],
+        targetCount: injectionResult.targets.length,
+      }, '[bootstrap] bundled skills injected')
+    }
+    if (injectionResult.updated.length > 0) {
+      logger.info({
+        updated: [...new Set(injectionResult.updated)],
+        targetCount: injectionResult.targets.length,
+      }, '[bootstrap] bundled skills updated')
+    }
+  } catch (err) {
+    logger.warn(err, '[bootstrap] failed to inject bundled skills')
+    console.warn('[bootstrap] failed to inject bundled skills:', err instanceof Error ? err.message : err)
+  }
 
-  // Debug: log environment variable
-  console.log('[bootstrap] HERMES_WEB_UI_STOP_GATEWAYS_ON_SHUTDOWN =', process.env.HERMES_WEB_UI_STOP_GATEWAYS_ON_SHUTDOWN)
+  try {
+    await ensureProfileGatewaysRunning()
+    console.log('[bootstrap] profile gateways checked')
+  } catch (err) {
+    logger.warn(err, '[bootstrap] failed to ensure profile gateways')
+    console.warn('[bootstrap] failed to ensure profile gateways:', err instanceof Error ? err.message : err)
+  }
 
   const app = new Koa()
 
-  await initGatewayManager()
-  console.log('[bootstrap] gateway manager initialized')
   try {
     agentBridgeManager = await startAgentBridgeManager()
     console.log('[bootstrap] agent bridge started')
@@ -116,14 +137,9 @@ export async function bootstrap() {
   console.log('[bootstrap] cors + bodyParser registered')
 
   // Register all routes (handles auth internally)
-  const proxyMiddleware = registerRoutes(app, requireAuth(authToken))
+  const proxyMiddleware = registerRoutes(app, [requireUserJwt, resolveUserProfile])
   app.use(proxyMiddleware)
   console.log('[bootstrap] routes registered')
-
-  if (authToken) {
-    console.log(`Auth enabled — token: ${authToken}`)
-    logger.info('Auth enabled — token: %s', authToken)
-  }
 
   // SPA fallback
   const distDir = resolve(__dirname, '..', 'client')
@@ -152,10 +168,9 @@ export async function bootstrap() {
   // Group chat Socket.IO (must be after server is created)
   const groupChatServer = new GroupChatServer(servers)
   setGroupChatServer(groupChatServer)
-  groupChatServer.setGatewayManager(getGatewayManagerInstance())
 
   // Chat run Socket.IO — shares the same Server instance, just adds /chat-run namespace
-  chatRunServer = new ChatRunSocket(groupChatServer.getIO(), getGatewayManagerInstance())
+  chatRunServer = new ChatRunSocket(groupChatServer.getIO())
   setChatRunServer(chatRunServer)
   chatRunServer.init()
 
@@ -179,7 +194,7 @@ export async function bootstrap() {
   const interfaces = safeNetworkInterfaces()
   const localIp = Object.values(interfaces).flat().find(i => i?.family === 'IPv4' && !i?.internal)?.address || 'localhost'
   console.log(`Server: http://localhost:${config.port} (LAN: http://${localIp}:${config.port})`)
-  console.log(`Log: ~/.hermes-web-ui/logs/server.log`)
+  console.log(`Log: ${config.appHome}/logs/server.log`)
   logger.info('Server: http://localhost:%d (LAN: http://%s:%d)', config.port, localIp, config.port)
 
   // Restore group chat agents after server is ready.

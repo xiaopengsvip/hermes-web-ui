@@ -9,7 +9,7 @@ export interface ProviderPreset {
   base_url: string
   models: string[]
   builtin: boolean
-  api_mode?: 'openai' | 'anthropic' | 'anthropic_messages'
+  api_mode?: 'chat_completions' | 'codex_responses' | 'anthropic_messages' | 'bedrock_converse' | 'codex_app_server'
 }
 
 export const PROVIDER_PRESETS: ProviderPreset[] = [
@@ -18,6 +18,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     value: 'fun-codex',
     builtin: true,
     base_url: 'https://api.apikey.fun/v1',
+    api_mode: 'codex_responses',
     models: [
       'gpt-5.5',
       'gpt-5.4',
@@ -79,14 +80,34 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     value: 'zai',
     builtin: true,
     base_url: 'https://api.z.ai/api/paas/v4',
-    models: ['glm-5.1', 'glm-5', 'glm-5v-turbo', 'glm-5-turbo', 'glm-4.7', 'glm-4.5', 'glm-4.5-flash'],
+    models: [
+      'glm-5.1',
+      'glm-5v-turbo',
+      'glm-4.7-flashx',
+      'glm-4.5-air',
+      'glm-4.5v',
+      'glm-4.7-flash',
+      'glm-4.6',
+      'glm-4.5',
+      'glm-4.5-flash',
+      'glm-5-turbo',
+      'glm-4.7',
+      'glm-5',
+      'glm-4.6v',
+    ],
   },
   {
     label: 'GLM-Coding-Plan',
     value: 'glm-coding-plan',
     builtin: true,
     base_url: 'https://api.z.ai/api/anthropic',
-    models: ['glm-5.1', 'glm-5', 'glm-5-turbo', 'glm-4.7', 'glm-4.5', 'glm-4.5-flash'],
+    models: [
+      'glm-5.1',
+      'glm-4.5-air',
+      'glm-5-turbo',
+      'glm-4.7',
+      'glm-5v-turbo',
+    ],
   },
   {
     label: 'Kimi for Coding',
@@ -120,15 +141,22 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     builtin: true,
     base_url: 'https://api.x.ai/v1',
     models: [
+      'grok-4.3',
       'grok-4.20-0309-reasoning',
       'grok-4.20-0309-non-reasoning',
       'grok-4.20-multi-agent-0309',
-      'grok-4-1-fast',
-      'grok-4-1-fast-non-reasoning',
-      'grok-4-fast',
-      'grok-4-fast-non-reasoning',
-      'grok-4',
-      'grok-code-fast-1',
+    ],
+  },
+  {
+    label: 'xAI Grok OAuth (SuperGrok Subscription)',
+    value: 'xai-oauth',
+    builtin: true,
+    base_url: 'https://api.x.ai/v1',
+    models: [
+      'grok-4.3',
+      'grok-4.20-0309-reasoning',
+      'grok-4.20-0309-non-reasoning',
+      'grok-4.20-multi-agent-0309',
     ],
   },
   {
@@ -367,39 +395,36 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     value: 'nous',
     builtin: true,
     base_url: 'https://inference-api.nousresearch.com/v1',
+    // Synced from:
+    // - https://hermes-agent.nousresearch.com/docs/api/model-catalog.json
+    // - https://portal.nousresearch.com/api/nous/recommended-models
     models: [
-      'moonshotai/kimi-k2.6',
-      'xiaomi/mimo-v2.5-pro',
-      'xiaomi/mimo-v2.5',
-      'tencent/hy3-preview',
       'anthropic/claude-opus-4.7',
       'anthropic/claude-opus-4.6',
       'anthropic/claude-sonnet-4.6',
-      'anthropic/claude-sonnet-4.5',
+      'moonshotai/kimi-k2.6',
+      'qwen/qwen3.6-plus',
       'anthropic/claude-haiku-4.5',
       'openai/gpt-5.5',
+      'openai/gpt-5.5-pro',
       'openai/gpt-5.4-mini',
+      'openai/gpt-5.4-nano',
       'openai/gpt-5.3-codex',
+      'xiaomi/mimo-v2.5-pro',
+      'xiaomi/mimo-v2.5',
+      'tencent/hy3-preview',
       'google/gemini-3-pro-preview',
       'google/gemini-3-flash-preview',
       'google/gemini-3.1-pro-preview',
       'google/gemini-3.1-flash-lite-preview',
-      'qwen/qwen3.5-plus-02-15',
-      'qwen/qwen3.5-35b-a3b',
+      'qwen/qwen3.6-35b-a3b',
       'stepfun/step-3.5-flash',
       'minimax/minimax-m2.7',
-      'minimax/minimax-m2.5',
-      'minimax/minimax-m2.5:free',
       'z-ai/glm-5.1',
-      'z-ai/glm-5v-turbo',
-      'z-ai/glm-5-turbo',
-      'x-ai/grok-4.20-beta',
       'x-ai/grok-4.3',
       'nvidia/nemotron-3-super-120b-a12b',
-      'arcee-ai/trinity-large-thinking',
-      'openai/gpt-5.5-pro',
-      'openai/gpt-5.4-nano',
       'deepseek/deepseek-v4-pro',
+      'deepseek/deepseek-v4-flash',
     ],
   },
   {

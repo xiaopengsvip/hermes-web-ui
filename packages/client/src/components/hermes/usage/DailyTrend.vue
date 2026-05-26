@@ -286,7 +286,13 @@ const maxTokens = computed(() =>
 
   th {
     color: $text-muted;
-    font-weight: 500;
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    background: rgba(var(--bg-card-rgb, 255, 255, 255), 0.45);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
   }
 
   td {
