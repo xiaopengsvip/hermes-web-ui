@@ -39,9 +39,9 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="usage-view">
-    <header class="page-header">
-      <h2 class="header-title">{{ t('usage.title') }}</h2>
+  <div class="usage-view lg-page">
+    <header class="lg-header lg-header-row">
+      <h2 class="lg-title">{{ t('usage.title') }}</h2>
       <div class="usage-toolbar">
         <div class="period-selector" role="group" aria-label="Usage statistics period">
           <NButton
@@ -91,23 +91,6 @@ onMounted(() => {
   flex-direction: column;
 }
 
-.page-header {
-  display: flex;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 21px 20px;
-  border-bottom: 1px solid $border-color;
-}
-
-.header-title {
-  margin: 0;
-  color: $text-primary;
-  font-size: 16px;
-  font-weight: 600;
-}
-
 .usage-toolbar,
 .period-selector {
   display: flex;
@@ -117,9 +100,11 @@ onMounted(() => {
 
 .period-selector {
   padding: 2px;
-  border: 1px solid $border-light;
+  border: 1px solid rgba(var(--border-color-rgb, 224, 224, 224), 0.2);
   border-radius: $radius-sm;
-  background: $bg-secondary;
+  background: rgba(var(--bg-card-rgb, 255, 255, 255), 0.3);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 .usage-content {
@@ -145,7 +130,7 @@ onMounted(() => {
 }
 
 @media (max-width: $breakpoint-mobile) {
-  .page-header,
+  .lg-header-row,
   .usage-toolbar {
     align-items: flex-start;
     flex-direction: column;
