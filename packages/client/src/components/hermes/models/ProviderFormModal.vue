@@ -427,6 +427,7 @@ function handleClose() {
 
     <CodexLoginModal
       v-if="showCodexLogin"
+      :preferred-model="formData.model"
       @close="showCodexLogin = false"
       @success="handleCodexSuccess"
     />
