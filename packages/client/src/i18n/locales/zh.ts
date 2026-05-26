@@ -127,6 +127,7 @@ export default {
     terminal: '终端',
     groupChat: '群聊',
     files: '文件',
+    tunnels: '隧道',
     groupConversation: '对话',
     groupConversationShort: '对话',
     groupPlatform: '平台',
@@ -1224,7 +1225,6 @@ export default {
     loadFailed: '技能用量加载失败',
     otherSkills: '其他技能',
   },
-
   // 文件管理
   files: {
     title: '文件',

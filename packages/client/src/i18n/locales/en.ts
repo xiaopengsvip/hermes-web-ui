@@ -127,6 +127,7 @@ export default {
     terminal: 'Terminal',
     groupChat: 'Group Chat',
     files: 'Files',
+    tunnels: 'Tunnels',
     groupConversation: 'Conversation',
     groupConversationShort: 'Conv',
     groupPlatform: 'Platform',
@@ -1224,6 +1225,30 @@ export default {
   },
 
   // Files
+  // Tunnels
+  tunnels: {
+    title: 'Tunnels',
+    subtitle: 'Temporarily expose local services to the public internet via Cloudflare Quick Tunnel.',
+    tip: 'Powered by Cloudflare Quick Tunnel. A restart may produce a new public URL.',
+    quickTunnel: 'Quick Tunnel',
+    quickTunnelDesc: 'Temporarily expose a local service via Cloudflare Quick Tunnel',
+    running: 'Running',
+    stopped: 'Stopped',
+    targetUrl: 'Local target URL',
+    targetPlaceholder: 'e.g. http://127.0.0.1:8650',
+    publicUrl: 'Public URL',
+    noPublicUrl: 'Not available yet. Start the tunnel first.',
+    generating: 'Generating public URL, please wait…',
+    restart: 'Restart Tunnel',
+    loadFailed: 'Failed to load tunnel status',
+    startSuccess: 'Tunnel started',
+    startFailed: 'Failed to start tunnel',
+    stopSuccess: 'Tunnel stopped',
+    stopFailed: 'Failed to stop tunnel',
+    restartSuccess: 'Tunnel restarted',
+    restartFailed: 'Failed to restart tunnel',
+    copyFailed: 'Copy failed',
+  },
   files: {
     title: 'Files',
     fileTree: 'File Tree',

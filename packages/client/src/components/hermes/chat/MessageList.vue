@@ -377,7 +377,7 @@ watch(currentToolCalls, () => {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  background-color: $bg-card;
+  background: rgba(var(--bg-card-rgb, 255, 255, 255), 0.4);
   position: relative;
 
   .dark & {
