@@ -19,6 +19,7 @@ import json
 import locale
 import os
 import queue
+import re
 import signal
 import shutil
 import socket
@@ -42,6 +43,12 @@ DEFAULT_HERMES_HOME = "~/.hermes"
 APPROVAL_TIMEOUT_SECONDS = 120
 APPROVAL_TIMEOUT_MS = APPROVAL_TIMEOUT_SECONDS * 1000
 PARENT_WATCHDOG_INTERVAL_SECONDS = 2.0
+OPENROUTER_ATTRIBUTION_ENV = {
+    "referer": "HERMES_OPENROUTER_APP_REFERER",
+    "title": "HERMES_OPENROUTER_APP_TITLE",
+    "categories": "HERMES_OPENROUTER_APP_CATEGORIES",
+}
+_SURROGATE_RE = re.compile("[\ud800-\udfff]")
 
 
 def _bridge_platform() -> str:
@@ -260,6 +267,25 @@ def _jsonable(value: Any) -> Any:
         return str(value)
 
 
+def _sanitize_surrogates(value: Any) -> Any:
+    if isinstance(value, str):
+        return _SURROGATE_RE.sub("\ufffd", value)
+    if isinstance(value, dict):
+        return {_sanitize_surrogates(k): _sanitize_surrogates(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_sanitize_surrogates(v) for v in value]
+    return value
+
+
+def _json_default(value: Any) -> str:
+    return _sanitize_surrogates(str(value))
+
+
+def _json_line_bytes(value: Any) -> bytes:
+    payload = json.dumps(_sanitize_surrogates(value), ensure_ascii=False, default=_json_default) + "\n"
+    return payload.encode("utf-8")
+
+
 def _agent_root() -> Path | None:
     return _find_agent_root(os.environ.get("HERMES_AGENT_ROOT"))
 
@@ -349,6 +375,32 @@ def _ensure_agent_imports() -> None:
         )
     os.environ.setdefault("HERMES_HOME", str(_hermes_home()))
     os.environ.setdefault("HERMES_AGENT_BRIDGE_BASE_HOME", str(_hermes_home()))
+    _apply_openrouter_attribution_override()
+
+
+def _apply_openrouter_attribution_override() -> None:
+    """Override hermes-agent OpenRouter attribution at bridge runtime only."""
+    referer = os.environ.get(OPENROUTER_ATTRIBUTION_ENV["referer"], "").strip()
+    title = os.environ.get(OPENROUTER_ATTRIBUTION_ENV["title"], "").strip()
+    categories = os.environ.get(OPENROUTER_ATTRIBUTION_ENV["categories"], "").strip()
+    if not (referer or title or categories):
+        return
+    try:
+        from agent import auxiliary_client
+    except Exception:
+        return
+    headers = dict(getattr(auxiliary_client, "_OR_HEADERS_BASE", {}) or {})
+    if referer:
+        headers["HTTP-Referer"] = referer
+    if title:
+        headers.pop("X-Title", None)
+        headers["X-OpenRouter-Title"] = title
+    if categories:
+        headers["X-OpenRouter-Categories"] = categories
+    try:
+        auxiliary_client._OR_HEADERS_BASE = headers
+    except Exception:
+        pass
 
 
 def _load_cfg(profile: str | None = None) -> dict[str, Any]:
@@ -740,7 +792,7 @@ class AgentPool:
                     session_db=self._db.get_for_profile(profile),
                     ephemeral_system_prompt=prompt,
                     status_callback=self._status_callback(session_id),
-                    thinking_callback=self._text_event_callback(session_id, "thinking.delta"),
+                    thinking_callback=self._make_thinking_callback(session_id),
                     reasoning_callback=self._text_event_callback(session_id, "reasoning.delta"),
                     tool_progress_callback=self._tool_progress_callback(session_id),
                     tool_start_callback=self._tool_start_callback(session_id),
@@ -989,6 +1041,28 @@ class AgentPool:
     def _text_event_callback(self, session_id: str, event_name: str):
         def callback(text):
             self._append_event(session_id, {"event": event_name, "text": str(text)})
+
+        return callback
+
+    def _make_thinking_callback(self, session_id: str):
+        """Create a thinking callback that never forwards spinner text as content.
+
+        The hermes-agent CLI uses thinking_callback for its KawaiiSpinner TUI
+        widget — sending decorative text like "(◕‿◕✿) pondering..." during
+        API calls.  This is pure CLI UX decoration; it has no place in Web UI
+        conversation history.
+
+        Prior behaviour forwarded this text as thinking.delta events, which the
+        frontend stored in the message reasoning field.  Over long conversations
+        this contaminated the model's context: the LLM learned to reproduce
+        kaomoji patterns, creating a self-reinforcing degradation loop.
+
+        This callback sends empty text unconditionally.  The model's real
+        reasoning content arrives through reasoning_callback → reasoning.delta,
+        which is unaffected.
+        """
+        def callback(text=None):
+            self._append_event(session_id, {"event": "thinking.delta", "text": ""})
 
         return callback
 
@@ -2339,8 +2413,9 @@ class WorkerProcess:
         return _send_bridge_request(self.endpoint, req, request_timeout)
 
 
-def _worker_endpoint(key: str) -> str:
-    safe = hashlib.sha256(key.encode("utf-8")).hexdigest()[:16]
+def _worker_endpoint(key: str, namespace: str | None = None) -> str:
+    namespace_key = f"{namespace or ''}\0{key}"
+    safe = hashlib.sha256(namespace_key.encode("utf-8")).hexdigest()[:16]
     if os.name == "nt":
         port_base = int(os.environ.get("HERMES_AGENT_BRIDGE_WORKER_PORT_BASE", "18780"))
         return f"tcp://127.0.0.1:{port_base + int(safe[:4], 16) % 1000}"
@@ -2366,7 +2441,7 @@ def _connect_bridge_socket(endpoint: str, timeout: float) -> socket.socket:
 def _send_bridge_request(endpoint: str, req: dict[str, Any], timeout: float) -> dict[str, Any]:
     sock = _connect_bridge_socket(endpoint, timeout)
     try:
-        sock.sendall((json.dumps(req, ensure_ascii=False, default=str) + "\n").encode("utf-8"))
+        sock.sendall(_json_line_bytes(req))
         chunks: list[bytes] = []
         while True:
             chunk = sock.recv(65536)
@@ -2521,8 +2596,7 @@ def _read_json_request(conn: socket.socket) -> dict[str, Any]:
 
 
 def _write_json_response(conn: socket.socket, resp: dict[str, Any]) -> None:
-    payload = json.dumps(resp, ensure_ascii=False, default=str) + "\n"
-    conn.sendall(payload.encode("utf-8"))
+    conn.sendall(_json_line_bytes(resp))
 
 
 class BridgeBroker:
@@ -2564,7 +2638,7 @@ class BridgeBroker:
         with self._lock:
             worker = self._workers.get(key)
             if worker is None:
-                worker = WorkerProcess(key, profile, _worker_endpoint(key), self.agent_root, self.hermes_home)
+                worker = WorkerProcess(key, profile, _worker_endpoint(key, self.endpoint), self.agent_root, self.hermes_home)
                 self._workers[key] = worker
         return worker
 
