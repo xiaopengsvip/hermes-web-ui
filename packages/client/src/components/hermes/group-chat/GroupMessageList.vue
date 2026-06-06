@@ -103,6 +103,24 @@ defineExpose({ scrollToBottom })
 <style scoped lang="scss">
 @use "@/styles/variables" as *;
 
+.message-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    background: rgba(var(--bg-card-rgb, 255, 255, 255), 0.4);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    position: relative;
+
+    .dark & {
+        background: rgba(var(--bg-card-rgb, 51, 51, 51), 0.4);
+    }
+}
+
+
 .empty-state {
     flex: 1;
     display: flex;

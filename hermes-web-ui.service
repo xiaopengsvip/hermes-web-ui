@@ -1,0 +1,16 @@
+[Unit]
+Description=Hermes Agent Web UI
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+Environment=PATH=/home/xiao2027/.local/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/bin/bash /home/xiao2027/hermes-web-ui/start.sh start
+ExecStop=/bin/bash /home/xiao2027/hermes-web-ui/start.sh stop
+Restart=on-failure
+RestartSec=5
+WorkingDirectory=/home/xiao2027/hermes-web-ui
+
+[Install]
+WantedBy=default.target

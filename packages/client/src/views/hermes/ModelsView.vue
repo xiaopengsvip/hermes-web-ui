@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import AuxiliaryModelsPanel from '@/components/hermes/models/AuxiliaryModelsPanel.vue'
 import ProvidersPanel from '@/components/hermes/models/ProvidersPanel.vue'
 import ProviderFormModal from '@/components/hermes/models/ProviderFormModal.vue'
+import CodexAccountsPanel from '@/components/hermes/models/CodexAccountsPanel.vue'
 import { useModelsStore } from '@/stores/hermes/models'
 import { useProfilesStore } from '@/stores/hermes/profiles'
 import { checkCopilotToken } from '@/api/hermes/copilot-auth'
@@ -53,13 +54,13 @@ async function handleRefreshModelCache() {
 </script>
 
 <template>
-  <div class="models-view">
+  <div class="models-view lg-page">
     <div v-if="modelsStore.refreshingModelCache" class="model-cache-overlay">
       <NSpin size="large" :description="t('models.refreshModelCacheLoading')" />
     </div>
 
-    <header class="page-header">
-      <h2 class="header-title">{{ t('models.title') }}</h2>
+    <header class="lg-header lg-header-row">
+      <h2 class="lg-title">{{ t('models.title') }}</h2>
       <div class="header-actions">
         <NButton
           size="small"
@@ -81,9 +82,10 @@ async function handleRefreshModelCache() {
       </div>
     </header>
 
-    <div class="models-content">
+    <div class="models-content lg-body">
       <AuxiliaryModelsPanel />
       <NSpin :show="modelsStore.loading && modelsStore.providers.length === 0">
+        <CodexAccountsPanel @refreshed="handleSaved" />
         <ProvidersPanel />
       </NSpin>
     </div>
@@ -119,7 +121,6 @@ async function handleRefreshModelCache() {
 .models-content {
   flex: 1;
   overflow-y: auto;
-  padding: 20px;
 }
 
 .header-actions {
