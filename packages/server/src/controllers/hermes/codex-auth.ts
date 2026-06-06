@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto'
 import { join, dirname } from 'path'
 import { homedir } from 'os'
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs'
-import { getActiveProfileName, getProfileDir } from '../../services/hermes/hermes-profile'
+import { getActiveProfileName, getProfileDir, getActiveAuthPath } from '../../services/hermes/hermes-profile'
 import { logger } from '../../services/logger'
 
 // --- OAuth Constants ---
