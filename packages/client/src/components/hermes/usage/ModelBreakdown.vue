@@ -69,11 +69,17 @@ function cacheHitRate(m: { inputTokens: number; cacheTokens: number }): string {
 @use '@/styles/variables' as *;
 
 .model-breakdown {
-  background: $bg-card;
-  border: 1px solid $border-color;
+  background: rgba(var(--bg-card-rgb, 255, 255, 255), 0.5);
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  border: 1px solid rgba(var(--border-color-rgb, 224, 224, 224), 0.2);
   border-radius: $radius-md;
   padding: 16px;
   margin-bottom: 20px;
+
+  .dark & {
+    background: rgba(var(--bg-card-rgb, 51, 51, 51), 0.4);
+  }
 }
 
 .section-title {
@@ -147,7 +153,7 @@ function cacheHitRate(m: { inputTokens: number; cacheTokens: number }): string {
 .model-bar-wrap {
   flex: 1;
   height: 16px;
-  background: $bg-secondary;
+  background: rgba(var(--bg-card-rgb, 255, 255, 255), 0.3);
   border-radius: 3px;
   overflow: hidden;
 }

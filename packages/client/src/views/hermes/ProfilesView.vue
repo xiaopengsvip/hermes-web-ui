@@ -33,9 +33,9 @@ function handleImported() {
 </script>
 
 <template>
-  <div class="profiles-view">
-    <header class="page-header">
-      <h2 class="header-title">{{ t('profiles.title') }}</h2>
+  <div class="profiles-view lg-page">
+    <header class="lg-header lg-header-row">
+      <h2 class="lg-title">{{ t('profiles.title') }}</h2>
       <div class="header-actions">
         <NButton size="small" @click="showImportModal = true">
           <template #icon>
@@ -59,7 +59,7 @@ function handleImported() {
       </div>
     </header>
 
-    <div class="profiles-content">
+    <div class="profiles-content lg-body">
       <NSpin :show="profilesStore.loading && profilesStore.profiles.length === 0">
         <ProfilesPanel @rename="renamingProfile = $event" />
       </NSpin>
@@ -93,6 +93,18 @@ function handleImported() {
   flex-direction: column;
 }
 
+.lg-header {
+  padding: 24px 28px 0;
+
+}
+
+.lg-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: $text-primary;
+  letter-spacing: -0.3px;
+}
+
 .header-actions {
   display: flex;
   align-items: center;
@@ -102,6 +114,5 @@ function handleImported() {
 .profiles-content {
   flex: 1;
   overflow-y: auto;
-  padding: 20px;
 }
 </style>

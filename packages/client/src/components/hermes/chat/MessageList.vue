@@ -503,6 +503,21 @@ defineExpose({
 <style scoped lang="scss">
 @use "@/styles/variables" as *;
 
+.message-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: rgba(var(--bg-card-rgb, 255, 255, 255), 0.4);
+  position: relative;
+
+  .dark & {
+    background-color: #333333;
+  }
+}
+
 .queue-float-panel {
   position: sticky;
   right: 16px;

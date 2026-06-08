@@ -253,18 +253,41 @@ export class GatewayManager {
       }
     } catch {}
 
+    // Fallback: check gateway_state.json (written by `hermes gateway run`).
+    // Treat an explicit stopped state as authoritative so stale runtime scans do not
+    // override profile-scoped state files or test homes.
     const statePath = join(profilePath, 'gateway_state.json')
-    if (!existsSync(statePath)) return null
+    if (existsSync(statePath)) {
+      try {
+        const content = readFileSync(statePath, 'utf-8').trim()
+        const data = JSON.parse(content)
+        const pid = typeof data.pid === 'number' ? data.pid : parseInt(data.pid, 10) || null
+        const state = data?.gateway_state
+        if (pid && Number.isFinite(pid) && pid > 0 && (!state || state === 'running' || state === 'starting')) {
+          return pid
+        }
+        return null
+      } catch { }
+    }
+
+    // Final fallback: scan for a legacy default-profile gateway process only.
+    // Non-default profiles must be resolved from profile-scoped pid/state files;
+    // otherwise a running default gateway can be incorrectly attributed to them.
+    if (name !== 'default') return null
 
     try {
-      const content = readFileSync(statePath, 'utf-8').trim()
-      const data = JSON.parse(content)
-      const pid = typeof data.pid === 'number' ? data.pid : parseInt(data.pid, 10) || null
-      const state = data?.gateway_state
-      return pid && Number.isFinite(pid) && pid > 0 && (state === 'running' || state === 'starting') ? pid : null
-    } catch {
-      return null
-    }
+      const { execSync } = require('child_process')
+      const output = execSync('ps -eo pid,cmd | grep "hermes.*gateway run" | grep -v grep', { encoding: 'utf-8', timeout: 3000 })
+      for (const line of output.trim().split('\n')) {
+        const match = line.trim().match(/^(\d+)/)
+        if (match) {
+          const pid = parseInt(match[1], 10)
+          if (pid && this.isProcessAlive(pid)) return pid
+        }
+      }
+    } catch { }
+
+    return null
   }
 
   // ============================

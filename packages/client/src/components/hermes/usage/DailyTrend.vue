@@ -119,10 +119,16 @@ const maxTokens = computed(() =>
 @use '@/styles/variables' as *;
 
 .daily-trend {
-  background: $bg-card;
-  border: 1px solid $border-color;
+  background: rgba(var(--bg-card-rgb, 255, 255, 255), 0.5);
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  border: 1px solid rgba(var(--border-color-rgb, 224, 224, 224), 0.2);
   border-radius: $radius-md;
   padding: 16px;
+
+  .dark & {
+    background: rgba(var(--bg-card-rgb, 51, 51, 51), 0.4);
+  }
 }
 
 .section-title {
@@ -150,7 +156,7 @@ const maxTokens = computed(() =>
 .bar-track {
   width: 100%;
   height: 140px;
-  background: $bg-secondary;
+  background: rgba(var(--bg-card-rgb, 255, 255, 255), 0.3);
   border-radius: 2px 2px 0 0;
   display: flex;
   align-items: flex-end;
@@ -280,7 +286,13 @@ const maxTokens = computed(() =>
 
   th {
     color: $text-muted;
-    font-weight: 500;
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    background: rgba(var(--bg-card-rgb, 255, 255, 255), 0.45);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
   }
 
   td {
