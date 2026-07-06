@@ -43,6 +43,11 @@
 | 工作区工具 | 提供文件浏览器、Web 终端、语音输入输出、Coding Agent、设备发现和性能视图。 |
 | 分发形态 | 支持 Windows/macOS/Linux 桌面应用、npm CLI 包和 Docker 镜像。 |
 
+## 本地部署更新说明
+
+- 2026-05-13 已将 `chat.allapple.top` 本地部署从 Web UI `0.5.8` 升级到 `0.5.17`（官方 release tag `v0.5.18`），并保留本地配置、Liquid Glass、Cloudflare Tunnel、Codex 多账号和消息页账号/模型快捷切换等定制能力。
+- 详细说明见：[docs/upgrade-2026-05-13-v0.5.17.md](./docs/upgrade-2026-05-13-v0.5.17.md)
+
 ## 功能特性
 
 ### AI 聊天

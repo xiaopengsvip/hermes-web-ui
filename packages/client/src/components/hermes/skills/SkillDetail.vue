@@ -435,7 +435,9 @@ watch(() => `${props.target || 'hermes'}/${props.category}/${props.skill}`, load
   padding: 4px 8px;
   border: 1px solid $border-color;
   border-radius: $radius-sm;
-  background: $bg-secondary;
+  background: rgba(var(--bg-card-rgb, 255, 255, 255), 0.3);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   color: $text-secondary;
   font-size: 12px;
   cursor: pointer;

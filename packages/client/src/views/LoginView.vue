@@ -65,6 +65,11 @@ async function handlePasswordLogin() {
 
 <template>
   <div class="login-view">
+    <div class="ambient">
+      <div class="blob blob-1"></div>
+      <div class="blob blob-2"></div>
+      <div class="blob blob-3"></div>
+    </div>
     <div class="login-card">
       <div class="login-logo">
         <img src="/logo.png" alt="Hermes" width="80" height="80" />
@@ -117,17 +122,29 @@ async function handlePasswordLogin() {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: $bg-primary;
+  background: transparent;
+  position: relative;
+  overflow: hidden;
 }
 
 .login-card {
   width: 480px;
   max-width: calc(100vw - 32px);
   padding: 56px;
-  border: 1px solid $border-color;
+  border: 1px solid rgba(var(--border-color-rgb, 224, 224, 224), 0.2);
   border-radius: $radius-lg;
-  background: $bg-card;
+  background: rgba(var(--bg-card-rgb, 255, 255, 255), 0.7);
+  backdrop-filter: blur(24px) saturate(1.4);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.24);
   text-align: center;
+  position: relative;
+  z-index: 1;
+
+  .dark & {
+    background: rgba(var(--bg-card-rgb, 60, 60, 60), 0.65);
+    box-shadow: 0 18px 52px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
 
   @media (max-width: $breakpoint-mobile) {
     padding: 32px 24px;
@@ -168,13 +185,15 @@ async function handlePasswordLogin() {
 .login-input {
   width: 100%;
   padding: 14px 16px;
-  border: 1px solid $border-color;
+  border: 1px solid rgba(var(--border-color-rgb, 224, 224, 224), 0.3);
   border-radius: $radius-sm;
   font-size: 15px;
   color: $text-primary;
-  background: $bg-input;
+  background: rgba(var(--bg-input-rgb, 255, 255, 255), 0.5);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   outline: none;
-  transition: border-color $transition-fast;
+  transition: border-color $transition-fast, box-shadow $transition-fast;
   box-sizing: border-box;
   font-family: $font-code;
 
@@ -183,7 +202,8 @@ async function handlePasswordLogin() {
   }
 
   &:focus {
-    border-color: $accent-primary;
+    border-color: rgba(var(--accent-primary-rgb), 0.5);
+    box-shadow: 0 0 0 3px rgba(var(--accent-primary-rgb), 0.1);
   }
 }
 
@@ -217,20 +237,73 @@ async function handlePasswordLogin() {
   padding: 14px;
   border: none;
   border-radius: $radius-sm;
-  background: $text-primary;
+  background: rgba(var(--accent-primary-rgb, 51, 51, 51), 0.85);
   color: var(--text-on-accent);
   font-size: 15px;
   font-weight: 500;
   cursor: pointer;
-  transition: opacity $transition-fast;
+  transition: all 0.25s ease;
+  position: relative;
+  overflow: hidden;
 
-  &:hover {
-    opacity: 0.85;
+  &:hover:not(:disabled) {
+    background: rgba(var(--accent-primary-rgb, 51, 51, 51), 0.95);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 16px rgba(var(--accent-primary-rgb, 51, 51, 51), 0.25);
   }
 
   &:disabled {
     opacity: 0.5;
     cursor: not-allowed;
   }
+}
+
+/* Ambient blobs */
+.ambient {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 0;
+}
+
+.blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.3;
+  animation: lg-float 20s ease-in-out infinite;
+}
+
+.blob-1 {
+  width: 300px;
+  height: 300px;
+  background: var(--accent-info, #6ba3d6);
+  top: -80px;
+  right: -60px;
+}
+
+.blob-2 {
+  width: 250px;
+  height: 250px;
+  background: var(--success, #66bb6a);
+  bottom: -40px;
+  left: -60px;
+  animation-delay: -7s;
+}
+
+.blob-3 {
+  width: 200px;
+  height: 200px;
+  background: var(--accent-primary, #e0e0e0);
+  top: 50%;
+  left: 60%;
+  animation-delay: -14s;
+}
+
+@keyframes lg-float {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(30px, -20px) scale(1.05); }
+  66% { transform: translate(-20px, 15px) scale(0.95); }
 }
 </style>

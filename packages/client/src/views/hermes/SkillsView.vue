@@ -165,10 +165,10 @@ function handleSkillSaved() {
 </script>
 
 <template>
-  <div class="skills-view">
-    <header class="page-header">
+  <div class="skills-view lg-page">
+    <header class="lg-header lg-header-row">
       <div style="display: flex; align-items: center; gap: 8px;">
-        <h2 class="header-title">{{ t('skills.title') }}</h2>
+        <h2 class="lg-title">{{ t('skills.title') }}</h2>
         <button v-if="!showSidebar" class="sidebar-toggle" @click="showSidebar = true">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
         </button>
@@ -270,7 +270,7 @@ function handleSkillSaved() {
       </NDrawerContent>
     </NDrawer>
 
-    <div class="skills-content">
+    <div class="skills-content lg-body">
       <div v-if="loading && categories.length === 0" class="skills-loading">{{ t('common.loading') }}</div>
       <div v-else class="skills-layout">
           <div class="mobile-backdrop" :class="{ active: showSidebar }" @click="showSidebar = false" />
@@ -502,7 +502,9 @@ function handleSkillSaved() {
     top: 0;
     height: 100%;
     z-index: 10;
-    background: $bg-card;
+    background: rgba(var(--bg-card-rgb, 255, 255, 255), 0.45);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
     box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
   }
 

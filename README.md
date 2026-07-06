@@ -35,6 +35,11 @@
 | Workspace tools | Provides a file browser, web terminal, voice input/output, coding-agent runners, device discovery, and performance views. |
 | Distribution | Ships as a desktop app for Windows/macOS/Linux, an npm CLI package, and a Docker image. |
 
+## Local deployment update notes
+
+- On 2026-05-13, the `chat.allapple.top` local deployment was upgraded from Web UI `0.5.8` to `0.5.17` (official release tag `v0.5.18`) while preserving local configuration and custom features such as Liquid Glass styling, Cloudflare Tunnel management, Codex multi-account auth, and in-chat account/model switching.
+- Details: [docs/upgrade-2026-05-13-v0.5.17.md](./docs/upgrade-2026-05-13-v0.5.17.md)
+
 ## Features
 
 ### AI Chat
